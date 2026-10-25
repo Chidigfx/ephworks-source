@@ -1,49 +1,184 @@
 // Every company, person, job, and remuneration figure below is fictional demo data.
 export const SAMPLE_JOBS = [
   {
-    id: 'mkt-01', title: 'Marketing & Communications Executive', company: 'Olive & Field Studio',
-    emirate: 'Dubai', type: 'Full-time', mode: 'On-site', salary: 'AED 7,000 – 9,000',
-    category: 'Marketing', initials: 'OF', hue: 'sage',
-    hours: 'Monday–Friday · 9 am–6 pm', sponsorship: 'Employer proposes sponsorship, subject to eligibility and required approvals. Required work authorisation must be in place before starting.',
+    id: 'mkt-01',
+    title: 'Marketing & Communications Executive',
+    company: 'Olive & Field Studio',
+    emirate: 'Dubai',
+    type: 'Full-time',
+    mode: 'On-site',
+    salary: 'AED 7,000 – 9,000',
+    category: 'Marketing',
+    initials: 'OF',
+    hue: 'sage',
+    hours: 'Monday–Friday · 9 am–6 pm',
+    daysLeft: 26,
+    postedAgo: '4 days ago',
+    verifiedWithEmployer: true,
+    verificationNote: 'Moderator verified role & salary directly with Olive & Field Studio HR. Zero candidate fees confirmed.',
+    directEmail: 'careers@oliveandfield.ae',
+    directPortal: 'https://oliveandfield.ae/jobs/mkt-exec',
+    sponsorship: 'Employer proposes sponsorship, subject to eligibility and required approvals. Required work authorisation must be in place before starting.',
     description: 'Help a small creative studio tell thoughtful stories. You’ll support campaign planning, write clear content, and work with a collaborative design team.',
-    responsibilities: ['Plan and maintain the monthly content calendar.', 'Write and coordinate content across digital channels.', 'Track campaign results and share practical improvements.'],
+    responsibilities: [
+      'Plan and maintain the monthly content calendar.',
+      'Write and coordinate content across digital channels.',
+      'Track campaign results and share practical improvements.'
+    ],
     requirements: ['Content planning', 'Communication', '2+ years experience']
   },
   {
-    id: 'adm-02', title: 'Administrative Coordinator', company: 'Cedar Lane Services',
-    emirate: 'Sharjah', type: 'Full-time', mode: 'On-site', salary: 'AED 4,500 – 6,000',
-    category: 'Administration', initials: 'CL', hue: 'sand',
-    hours: 'Monday–Friday · 9 am–6 pm', sponsorship: 'Work authorisation depends on applicable permissions and approvals.',
+    id: 'adm-02',
+    title: 'Administrative Coordinator',
+    company: 'Cedar Lane Services',
+    emirate: 'Sharjah',
+    type: 'Full-time',
+    mode: 'On-site',
+    salary: 'AED 4,500 – 6,000',
+    category: 'Administration',
+    initials: 'CL',
+    hue: 'sand',
+    hours: 'Monday–Friday · 9 am–6 pm',
+    daysLeft: 19,
+    postedAgo: '11 days ago',
+    verifiedWithEmployer: true,
+    verificationNote: 'Verified directly with Cedar Lane Operations team. Trade license and zero-fee compliance checked.',
+    directEmail: 'hiring@cedarlane.ae',
+    directPortal: 'https://cedarlane.ae/careers/admin-coord',
+    sponsorship: 'Work authorisation depends on applicable permissions and approvals.',
     description: 'Support a friendly operations team by organising schedules, records and day-to-day communication.',
-    responsibilities: ['Coordinate appointments and follow-ups.', 'Keep records accurate and easy to find.', 'Support visitors and internal teams.'],
+    responsibilities: [
+      'Coordinate appointments and follow-ups.',
+      'Keep records accurate and easy to find.',
+      'Support visitors and internal teams.'
+    ],
     requirements: ['Organisation', 'Email communication', 'Office software']
   },
   {
-    id: 'des-03', title: 'Junior Graphic Designer', company: 'Northlight Creative',
-    emirate: 'Dubai', type: 'Full-time', mode: 'Hybrid', salary: 'AED 5,000 – 7,000',
-    category: 'Design', initials: 'NC', hue: 'blue',
-    hours: 'Monday–Friday · Flexible core hours', sponsorship: 'Appropriate work authorisation is required before any employment begins.',
+    id: 'des-03',
+    title: 'Junior Graphic Designer',
+    company: 'Northlight Creative',
+    emirate: 'Dubai',
+    type: 'Full-time',
+    mode: 'Hybrid',
+    salary: 'AED 5,000 – 7,000',
+    category: 'Design',
+    initials: 'NC',
+    hue: 'blue',
+    hours: 'Monday–Friday · Flexible core hours',
+    daysLeft: 22,
+    postedAgo: '8 days ago',
+    verifiedWithEmployer: true,
+    verificationNote: 'Verified with Northlight Creative Studio Director. Confirmed direct hire, no agent commissions.',
+    directEmail: 'jobs@northlightcreative.ae',
+    directPortal: 'https://northlightcreative.ae/join-us',
+    sponsorship: 'Appropriate work authorisation is required before any employment begins.',
     description: 'Create thoughtful digital and print graphics while learning from an experienced small design team.',
-    responsibilities: ['Prepare layouts for social and digital channels.', 'Adapt brand assets across different sizes.', 'Collaborate on design reviews.'],
+    responsibilities: [
+      'Prepare layouts for social and digital channels.',
+      'Adapt brand assets across different sizes.',
+      'Collaborate on design reviews.'
+    ],
     requirements: ['Design fundamentals', 'Figma or Adobe tools', 'Portfolio samples']
   },
   {
-    id: 'exp-04', title: 'Customer Experience Associate', company: 'Harbour House Retail',
-    emirate: 'Abu Dhabi', type: 'Full-time', mode: 'On-site', salary: 'AED 4,000 – 5,500',
-    category: 'Customer Service', initials: 'HH', hue: 'rose',
-    hours: 'Shift rota · Details at interview', sponsorship: 'Subject to employment authorisation and applicable approvals.',
+    id: 'exp-04',
+    title: 'Customer Experience Associate',
+    company: 'Harbour House Retail',
+    emirate: 'Abu Dhabi',
+    type: 'Full-time',
+    mode: 'On-site',
+    salary: 'AED 4,000 – 5,500',
+    category: 'Customer Service',
+    initials: 'HH',
+    hue: 'rose',
+    hours: 'Shift rota · Details at interview',
+    daysLeft: 14,
+    postedAgo: '16 days ago',
+    verifiedWithEmployer: true,
+    verificationNote: 'Verified directly with Harbour House HR. Verified retail premises and legal contract terms.',
+    directEmail: 'retail-careers@harbourhouse.ae',
+    directPortal: 'https://harbourhouse.ae/careers',
+    sponsorship: 'Subject to employment authorisation and applicable approvals.',
     description: 'Help customers feel welcome, answer everyday questions and support a calm, organised retail experience.',
-    responsibilities: ['Welcome and assist customers.', 'Maintain accurate daily handovers.', 'Resolve routine customer queries.'],
+    responsibilities: [
+      'Welcome and assist customers.',
+      'Maintain accurate daily handovers.',
+      'Resolve routine customer queries.'
+    ],
     requirements: ['Empathy', 'Customer support', 'Clear communication']
   },
   {
-    id: 'acc-05', title: 'Accounts Support Assistant', company: 'Cedar Lane Services',
-    emirate: 'Sharjah', type: 'Part-time', mode: 'On-site', salary: 'AED 3,000 – 4,000',
-    category: 'Finance', initials: 'CL', hue: 'sand',
-    hours: 'Part-time · To be agreed', sponsorship: 'Any part-time work permit or other required approval must be obtained before work begins.',
+    id: 'acc-05',
+    title: 'Accounts Support Assistant',
+    company: 'Cedar Lane Services',
+    emirate: 'Sharjah',
+    type: 'Part-time',
+    mode: 'On-site',
+    salary: 'AED 3,000 – 4,000',
+    category: 'Finance',
+    initials: 'CL',
+    hue: 'sand',
+    hours: 'Part-time · To be agreed',
+    daysLeft: 28,
+    postedAgo: '2 days ago',
+    verifiedWithEmployer: true,
+    verificationNote: 'Verified with Cedar Lane Finance Manager. Confirmed direct part-time opportunity.',
+    directEmail: 'finance-team@cedarlane.ae',
+    directPortal: 'https://cedarlane.ae/careers/accounts-assist',
+    sponsorship: 'Any part-time work permit or other required approval must be obtained before work begins.',
     description: 'Assist a small finance team with receipts, invoices and simple reconciliations.',
-    responsibilities: ['Organise invoices and expense records.', 'Help prepare basic spreadsheets.', 'Flag discrepancies for review.'],
+    responsibilities: [
+      'Organise invoices and expense records.',
+      'Help prepare basic spreadsheets.',
+      'Flag discrepancies for review.'
+    ],
     requirements: ['Attention to detail', 'Spreadsheets', 'Basic bookkeeping']
+  }
+]
+
+export const CAREER_SUPPORT_MODULES = [
+  {
+    id: 'cv-review',
+    title: 'Volunteer CV Review',
+    icon: 'file-check',
+    badge: '1-on-1 Feedback',
+    summary: 'Receive structured, line-by-line feedback from volunteer UAE HR professionals to tailor your CV to local hiring standards.',
+    highlights: [
+      'Tailored feedback for UAE ATS systems',
+      'Clarity on achievements vs daily tasks',
+      'Formatting and layout refinement'
+    ],
+    turnaround: 'Typically 48–72 hours',
+    volunteersCount: '12 active HR volunteers'
+  },
+  {
+    id: 'mock-interview',
+    title: 'Mock Interview Practice',
+    icon: 'sparkles',
+    badge: 'Live 30-min Prep',
+    summary: 'Practice answering behavioral, competency, and situational questions in a safe, encouraging environment before facing real employers.',
+    highlights: [
+      'STAR technique (Situation, Task, Action, Result)',
+      'Practical UAE workplace cultural pointers',
+      'Constructive verbal and confidence tips'
+    ],
+    turnaround: 'Flexible slots evenings & weekends',
+    volunteersCount: '8 volunteer managers'
+  },
+  {
+    id: 'linkedin-help',
+    title: 'LinkedIn Profile Polish',
+    icon: 'users',
+    badge: 'Visibility Polish',
+    summary: 'Optimize your LinkedIn headline, summary, and experience section so legitimate hiring managers and recruiters can discover you.',
+    highlights: [
+      'Keyword optimization for your industry',
+      'Compelling professional summary statement',
+      'Professional photo and banner best practices'
+    ],
+    turnaround: 'Self-paced or 1-on-1 check',
+    volunteersCount: '6 digital mentors'
   }
 ]
 
@@ -53,27 +188,90 @@ export const SAMPLE_VOLUNTEER = [
   { title: 'Event Welcome Volunteer', group: 'Community hospitality group', location: 'Dubai', commitment: 'One Saturday', summary: 'Welcome guests and help coordinate a friendly community meetup.' }
 ]
 
+export const TRUST_PILLARS = [
+  {
+    num: '1',
+    title: 'Verified People',
+    kicker: 'TRUSTED CIRCLE',
+    desc: 'Every member is vouched by their local church community, keeping out random fake agents, scammers, and scrapers.',
+    legalNote: 'Used strictly for peer trust and safety, not religious exclusion. Complies with UAE Anti-Discrimination & Data Protection laws.'
+  },
+  {
+    num: '2',
+    title: 'Verified Jobs',
+    kicker: 'MODERATED NOTICEBOARD',
+    desc: 'Moderators check directly with the company before any role goes live. Automatic keyword blocking stops fees, deposits, and visa charges instantly.',
+    legalNote: 'Posts expire automatically after 30 days to guarantee freshness and prevent dead zombie listings.'
+  },
+  {
+    num: '3',
+    title: 'Real Support',
+    kicker: 'JOB-READY CONFIDENCE',
+    desc: 'Volunteer CV review, mock interviews, and LinkedIn assistance from experienced professionals so people are truly prepared for the workplace.',
+    legalNote: 'Not just passive links: hands-on community care that social media groups cannot offer.'
+  }
+]
+
+export const SAMPLE_VOUCH_REQUESTS = [
+  {
+    id: 'vouch-01',
+    name: 'Sarah Chen',
+    email: 's.chen@example.ae',
+    requestedDate: 'Yesterday',
+    church: "St. Luke's Dubai",
+    status: 'Pending Church Admin Vouch',
+    initials: 'SC',
+    note: 'Known in congregation since 2023. Seeking design & comms opportunities.'
+  },
+  {
+    id: 'vouch-02',
+    name: 'David Okafor',
+    email: 'd.okafor@example.ae',
+    requestedDate: '2 days ago',
+    church: "St. Luke's Dubai",
+    status: 'Pending Church Admin Vouch',
+    initials: 'DO',
+    note: 'Attends community fellowship. Exploring operations / admin roles.'
+  },
+  {
+    id: 'vouch-03',
+    name: 'Priya Nair',
+    email: 'priya.n@example.ae',
+    requestedDate: '3 days ago',
+    church: "St. Luke's Dubai",
+    status: 'Vouched Member',
+    initials: 'PN',
+    note: 'Identity and community standing verified. Minimal data payload.'
+  }
+]
+
 export const NAV = {
   seeker: [
-    { id: 'opportunities', label: 'Opportunities', icon: 'briefcase' },
-    { id: 'interests', label: 'My interests', icon: 'bookmark' },
-    { id: 'career', label: 'Career support', icon: 'sparkles' },
+    { id: 'opportunities', label: 'Verified noticeboard', icon: 'briefcase' },
+    { id: 'career', label: 'Real support', icon: 'sparkles' },
+    { id: 'interests', label: 'My tracked roles', icon: 'bookmark' },
     { id: 'volunteering', label: 'Volunteering', icon: 'heart' },
-    { id: 'churches', label: 'For churches', icon: 'users' },
+    { id: 'churches', label: 'Church vouching & trust', icon: 'users' },
     { id: 'profile', label: 'Profile & privacy', icon: 'shield' }
   ],
   employer: [
-    { id: 'opportunities', label: 'Community board', icon: 'briefcase' },
-    { id: 'post', label: 'Create sample post', icon: 'plus' },
+    { id: 'opportunities', label: 'Noticeboard', icon: 'briefcase' },
+    { id: 'post', label: 'Post opportunity', icon: 'plus' },
     { id: 'drafts', label: 'My sample posts', icon: 'file' },
-    { id: 'guidelines', label: 'Posting guidelines', icon: 'shield' },
+    { id: 'guidelines', label: 'Posting & legal standards', icon: 'shield' },
     { id: 'profile', label: 'Profile & privacy', icon: 'users' }
   ],
   moderator: [
-    { id: 'review', label: 'Review queue', icon: 'check' },
-    { id: 'reports', label: 'Reports', icon: 'flag' },
-    { id: 'opportunities', label: 'Community board', icon: 'briefcase' },
-    { id: 'guidelines', label: 'Community standards', icon: 'shield' },
+    { id: 'review', label: 'Verification queue', icon: 'check' },
+    { id: 'reports', label: 'Safety team reports', icon: 'flag' },
+    { id: 'opportunities', label: 'Noticeboard preview', icon: 'briefcase' },
+    { id: 'guidelines', label: 'Trust & safety standards', icon: 'shield' },
     { id: 'profile', label: 'Profile & privacy', icon: 'users' }
+  ],
+  church: [
+    { id: 'vouch', label: 'Member vouch queue', icon: 'users' },
+    { id: 'invite', label: 'Congregation invite pass', icon: 'sparkles' },
+    { id: 'privacyAudit', label: 'UAE privacy & legal audit', icon: 'shield' },
+    { id: 'opportunities', label: 'Noticeboard preview', icon: 'briefcase' }
   ]
 }

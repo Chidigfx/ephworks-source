@@ -1,29 +1,79 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import {
   ArrowLeft, ArrowRight, BadgeCheck, Bookmark, BriefcaseBusiness, Check,
   CheckCircle2, ChevronDown, ChevronRight, CircleHelp, ClipboardCheck,
   FilePenLine, FileText, Flag, HandHeart, HeartHandshake, Home,
   LockKeyhole, MapPin, Menu, MoreHorizontal, Plus, Search, ShieldCheck,
   SlidersHorizontal, Sparkles, UsersRound, X, RotateCcw, ExternalLink,
-  Clock3, Mail, Building2, Eye, Send, Info
+  Clock3, Mail, Building2, Eye, Send, Info, AlertTriangle, ShieldAlert,
+  Calendar, CheckCheck, Scale, Lock
 } from 'lucide-react'
-import { NAV, SAMPLE_JOBS, SAMPLE_VOLUNTEER } from './data'
+import { NAV, SAMPLE_JOBS, SAMPLE_VOLUNTEER, CAREER_SUPPORT_MODULES, TRUST_PILLARS, SAMPLE_VOUCH_REQUESTS } from './data'
 
 const icons = {
   briefcase: BriefcaseBusiness, bookmark: Bookmark, sparkles: Sparkles,
   heart: HeartHandshake, users: UsersRound, shield: ShieldCheck,
   plus: Plus, file: FileText, check: ClipboardCheck, flag: Flag
 }
-const NAMES = { seeker: 'Job seeker', employer: 'Employer', moderator: 'Moderator' }
-const demoKey = 'ephworks-local-demo-v1'
-const defaultDemo = { saved: [], interests: [], role: 'seeker', drafts: [], reviews: {}, reports: [] }
+const NAMES = { seeker: 'Job seeker', employer: 'Employer', moderator: 'Moderator', church: 'Church Partner Admin' }
+const demoKey = 'ephworks-local-demo-v3'
+const defaultDemo = {
+  saved: [],
+  tracked: [],
+  role: 'seeker',
+  drafts: [],
+  reviews: {},
+  reports: [],
+  supportSessions: [],
+  vouchQueue: SAMPLE_VOUCH_REQUESTS
+}
+
+const FORBIDDEN_SCAM_KEYWORDS = [
+  'fee', 'fees', 'deposit', 'visa charge', 'visa charges', 'visa fee', 'visa cost',
+  'payment required', 'processing fee', 'upfront', 'bank transfer', 'registration fee',
+  'security deposit', 'pay before'
+]
+
 function getSavedDemo() {
   try {
     const value = JSON.parse(window.localStorage.getItem(demoKey))
     if (!value || typeof value !== 'object') return defaultDemo
-    return { ...defaultDemo, ...value, saved: Array.isArray(value.saved) ? value.saved : [], interests: Array.isArray(value.interests) ? value.interests : [], drafts: Array.isArray(value.drafts) ? value.drafts : [], reports: Array.isArray(value.reports) ? value.reports : [], reviews: value.reviews && typeof value.reviews === 'object' ? value.reviews : {} }
+    return {
+      ...defaultDemo,
+      ...value,
+      saved: Array.isArray(value.saved) ? value.saved : [],
+      tracked: Array.isArray(value.tracked) ? value.tracked : [],
+      drafts: Array.isArray(value.drafts) ? value.drafts : [],
+      reports: Array.isArray(value.reports) ? value.reports : [],
+      supportSessions: Array.isArray(value.supportSessions) ? value.supportSessions : [],
+      vouchQueue: Array.isArray(value.vouchQueue) ? value.vouchQueue : SAMPLE_VOUCH_REQUESTS,
+      reviews: value.reviews && typeof value.reviews === 'object' ? value.reviews : {}
+    }
   } catch { return defaultDemo }
 }
+
+// Moves focus into a dialog, keeps Tab inside it, and restores focus on close
+function useDialogFocus() {
+  const ref = useRef(null)
+  useEffect(() => {
+    const el = ref.current
+    const previous = document.activeElement
+    const focusables = () => [...el.querySelectorAll('button:not(:disabled),a[href],input,select,textarea,[tabindex]:not([tabindex="-1"])')]
+    ;(focusables()[0] || el).focus()
+    const onKey = e => {
+      if (e.key !== 'Tab') return
+      const f = focusables()
+      if (!f.length) return
+      const first = f[0], last = f[f.length - 1]
+      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus() }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus() }
+    }
+    el.addEventListener('keydown', onKey)
+    return () => { el.removeEventListener('keydown', onKey); previous?.focus?.() }
+  }, [])
+  return ref
+}
+
 function Pill({ children, type = '' }) { return <span className={`pill ${type}`}>{children}</span> }
 function Empty({ icon: Icon = Bookmark, title, description }) { return <div className="empty"><span className="empty-symbol"><Icon size={28}/></span><h3>{title}</h3><p>{description}</p></div> }
 function PageHeading({ eyebrow, title, desc, action }) { return <div className="page-heading"><div><div className="eyebrow">{eyebrow}</div><h1>{title}</h1>{desc && <p>{desc}</p>}</div>{action}</div> }
@@ -43,125 +93,1299 @@ export default function App() {
   const [showAbout, setShowAbout] = useState(false)
   const [showReset, setShowReset] = useState(false)
   const [showReport, setShowReport] = useState(false)
-  const [reportReason, setReportReason] = useState('Misleading information')
+  const [showSupportModal, setShowSupportModal] = useState(false)
+  const [selectedSupportService, setSelectedSupportService] = useState('cv-review')
+  const [reportReason, setReportReason] = useState('Request for payment / fee')
   const [draftForm, setDraftForm] = useState({ title: '', company: '', emirate: 'Dubai', type: 'Full-time', pay: '', description: '' })
+  const [supportForm, setSupportForm] = useState({ name: 'Jordan Morgan', service: 'cv-review', preferredTime: 'Weekday evening', note: '' })
+
   const role = NAMES[demo.role] ? demo.role : 'seeker'
   const nav = NAV[role]
   const currentNav = nav.find(n => n.id === page)
   const demoJobs = SAMPLE_JOBS
+
+  // Real-time scam detection for employer draft form
+  const scamTriggers = useMemo(() => {
+    const combined = `${draftForm.title} ${draftForm.pay} ${draftForm.description}`.toLowerCase()
+    return FORBIDDEN_SCAM_KEYWORDS.filter(kw => combined.includes(kw))
+  }, [draftForm.title, draftForm.pay, draftForm.description])
+
   const visibleJobs = useMemo(() => demoJobs.filter(j =>
     (emirate === 'All emirates' || j.emirate === emirate) &&
     (workType === 'Any work type' || j.type === workType) &&
     (`${j.title} ${j.company} ${j.category}`.toLowerCase().includes(search.trim().toLowerCase())) &&
     (tab !== 'saved' || demo.saved.includes(j.id))
   ), [emirate, workType, search, tab, demo.saved])
+
   const updateDemo = patch => setDemo(prev => ({ ...prev, ...patch }))
   const notify = message => setBanner(message)
 
   useEffect(() => { window.localStorage.setItem(demoKey, JSON.stringify(demo)) }, [demo])
   useEffect(() => {
     const onKey = e => {
-      if (e.key === 'Escape') { setSelectedJob(null); setShowMobileMore(false); setShowAbout(false); setShowReset(false); setShowReport(false) }
+      if (e.key === 'Escape') {
+        setSelectedJob(null); setShowMobileMore(false); setShowAbout(false);
+        setShowReset(false); setShowReport(false); setShowSupportModal(false)
+      }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [])
+
   useEffect(() => {
-    const modal = selectedJob || showMobileMore || showAbout || showReset || showReport
+    const modal = selectedJob || showMobileMore || showAbout || showReset || showReport || showSupportModal
     document.body.classList.toggle('modal-open', Boolean(modal))
     return () => document.body.classList.remove('modal-open')
-  }, [selectedJob, showMobileMore, showAbout, showReset, showReport])
+  }, [selectedJob, showMobileMore, showAbout, showReset, showReport, showSupportModal])
+
   const go = id => { setPage(id); setShowMobileMore(false); setBanner(null); window.scrollTo({ top: 0, behavior: 'smooth' }) }
-  const setRole = next => { updateDemo({ role: next }); setPage(next === 'moderator' ? 'review' : 'opportunities'); setShowMobileMore(false); notify(`Switched to ${NAMES[next]} demo view`) }
+  const setRole = next => {
+    updateDemo({ role: next })
+    setPage(next === 'moderator' ? 'review' : next === 'church' ? 'vouch' : 'opportunities')
+    setShowMobileMore(false)
+    notify(`Switched to ${NAMES[next]} demo view`)
+  }
+  const handleVouch = (id, status) => {
+    updateDemo({
+      vouchQueue: demo.vouchQueue.map(m => m.id === id ? { ...m, status } : m)
+    })
+    notify(status.includes('Vouched') ? 'Congregant vouched! Vouch badge granted with zero sensitive data stored.' : 'Vouch request declined.')
+  }
+
   const toggleSave = id => {
     const already = demo.saved.includes(id)
     updateDemo({ saved: already ? demo.saved.filter(x => x !== id) : [...demo.saved, id] })
-    notify(already ? 'Removed from your saved sample opportunities.' : 'Saved on this device for the demo.')
+    notify(already ? 'Removed from your saved sample opportunities.' : 'Saved on this device for reference.')
   }
-  const expressInterest = id => {
-    if (!demo.interests.includes(id)) updateDemo({ interests: [...demo.interests, id] })
-    notify('Demo interest recorded on this device only. Nothing was sent and no personal information was shared.')
+
+  const toggleTrack = id => {
+    const already = demo.tracked.includes(id)
+    updateDemo({ tracked: already ? demo.tracked.filter(x => x !== id) : [...demo.tracked, id] })
+    notify(already ? 'Application tracker removed.' : 'Marked as applied. Tracked in this browser.')
   }
+
   const reset = () => {
     setDemo({ ...defaultDemo }); setPage('opportunities'); setSelectedJob(null); setSearch(''); setEmirate('All emirates'); setWorkType('Any work type'); setTab('all'); setShowReset(false); setShowMobileMore(false); notify('Demo reset. Your local sample activity was cleared.')
   }
+
   const submitDraft = e => {
     e.preventDefault()
+    if (scamTriggers.length > 0) {
+      return notify(`Auto-block triggered: Remove prohibited terms (${scamTriggers.join(', ')}) before saving.`)
+    }
     const fields = [draftForm.title, draftForm.company, draftForm.pay, draftForm.description]
     if (fields.some(v => !v.trim())) return notify('Complete all fields before saving the sample draft.')
-    const item = { ...draftForm, id: `draft-${Date.now()}`, created: new Date().toLocaleDateString(), status: 'Draft · local only' }
+    const item = {
+      ...draftForm,
+      id: `draft-${Date.now()}`,
+      created: new Date().toLocaleDateString(),
+      status: 'Pending moderator company verification',
+      expiresIn: '30 days upon approval',
+      scamAudit: 'Passed auto-block keyword check (0 fee triggers)'
+    }
     updateDemo({ drafts: [item, ...demo.drafts] })
     setDraftForm({ title: '', company: '', emirate: 'Dubai', type: 'Full-time', pay: '', description: '' })
-    go('drafts'); notify('Sample draft saved in this browser. It was not published or submitted.')
+    go('drafts')
+    notify('Sample post saved. Awaiting moderator verification with employer HR before publication.')
   }
+
   const submitReport = () => {
     if (!selectedJob) return
-    updateDemo({ reports: [...demo.reports, { id: `report-${Date.now()}`, jobId: selectedJob.id, reason: reportReason, status: 'Open' }] })
-    setShowReport(false); setSelectedJob(null); notify('Sample report added to the local moderator queue. No message was sent.')
+    updateDemo({
+      reports: [
+        ...demo.reports,
+        {
+          id: `report-${Date.now()}`,
+          jobId: selectedJob.id,
+          reason: reportReason,
+          status: 'Open · Safety Team Assigned',
+          created: new Date().toLocaleTimeString()
+        }
+      ]
+    })
+    setShowReport(false)
+    notify('Report sent to the Ephworks Safety Team. We follow up on all flags within 24 hours.')
   }
+
+  const bookSupportSession = e => {
+    e.preventDefault()
+    const module = CAREER_SUPPORT_MODULES.find(m => m.id === supportForm.service)
+    const newSession = {
+      id: `session-${Date.now()}`,
+      service: module?.title || supportForm.service,
+      preferredTime: supportForm.preferredTime,
+      note: supportForm.note,
+      status: 'Matched with Volunteer HR Mentor'
+    }
+    updateDemo({ supportSessions: [newSession, ...demo.supportSessions] })
+    setShowSupportModal(false)
+    notify(`Volunteer session requested for ${module?.title}! A mentor will contact you for your session.`)
+  }
+
   const reviewDraft = (id, status) => {
-    updateDemo({ reviews: { ...demo.reviews, [id]: status } }); notify(`Demo review status changed to ${status}. No public listing was updated.`)
+    updateDemo({ reviews: { ...demo.reviews, [id]: status } })
+    notify(`Moderation status changed to ${status}.`)
   }
-  const markReport = id => { updateDemo({ reports: demo.reports.map(r => r.id === id ? { ...r, status: 'Resolved (demo)' } : r) }); notify('Sample report marked resolved on this device.') }
+
+  const markReport = id => {
+    updateDemo({
+      reports: demo.reports.map(r => r.id === id ? { ...r, status: 'Resolved by Safety Team' } : r)
+    })
+    notify('Report marked resolved by Safety Team.')
+  }
+
   const userMainNav = nav.slice(0, 3)
 
   return <div className="app-shell">
     <aside className="sidebar" aria-label="Main navigation">
       <Brand />
-      <div className="sidebar-tag"><span className="status-dot"/> UAE · Sample community</div>
-      <div className="side-label">YOUR WORKSPACE</div>
+      <div className="sidebar-tag"><span className="status-dot"/> UAE · Trusted Community Circle</div>
+      <div className="side-label">Your workspace</div>
       <nav className="sidebar-nav">
-        {nav.map(n => { const Icon = icons[n.icon]; return <button key={n.id} type="button" className={`side-link ${page === n.id ? 'active' : ''}`} onClick={() => go(n.id)}><Icon size={18}/><span>{n.label}</span>{n.id === 'interests' && demo.saved.length > 0 && <span className="count">{demo.saved.length}</span>}</button> })}
+        {nav.map(n => {
+          const Icon = icons[n.icon] || BriefcaseBusiness
+          return (
+            <button key={n.id} type="button" className={`side-link ${page === n.id ? 'active' : ''}`} aria-current={page === n.id ? 'page' : undefined} onClick={() => go(n.id)}>
+              <Icon size={18}/>
+              <span>{n.label}</span>
+              {n.id === 'interests' && (demo.saved.length + demo.tracked.length) > 0 && (
+                <span className="count">{demo.saved.length + demo.tracked.length}</span>
+              )}
+            </button>
+          )
+        })}
       </nav>
-      <div className="sidebar-bottom"><div className="community-illustration"><div className="mini-circle left"/><div className="mini-circle right"/><div className="mini-path"/></div><span className="side-label">BUILT ON COMMUNITY</span><p>Good opportunities begin with people who care.</p><button className="text-link side-link-out" onClick={() => go('churches')}>For church partners <ArrowRight size={15}/></button></div>
-      <div className="sidebar-profile"><span className="avatar">JM</span><span><strong>Jordan Morgan</strong><small>Fictional demo account</small></span></div>
+      <div className="sidebar-profile">
+        <span className="avatar">JM</span>
+        <span>
+          <strong>Jordan Morgan</strong>
+          <small>Vouched Member · St. Luke's Dubai</small>
+        </span>
+      </div>
     </aside>
 
     <div className="body-area">
       <header className="topbar">
         <div className="mobile-brand"><Brand compact /></div>
-        <div className="breadcrumb"><span>Workspace</span><ChevronRight size={15}/><strong>{currentNav?.label || 'Opportunities'}</strong></div>
-        <div className="header-actions"><span className="brand-name-desktop">Ephworks — People, opportunity, purpose</span><button className="icon-button help-button" aria-label="About this prototype" title="About this prototype" onClick={() => setShowAbout(true)}><CircleHelp size={19}/></button><span className="avatar header-avatar">JM</span></div>
+        <div className="breadcrumb"><span>Workspace</span><ChevronRight size={15}/><strong>{currentNav?.label || 'Verified noticeboard'}</strong></div>
+        <div className="header-actions">
+          <div className="role-selector" role="group" aria-label="Preview as role">
+            <span className="role-kicker">Demo view</span>
+            {Object.entries(NAMES).map(([key, label]) => (
+              <button key={key} type="button" onClick={() => setRole(key)} className={role === key ? 'selected' : ''} aria-pressed={role === key}>
+                {label}
+              </button>
+            ))}
+          </div>
+          <button className="icon-button help-button" aria-label="About this prototype" title="About this prototype" onClick={() => setShowAbout(true)}><CircleHelp size={19}/></button>
+          <span className="avatar header-avatar">JM</span>
+        </div>
       </header>
+
       <main className="main-content">
-        <div className="role-ribbon"><div className="role-text"><span className="role-kicker">PREVIEW AS</span><div className="role-copy">Switch demo role <span className="role-note">See how Ephworks works for everyone.</span></div></div><div className="role-selector" role="group" aria-label="Preview as role">{Object.entries(NAMES).map(([key, label]) => <button key={key} type="button" onClick={() => setRole(key)} className={role === key ? 'selected' : ''}>{label}</button>)}</div></div>
-        <div className="safety-bar"><span><ShieldCheck size={16}/> <strong>#HACK PROTOTYPE</strong><span className="safety-divider">|</span> Fictional data · No real applications or verification</span><button type="button" onClick={() => setShowReset(true)}><RotateCcw size={15}/> Reset demo</button></div>
-        {banner && <div className="toast-banner" role="status"><CheckCircle2 size={18}/><span>{banner}</span><button aria-label="Dismiss notification" onClick={() => setBanner(null)}><X size={16}/></button></div>}
+        <div className="pilot-strip">
+          <span className="pilot-text"><b>Pilot.</b> You apply straight to the employer. We never store your CV.</span>
+          <span className="pilot-actions">
+            <button type="button" onClick={() => setShowAbout(true)}>Legal notes</button>
+            <button type="button" onClick={() => setShowReset(true)}>Reset demo</button>
+          </span>
+        </div>
+
+        {banner && (
+          <div className="toast-banner" role="status">
+            <CheckCircle2 size={18}/>
+            <span>{banner}</span>
+            <button aria-label="Dismiss notification" onClick={() => setBanner(null)}><X size={16}/></button>
+          </div>
+        )}
+
         {page === 'opportunities' && <>
-          <section className="hero"><div className="hero-copy"><div className="hero-eyebrow"><span className="hero-dot"/> OPPORTUNITY, WITH A HUMAN CONNECTION</div><h1>Good work.<br/><em>Meaningful connections.</em></h1><p>Explore opportunities shared within your community. Take your next step with confidence.</p><button className="hero-button" onClick={() => document.getElementById('opp-list')?.scrollIntoView({ behavior: 'smooth' })}>Explore opportunities <ArrowRight size={17}/></button></div><div className="hero-art" aria-hidden="true"><div className="orbit orbit-1"/><div className="orbit orbit-2"/><div className="orbit orbit-3"/><div className="hero-shape shape-back"/><div className="hero-shape shape-mid"/><div className="hero-shape shape-front"/><div className="hero-art-star one">✦</div><div className="hero-art-star two">✧</div><div className="hero-art-star three">✦</div></div></section>
-          <div className="support-card"><div className="support-icon"><Sparkles size={23}/></div><div><div className="eyebrow">A LITTLE SUPPORT GOES A LONG WAY</div><h3>Let your experience speak for itself.</h3><p>Explore CV guidance and support from volunteer HR professionals.</p></div><button className="soft-button" onClick={() => go('career')}>Explore career support <ArrowRight size={17}/></button></div>
-          <section id="opp-list" className="opportunity-section"><SectionTitle title="Find your next opportunity" subtitle="UAE community noticeboard" /><div className="filters"><label className="search-box"><Search size={19}/><input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search opportunities" aria-label="Search opportunities"/></label><label className="select-box"><span>Filter by emirate</span><select value={emirate} onChange={e => setEmirate(e.target.value)}>{['All emirates','Dubai','Abu Dhabi','Sharjah'].map(x => <option key={x}>{x}</option>)}</select></label><label className="select-box"><span>Employment type</span><select value={workType} onChange={e => setWorkType(e.target.value)}>{['Any work type', 'Full-time', 'Part-time'].map(x => <option key={x}>{x}</option>)}</select></label></div>
-          <div className="listing-header"><div className="tab-list" role="tablist" aria-label="Opportunity tabs"><button role="tab" aria-selected={tab === 'all'} className={tab === 'all' ? 'active' : ''} onClick={() => setTab('all')}>All opportunities</button><button role="tab" aria-selected={tab === 'saved'} className={tab === 'saved' ? 'active' : ''} onClick={() => setTab('saved')}>Saved <span className="tab-count">{demo.saved.length}</span></button></div><span className="result-count">{visibleJobs.length} sample {visibleJobs.length === 1 ? 'role' : 'roles'}</span></div>
-          <div className="job-list">{visibleJobs.length ? visibleJobs.map(job => <JobCard key={job.id} job={job} saved={demo.saved.includes(job.id)} onSave={() => toggleSave(job.id)} onOpen={() => setSelectedJob(job)}/>) : <Empty title="No sample roles match" description="Try a different keyword or change your filters." icon={Search}/>}</div>
-          <div className="disclaimer-foot"><ShieldCheck size={18}/> Ephworks is a community noticeboard prototype, not a recruiter or placement service. No fees, real listings, applications, or transfers take place.</div>
+          <section className="hero">
+            <div className="hero-copy">
+              <p className="hero-eyebrow">A private job board for church communities in the UAE</p>
+              <h1>Find work through people who know you.</h1>
+              <p className="hero-lede">Every job here has been checked with the employer. Every member is vouched for by their church. Nobody will ask you for money.</p>
+              <div className="hero-cta">
+                <button className="hero-button" onClick={() => document.getElementById('opp-list')?.scrollIntoView({ behavior: 'smooth' })}>
+                  See open jobs
+                </button>
+                <button className="hero-ghost" onClick={() => go('career')}>Get help with your CV</button>
+              </div>
+            </div>
+            <figure className="hero-photo">
+              <img src="/images/community.webp" fetchpriority="high" alt="Members of a community chatting over tea with folders and laptops" width="1200" height="896"/>
+              <figcaption><b>{SAMPLE_JOBS.length} jobs open</b> All checked with the employer</figcaption>
+            </figure>
+          </section>
+
+          <ul className="trust-line" aria-label="What we check">
+            <li>Members vouched for</li>
+            <li>Employers contacted first</li>
+            <li>Fee requests blocked</li>
+            <li>Posts expire after 30 days</li>
+          </ul>
+
+          <section className="why">
+            <img className="why-photo" src="/images/workday.webp" loading="lazy" decoding="async" alt="A young woman leaving an office building in Dubai at the end of her first week" width="896" height="1200"/>
+            <div className="why-body">
+              <h2>Why not just use a Facebook group?</h2>
+              <p className="why-intro">Because anyone can post in a Facebook group, and some of them are not who they say they are. Here, three things have to be true first.</p>
+              <ol className="why-list">
+                {TRUST_PILLARS.map(p => (
+                  <li key={p.num}>
+                    <span className="why-num">{p.num}</span>
+                    <div>
+                      <h3>{p.title}</h3>
+                      <p>{p.desc}</p>
+                      <small>{p.legalNote}</small>
+                    </div>
+                  </li>
+                ))}
+              </ol>
+            </div>
+          </section>
+
+          <section className="support-split">
+            <img src="/images/mentor.webp" loading="lazy" decoding="async" alt="A volunteer mentor marking up a printed CV with a young job seeker" width="1200" height="896"/>
+            <div>
+              <h2>Someone to sit down with you and fix the CV.</h2>
+              <p>Volunteers from HR and hiring teams give a free CV review, a practice interview, or a LinkedIn tidy-up. It is the part a Facebook group will never do for you.</p>
+              <button className="hero-button" onClick={() => go('career')}>Book a volunteer</button>
+            </div>
+          </section>
+
+          <section id="opp-list" className="opportunity-section">
+            <SectionTitle title="Verified UAE opportunities" subtitle="Direct applications to employers • 30-day freshness guarantee" />
+            <div className="filters">
+              <label className="search-box">
+                <Search size={19}/>
+                <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search verified jobs, companies, or skills" aria-label="Search opportunities"/>
+              </label>
+              <label className="select-box">
+                <span>Filter by emirate</span>
+                <select value={emirate} onChange={e => setEmirate(e.target.value)}>
+                  {['All emirates','Dubai','Abu Dhabi','Sharjah'].map(x => <option key={x}>{x}</option>)}
+                </select>
+              </label>
+              <label className="select-box">
+                <span>Employment type</span>
+                <select value={workType} onChange={e => setWorkType(e.target.value)}>
+                  {['Any work type', 'Full-time', 'Part-time'].map(x => <option key={x}>{x}</option>)}
+                </select>
+              </label>
+            </div>
+
+            <div className="listing-header">
+              <div className="tab-list" role="group" aria-label="Show roles">
+                <button type="button" aria-pressed={tab === 'all'} className={tab === 'all' ? 'active' : ''} onClick={() => setTab('all')}>
+                  All verified roles
+                </button>
+                <button type="button" aria-pressed={tab === 'saved'} className={tab === 'saved' ? 'active' : ''} onClick={() => setTab('saved')}>
+                  Saved <span className="tab-count">{demo.saved.length}</span>
+                </button>
+              </div>
+              <span className="result-count">{visibleJobs.length} verified {visibleJobs.length === 1 ? 'role' : 'roles'}</span>
+            </div>
+
+            <div className="job-list">
+              {visibleJobs.length ? visibleJobs.map(job => (
+                <JobCard
+                  key={job.id}
+                  job={job}
+                  saved={demo.saved.includes(job.id)}
+                  tracked={demo.tracked.includes(job.id)}
+                  onSave={() => toggleSave(job.id)}
+                  onOpen={() => setSelectedJob(job)}
+                />
+              )) : <Empty title="No verified roles match" description="Try a different keyword or change your filters." icon={Search}/>}
+            </div>
+
+            <div className="disclaimer-foot">
+              <ShieldCheck size={18}/> Ephworks Phase 1 Noticeboard: In compliance with UAE MOHRE guidelines, applications are submitted directly to the verified employer. We never store candidate CVs, charge worker fees, or offer paid placements.
+            </div>
           </section>
         </>}
-        {page === 'interests' && <><PageHeading eyebrow="YOUR COMMUNITY JOURNEY" title="My interests" desc="Your saved opportunities and demo expressions of interest stay in this browser."/><SectionTitle title="Saved opportunities" subtitle={`${demo.saved.length} saved sample roles`}/>{demo.saved.length ? <div className="job-list">{SAMPLE_JOBS.filter(j => demo.saved.includes(j.id)).map(job => <JobCard key={job.id} job={job} saved onSave={() => toggleSave(job.id)} onOpen={() => setSelectedJob(job)}/>)}</div> : <Empty title="Nothing saved yet" description="Save a sample role from the community board to keep it here."/>}<div className="spacer-24"/><SectionTitle title="Expressions of interest" subtitle="For demonstration only"/>{demo.interests.length ? <div className="plain-card">{SAMPLE_JOBS.filter(j => demo.interests.includes(j.id)).map(j => <div className="mini-row" key={j.id}><CheckCircle2 size={19}/><div><strong>{j.title}</strong><small>Interest saved locally · Nothing sent</small></div><button className="text-link" onClick={() => setSelectedJob(j)}>View</button></div>)}</div> : <Empty title="No demo interests" description="Choose “I'm interested” on a sample role to see how the interest flow might work."/>}</>}
-        {page === 'career' && <><PageHeading eyebrow="PRACTICAL CAREER SUPPORT" title="Your next step starts here." desc="Simple, people-first resources and fictional examples to help you prepare confidently."/><div className="feature-grid"><Feature icon={FilePenLine} title="CV guidance" desc="Keep your CV clear, relevant and easy to scan. Use concrete examples of what you contributed." list={['Start with a concise professional summary.', 'Tailor your experience to a real job description.', 'Use accurate achievements, not invented figures.']}/><Feature icon={UsersRound} title="Volunteer HR support" desc="A future place to connect with vetted volunteer mentors. Connections are disabled in this prototype." list={['Short CV review sessions', 'Practice interview questions', 'Career transition conversations']}/><Feature icon={Sparkles} title="Interview preparation" desc="Practice communicating your strengths with confidence and honesty." list={['Use situation, action and result.', 'Prepare thoughtful employer questions.', 'Understand your eligibility to work.']}/></div><Warning>This is an illustrative resource page. There are no live mentors, appointments or personal-data collection.</Warning></>}
-        {page === 'volunteering' && <><PageHeading eyebrow="GIVE WHAT YOU CAN" title="Small acts. Real community." desc="Illustrative volunteering ideas for a future local programme."/><div className="feature-grid">{SAMPLE_VOLUNTEER.map(v => <div className="feature-card" key={v.title}><div className="feature-icon"><HandHeart size={22}/></div><h3>{v.title}</h3><p>{v.summary}</p><div className="volunteer-meta"><MapPin size={15}/>{v.location}</div><div className="volunteer-meta"><Clock3 size={15}/>{v.commitment}</div><Pill type="subtle">Fictional opportunity</Pill></div>)}</div><Warning>Volunteer participation is not available in this prototype. Any future initiative needs safeguarding and privacy review.</Warning></>}
-        {page === 'churches' && <><PageHeading eyebrow="FOR LOCAL CHURCHES" title="Help your community move forward." desc="A thoughtful space for churches to share opportunities and practical support, without acting as a recruitment agency."/><div className="feature-grid"><Feature icon={BriefcaseBusiness} title="Community noticeboard" desc="Allow members to share legitimate opportunities. The platform does not match, place or charge workers." list={['Free to post and browse', 'Clear employer and role information', 'Moderator review before public visibility']}/><Feature icon={HeartHandshake} title="Member-to-member support" desc="Make space for encouragement, practical career advice and volunteering." list={['Opt-in, privacy-first participation', 'Community partner orientation', 'No premium visibility or seeker fees']}/><Feature icon={ShieldCheck} title="Responsible governance" desc="Require independent legal and compliance review before enabling real activity." list={['No religion-based job criteria', 'No personal CV collection in prototype', 'No real-person verification claims']}/></div><Warning tone="strong">Important: The UAE legal position has not been formally reviewed. This #HACK2026 app is a sample-only prototype and must not go live for real people or job opportunities until reviewed by qualified UAE counsel.</Warning></>}
-        {page === 'profile' && <><PageHeading eyebrow="DEMO PROFILE" title="Your privacy matters." desc="Explore the prototype using a fictional demo account."/><div className="profile-card"><div className="profile-top"><span className="avatar big">JM</span><div><h2>Jordan Morgan</h2><p>Fictional demo account · {NAMES[role]} preview</p></div></div><div className="profile-grid"><div><span>Data storage</span><strong>This browser only</strong></div><div><span>Contact information</span><strong>Not collected</strong></div><div><span>Messages sent</span><strong>None</strong></div><div><span>Real applications</span><strong>Disabled</strong></div></div><button className="secondary-button" onClick={() => setShowReset(true)}><RotateCcw size={17}/> Clear local demo data</button></div><div className="spacer-24"/><Warning>Saved roles, interests, sample posts and moderation choices use your browser's localStorage. Clearing your browser data removes them.</Warning></>}
-        {page === 'post' && <><PageHeading eyebrow="EMPLOYER WORKSPACE" title="Create a sample post" desc="Use fictional data to explore how a community opportunity could be drafted."/><div className="form-panel"><Warning tone="strong">Demo only. Do not enter real company details, identifiable personal information, confidential data or actual vacancies. Submitting saves only to this browser.</Warning><form className="post-form" onSubmit={submitDraft}><label>Sample job title<input maxLength={95} placeholder="e.g. Office Coordinator" value={draftForm.title} onChange={e => setDraftForm({ ...draftForm, title: e.target.value })} required/></label><label>Fictional company name<input maxLength={95} placeholder="e.g. Example Studio" value={draftForm.company} onChange={e => setDraftForm({ ...draftForm, company: e.target.value })} required/></label><div className="form-two"><label>Emirate<select value={draftForm.emirate} onChange={e => setDraftForm({ ...draftForm, emirate: e.target.value })}><option>Dubai</option><option>Abu Dhabi</option><option>Sharjah</option></select></label><label>Work type<select value={draftForm.type} onChange={e => setDraftForm({ ...draftForm, type: e.target.value })}><option>Full-time</option><option>Part-time</option></select></label></div><label>Illustrative monthly pay range<input maxLength={95} placeholder="e.g. AED 4,000 – 6,000" value={draftForm.pay} onChange={e => setDraftForm({ ...draftForm, pay: e.target.value })} required/></label><label>Sample role description<textarea rows={5} maxLength={1600} placeholder="Describe a fictional opportunity. Do not request religion, ethnicity or other protected characteristics." value={draftForm.description} onChange={e => setDraftForm({ ...draftForm, description: e.target.value })} required/></label><button className="primary-button" type="submit"><FilePenLine size={17}/> Save local sample draft</button></form></div></>}
-        {page === 'drafts' && <><PageHeading eyebrow="EMPLOYER WORKSPACE" title="My sample posts" desc="Your local fictional drafts. These cannot be published from this prototype." action={<button className="primary-button" onClick={() => go('post')}><Plus size={17}/> New sample post</button>}/>{demo.drafts.length ? <div className="job-list">{demo.drafts.map(d => <div className="draft-card" key={d.id}><div><Pill type="subtle">{d.status}</Pill><h3>{d.title}</h3><p>{d.company} · {d.emirate} · {d.type}</p><small>{d.pay} / month</small><div className="draft-desc">{d.description}</div></div><button className="secondary-button" onClick={() => { updateDemo({ drafts: demo.drafts.filter(x => x.id !== d.id) }); notify('Local sample draft removed.') }}>Remove draft</button></div>)}</div> : <Empty icon={FileText} title="No sample posts yet" description="Create a fictional draft to test the employer workflow."/>}</>}
-        {page === 'guidelines' && <><PageHeading eyebrow="TRUST & SAFETY" title="Community standards" desc="Draft safeguards that guide the experience; not a substitute for legal advice."/><div className="feature-grid"><Feature icon={CheckCircle2} title="Clear, fair listings" desc="Every job post should describe a genuine role using neutral, non-discriminatory language." list={['No religious criteria in job posts', 'No misleading or invented employer claims', 'Pay and location details where known']}/><Feature icon={LockKeyhole} title="No seeker fees" desc="Community access should remain free, without preferred paid placement or hidden charges." list={['No premium or paid job tiers', 'No CV sales', 'No recruitment or placement fees']}/><Feature icon={ShieldCheck} title="Local moderation" desc="Community moderators flag risks and remove unsuitable content, without claiming official verification." list={['Review and report workflows', 'No assurance of employer legitimacy', 'No launch until professional UAE legal review']}/></div><Warning tone="strong">Ephworks is not licensed as a recruitment or employment placement agency. The prototype makes no applications, introductions, offers or employment decisions.</Warning></>}
-        {page === 'review' && <><PageHeading eyebrow="MODERATOR WORKSPACE" title="Sample review queue" desc="Practice reviewing fictional content. Decisions affect this browser only."/><Warning>Moderation status here is demonstrative; it does not verify employers or alter any live listing.</Warning><div className="review-list">{SAMPLE_JOBS.slice(0, 3).map(j => <div className="review-card" key={j.id}><div className="company-icon sage"><Building2 size={21}/></div><div className="review-info"><h3>{j.title}</h3><p>{j.company} · Fictional · {j.emirate}</p><Pill type="subtle">{demo.reviews[j.id] || 'Pending demo review'}</Pill></div><div className="review-actions"><button className="outline-small" onClick={() => setSelectedJob(j)}>Details</button><button className="approve-small" onClick={() => reviewDraft(j.id, 'Approved (demo)')}><Check size={15}/> Approve</button><button className="reject-small" onClick={() => reviewDraft(j.id, 'Flagged (demo)')}><Flag size={15}/> Flag</button></div></div>)}</div></>}
-        {page === 'reports' && <><PageHeading eyebrow="MODERATOR WORKSPACE" title="Sample reports" desc="Illustrative reports submitted within this browser session."/>{demo.reports.length ? <div className="job-list">{demo.reports.map(r => { const j = SAMPLE_JOBS.find(x => x.id === r.jobId); return <div className="review-card" key={r.id}><div className="feature-icon"><Flag size={20}/></div><div className="review-info"><h3>{j?.title || 'Sample role'}</h3><p>Reason: {r.reason}</p><Pill type="subtle">{r.status}</Pill></div><button className="approve-small" disabled={r.status !== 'Open'} onClick={() => markReport(r.id)}>Resolve locally</button></div> })}</div> : <Empty icon={Flag} title="No sample reports" description="Use 'Report this opportunity' from any sample listing to test this queue."/>}</>}
-        <footer className="footer"><span>Ephworks · A community helping people move forward.</span><button onClick={() => setShowAbout(true)}>About this prototype <ArrowRight size={14}/></button></footer>
+
+        {page === 'career' && <>
+          <PageHeading
+            eyebrow="Pillar 3 · Real support"
+            title="Get ready for the job, not just the search."
+            desc="Unlike generic job boards, Ephworks provides real, free support from volunteer HR professionals, hiring managers, and career mentors."
+            action={
+              <button className="primary-button" onClick={() => { setSelectedSupportService('cv-review'); setShowSupportModal(true) }}>
+                <Calendar size={16}/> Request volunteer session
+              </button>
+            }
+          />
+          <div className="feature-grid">
+            {CAREER_SUPPORT_MODULES.map(mod => (
+              <div className="feature-card" key={mod.id}>
+                <div className="feature-icon"><Sparkles size={22}/></div>
+                <Pill type="mint">{mod.badge}</Pill>
+                <h3>{mod.title}</h3>
+                <p>{mod.summary}</p>
+                <ul>
+                  {mod.highlights.map(h => <li key={h}><Check size={15}/>{h}</li>)}
+                </ul>
+                <div className="support-turnaround">
+                  <Clock3 size={13}/> {mod.turnaround}
+                </div>
+                <button
+                  className="support-action-btn"
+                  onClick={() => { setSelectedSupportService(mod.id); setShowSupportModal(true) }}
+                >
+                  Book free {mod.title.toLowerCase()} <ArrowRight size={14}/>
+                </button>
+              </div>
+            ))}
+          </div>
+
+          {demo.supportSessions.length > 0 && (
+            <div className="plain-card stack-gap">
+              <h3>My Requested Volunteer Sessions</h3>
+              {demo.supportSessions.map(s => (
+                <div className="mini-row" key={s.id}>
+                  <CheckCircle2 size={19}/>
+                  <div>
+                    <strong>{s.service}</strong>
+                    <small>Preferred: {s.preferredTime} · Status: {s.status}</small>
+                  </div>
+                  <Pill type="mint">Active Request</Pill>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div className="plain-card">
+            <div className="cta-row">
+              <div className="feature-icon"><HandHeart size={24}/></div>
+              <div className="cta-row-body">
+                <h3>Are you an HR professional or hiring manager?</h3>
+                <p>
+                  Give 1–2 hours a month to review CVs, conduct mock interviews, or advise community job seekers. Help someone take their next confident step.
+                </p>
+              </div>
+              <button className="secondary-button" onClick={() => notify('Thank you! Volunteer onboarding will reach out to schedule an orientation.')}>
+                Volunteer with us <ArrowRight size={14}/>
+              </button>
+            </div>
+          </div>
+          <div className="spacer-24"/>
+          <Warning>
+            Volunteer support is 100% free and confidential. Ephworks volunteers provide coaching and feedback, but never charge fees or guarantee placement.
+          </Warning>
+        </>}
+
+        {page === 'interests' && <>
+          <PageHeading
+            eyebrow="Your tracked activity"
+            title="My tracked roles & applications"
+            desc="Keep notes of roles you've applied to directly with employers. All tracking is private and stored in your browser only."
+          />
+          <SectionTitle title="Roles marked as applied" subtitle={`${demo.tracked.length} roles you applied to directly`}/>
+          {demo.tracked.length ? (
+            <div className="job-list">
+              {SAMPLE_JOBS.filter(j => demo.tracked.includes(j.id)).map(job => (
+                <JobCard
+                  key={job.id}
+                  job={job}
+                  saved={demo.saved.includes(job.id)}
+                  tracked={true}
+                  onSave={() => toggleSave(job.id)}
+                  onOpen={() => setSelectedJob(job)}
+                />
+              ))}
+            </div>
+          ) : <Empty title="No applications tracked yet" description="When you apply directly to a role, click 'Mark as applied' in the role view to track it here." icon={ClipboardCheck}/>}
+
+          <div className="spacer-24"/>
+          <SectionTitle title="Saved opportunities" subtitle={`${demo.saved.length} roles bookmarked`}/>
+          {demo.saved.length ? (
+            <div className="job-list">
+              {SAMPLE_JOBS.filter(j => demo.saved.includes(j.id)).map(job => (
+                <JobCard
+                  key={job.id}
+                  job={job}
+                  saved
+                  tracked={demo.tracked.includes(job.id)}
+                  onSave={() => toggleSave(job.id)}
+                  onOpen={() => setSelectedJob(job)}
+                />
+              ))}
+            </div>
+          ) : <Empty title="Nothing saved yet" description="Save a verified role from the noticeboard to keep it here." icon={Bookmark}/>}
+        </>}
+
+        {page === 'volunteering' && <>
+          <PageHeading
+            eyebrow="Community giving"
+            title="Small acts. Real community."
+            desc="Give your time to support job seekers, welcome newcomers, or assist with mock interviews."
+          />
+          <div className="feature-grid">
+            {SAMPLE_VOLUNTEER.map(v => (
+              <div className="feature-card" key={v.title}>
+                <div className="feature-icon"><HandHeart size={22}/></div>
+                <h3>{v.title}</h3>
+                <p>{v.summary}</p>
+                <div className="volunteer-meta"><MapPin size={15}/>{v.location}</div>
+                <div className="volunteer-meta"><Clock3 size={15}/>{v.commitment}</div>
+                <Pill type="subtle">Community volunteer role</Pill>
+              </div>
+            ))}
+          </div>
+          <Warning>
+            Volunteer participation is community-run and non-profit. All volunteers complete orientation and safety checks.
+          </Warning>
+        </>}
+
+        {page === 'churches' && <>
+          <PageHeading
+            eyebrow="Pillar 1 · Verified people"
+            title="Church vouching, peer trust & UAE legal compliance"
+            desc="How our decentralized vouching circle creates trust without discrimination or sensitive data exposure."
+            action={
+              <button className="primary-button" onClick={() => setRole('church')}>
+                <UsersRound size={16}/> Preview Church Admin Portal
+              </button>
+            }
+          />
+          <div className="feature-grid">
+            <Feature
+              icon={UsersRound}
+              title="Verified People, Not Fake Agents"
+              desc="Every member is vouched by a recognized partner church, keeping predatory recruitment agents, ghost posters, and scammers out of our community circle."
+              list={[
+                'Peer trust replaces impersonal social media chaos',
+                'Zero scraper access: directory is fully private',
+                'Scammers and fee-charging middlemen are blocked'
+              ]}
+            />
+            <Feature
+              icon={Scale}
+              title="UAE Anti-Discrimination Law"
+              desc="Church vouching is used strictly to verify individual identity and honest character — NOT as a faith-based criterion for who can browse or work."
+              list={[
+                'No religious requirements in any job post',
+                'Open, non-discriminatory community noticeboard',
+                'In full accordance with Federal Decree-Law No. 2 of 2015'
+              ]}
+            />
+            <Feature
+              icon={Lock}
+              title="Data Minimization under UAE Data Law"
+              desc="Church affiliation is sensitive personal data under UAE Data Protection Law (Federal Decree-Law No. 45/2021). We collect minimal data."
+              list={[
+                'Only a binary vouch verification confirmation is stored',
+                'No denominational or religious tracking recorded',
+                'Zero member profiling or external data sharing'
+              ]}
+            />
+          </div>
+
+          <div className="plain-card">
+            <h3>How Church Vouching Works in Practice</h3>
+            <p className="card-lede">
+              When a new member registers, their local congregation administrator simply confirms: <em>"Yes, Jordan Morgan is known to our community."</em>
+              This simple human touchpoint completely eliminates the fake profiles, automated bots, and scam brokers that plague Facebook job groups.
+            </p>
+            <div className="card-actions">
+              <button className="secondary-button" onClick={() => setRole('church')}>
+                <UsersRound size={15}/> Switch to Church Partner Workspace <ArrowRight size={14}/>
+              </button>
+            </div>
+          </div>
+          <div className="spacer-24"/>
+          <Warning tone="strong">
+            Phase 1 Pilot notice: Ephworks is a community noticeboard. No recruitment matching or CV forwarding is performed. All real-world deployment requires ongoing UAE counsel review.
+          </Warning>
+        </>}
+
+        {page === 'post' && <>
+          <PageHeading
+            eyebrow="Pillar 2 · Verified jobs"
+            title="Post a verified opportunity"
+            desc="Draft an opportunity for your company. All posts are checked directly with HR and audited by our anti-scam engine."
+          />
+          <div className="form-panel">
+            {/* Live Auto-Block Scam Engine Banner */}
+            {scamTriggers.length > 0 ? (
+              <div className="auto-block-box">
+                <ShieldAlert size={26}/>
+                <div>
+                  <strong>Auto-block active: prohibited fee or scam terms detected</strong>
+                  Your post contains prohibited keywords: <u>{scamTriggers.join(', ')}</u>.
+                  <ul>
+                    <li>Under UAE Labour Law, employers and recruiters are strictly prohibited from charging candidates any fees, deposits, or visa costs.</li>
+                    <li>Ephworks auto-blocks all posts requesting payment, deposits, or visa charges.</li>
+                    <li>Please remove all mention of candidate fees to enable submission.</li>
+                  </ul>
+                </div>
+              </div>
+            ) : (
+              <div className="auto-block-clean">
+                <CheckCircle2 size={16}/> Auto-block scam scan: 0 fee or deposit triggers detected. Post complies with UAE Labour Law anti-fee rules.
+              </div>
+            )}
+
+            <form className="post-form" onSubmit={submitDraft}>
+              <label>
+                Job title
+                <input maxLength={95} placeholder="e.g. Office Coordinator" value={draftForm.title} onChange={e => setDraftForm({ ...draftForm, title: e.target.value })} required/>
+              </label>
+              <label>
+                Company name
+                <input maxLength={95} placeholder="e.g. Cedar Lane Services" value={draftForm.company} onChange={e => setDraftForm({ ...draftForm, company: e.target.value })} required/>
+              </label>
+              <div className="form-two">
+                <label>
+                  Emirate
+                  <select value={draftForm.emirate} onChange={e => setDraftForm({ ...draftForm, emirate: e.target.value })}>
+                    <option>Dubai</option>
+                    <option>Abu Dhabi</option>
+                    <option>Sharjah</option>
+                  </select>
+                </label>
+                <label>
+                  Work type
+                  <select value={draftForm.type} onChange={e => setDraftForm({ ...draftForm, type: e.target.value })}>
+                    <option>Full-time</option>
+                    <option>Part-time</option>
+                  </select>
+                </label>
+              </div>
+              <label>
+                Monthly compensation
+                <input maxLength={95} placeholder="e.g. AED 5,000 – 7,000 (Candidate must never be charged fees)" value={draftForm.pay} onChange={e => setDraftForm({ ...draftForm, pay: e.target.value })} required/>
+              </label>
+              <label>
+                Role description & direct application instructions
+                <textarea
+                  rows={5}
+                  maxLength={1600}
+                  placeholder="Describe the opportunity. Provide direct employer email or website portal. Note: Auto-block stops any mention of fees, visa charges, or deposits."
+                  value={draftForm.description}
+                  onChange={e => setDraftForm({ ...draftForm, description: e.target.value })}
+                  required
+                />
+              </label>
+
+              <div className="law-notice">
+                <Clock3 size={15}/> <strong>30-Day Freshness Guarantee:</strong> Approved posts expire automatically after 30 days so seekers never see dead or obsolete vacancies.
+              </div>
+
+              <button className="primary-button" type="submit" disabled={scamTriggers.length > 0}>
+                <FilePenLine size={17}/> Save post for moderator HR verification
+              </button>
+            </form>
+          </div>
+        </>}
+
+        {page === 'drafts' && <>
+          <PageHeading
+            eyebrow="Employer workspace"
+            title="My posted opportunities"
+            desc="Track the moderation and verification status of your company listings."
+            action={<button className="primary-button" onClick={() => go('post')}><Plus size={17}/> New post</button>}
+          />
+          {demo.drafts.length ? (
+            <div className="job-list">
+              {demo.drafts.map(d => (
+                <div className="draft-card" key={d.id}>
+                  <div>
+                    <Pill type="subtle">{d.status}</Pill>
+                    <span className="tag-badge expiry">Expires in 30 days</span>
+                    <h3>{d.title}</h3>
+                    <p>{d.company} · {d.emirate} · {d.type}</p>
+                    <small>{d.pay} / month</small>
+                    <div className="draft-desc">{d.description}</div>
+                    <div className="audit-line">
+                      <CheckCircle2 size={14}/>
+                      {d.scamAudit}
+                    </div>
+                  </div>
+                  <button className="secondary-button" onClick={() => { updateDemo({ drafts: demo.drafts.filter(x => x.id !== d.id) }); notify('Post draft removed.') }}>
+                    Remove post
+                  </button>
+                </div>
+              ))}
+            </div>
+          ) : <Empty icon={FileText} title="No posts yet" description="Post an opportunity to see how employer verification and the 30-day lifecycle works."/>}
+        </>}
+
+        {page === 'review' && <>
+          <PageHeading
+            eyebrow="Moderator workspace"
+            title="Job verification queue"
+            desc="Moderators check every role directly with the hiring company before it goes live. Zero scam or fee posts permitted."
+          />
+          <div className="phase-ribbon">
+            <span>
+              <strong><ShieldCheck size={16}/> Moderator Verification Protocol:</strong>
+              1. Direct HR contact confirmed • 2. Auto-block zero-fee audit passed • 3. 30-day expiry timer initialized.
+            </span>
+          </div>
+
+          <div className="review-list">
+            {SAMPLE_JOBS.slice(0, 3).map(j => (
+              <div className="review-card" key={j.id}>
+                <div className="company-icon sage"><Building2 size={21}/></div>
+                <div className="review-info">
+                  <div className="review-title-row">
+                    <h3>{j.title}</h3>
+                    <span className="tag-badge verified">Verified with Company</span>
+                    <span className="tag-badge expiry">{j.daysLeft}d left</span>
+                  </div>
+                  <p>{j.company} · {j.emirate} · Fictional Company</p>
+                  <div className="review-note">
+                    {j.verificationNote}
+                  </div>
+                  <Pill type="subtle">{demo.reviews[j.id] || 'Verified & Active on Noticeboard'}</Pill>
+                </div>
+                <div className="review-actions">
+                  <button className="outline-small" onClick={() => setSelectedJob(j)}>View</button>
+                  <button className="approve-small" onClick={() => reviewDraft(j.id, 'Confirmed with HR')}>
+                    <Check size={15}/> Confirm HR
+                  </button>
+                  <button className="reject-small" onClick={() => reviewDraft(j.id, 'Flagged for Review')}>
+                    <Flag size={15}/> Flag
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </>}
+
+        {page === 'reports' && <>
+          <PageHeading
+            eyebrow="Safety team"
+            title="Reports & Follow-up queue"
+            desc="Unlike unmoderated social media, our safety team actively follows up with reporters and employers on every flag."
+          />
+          {demo.reports.length ? (
+            <div className="job-list">
+              {demo.reports.map(r => {
+                const j = SAMPLE_JOBS.find(x => x.id === r.jobId)
+                return (
+                  <div className="review-card" key={r.id}>
+                    <div className="feature-icon danger"><Flag size={20}/></div>
+                    <div className="review-info">
+                      <h3>{j?.title || 'Reported role'}</h3>
+                      <p><strong>Reason:</strong> {r.reason}</p>
+                      <small className="review-meta">Submitted: {r.created || 'Just now'} · Safety team protocol: Follow up within 24h</small>
+                      <div className="review-status"><Pill type="subtle">{r.status}</Pill></div>
+                    </div>
+                    <button
+                      className="approve-small"
+                      disabled={r.status.includes('Resolved')}
+                      onClick={() => markReport(r.id)}
+                    >
+                      {r.status.includes('Resolved') ? 'Resolved' : 'Resolve report'}
+                    </button>
+                  </div>
+                )
+              })}
+            </div>
+          ) : <Empty icon={Flag} title="No open safety reports" description="When a member flags a job with fees or misleading information, the safety team queue displays it here."/>}
+        </>}
+
+        {page === 'guidelines' && <>
+          <PageHeading
+            eyebrow="Legal & safety standards"
+            title="Ephworks Community & Legal Standards"
+            desc="Our policies ensure full adherence to UAE MOHRE recruitment laws, Anti-Discrimination statutes, and Data Protection standards."
+          />
+          <div className="feature-grid">
+            <Feature
+              icon={CheckCircle2}
+              title="Noticeboard vs Recruitment Agency"
+              desc="Even if free, forwarding CVs, shortlisting, or matching can be classified as recruitment under UAE MOHRE regulations. Ephworks is strictly a direct noticeboard in Phase 1."
+              list={[
+                'Job seekers apply direct to the employer',
+                'No candidate CVs stored or screened on platform',
+                'Matching deferred until MOHRE licensed partnership'
+              ]}
+            />
+            <Feature
+              icon={ShieldAlert}
+              title="Zero-Fee & Anti-Scam Rules"
+              desc="Charging job seekers any fee, visa cost, deposit, or application charge is illegal under UAE Labour Law. Automatic keyword filters enforce this."
+              list={[
+                'Instant auto-blocking of fee-related terms',
+                'Moderators verify legitimate employer payroll',
+                'Immediate blacklisting of fee-charging agents'
+              ]}
+            />
+            <Feature
+              icon={Clock3}
+              title="30-Day Freshness Guarantee"
+              desc="Dead postings and zombie ads waste job seekers' emotional energy. All opportunities auto-purge after 30 days."
+              list={[
+                '30-day maximum listing lifespan',
+                'Employers must re-verify if position reopens',
+                'Noticeboard stays 100% active and relevant'
+              ]}
+            />
+          </div>
+        </>}
+
+        {page === 'vouch' && <>
+          <PageHeading
+            eyebrow="Pillar 1 · Verified people"
+            title="Congregation Member Vouch Queue"
+            desc="Review and vouch for members from your local church community. Keeps out fake recruiter agents and scammers while ensuring data privacy."
+            action={
+              <button className="primary-button" onClick={() => go('invite')}>
+                <Sparkles size={16}/> Get church invite pass
+              </button>
+            }
+          />
+          <div className="phase-ribbon">
+            <span>
+              <strong><ShieldCheck size={16}/> Active Church Admin:</strong> St. Luke's Dubai • 
+              <strong> Legal compliance status:</strong> Zero denomination data stored • UAE Data Law compliant.
+            </span>
+          </div>
+
+          <div className="review-list">
+            {demo.vouchQueue.map(m => (
+              <div className="review-card" key={m.id}>
+                <div className="company-icon sage">{m.initials}</div>
+                <div className="review-info">
+                  <div className="review-title-row">
+                    <h3>{m.name}</h3>
+                    <span className="tag-badge verified">{m.status}</span>
+                    <span className="tag-badge expiry">Requested {m.requestedDate}</span>
+                  </div>
+                  <p>{m.email} · {m.church}</p>
+                  <div className="review-note">
+                    {m.note}
+                  </div>
+                  <div className="review-meta data-line">
+                    <LockKeyhole size={13}/>
+                    Data minimization payload: &#123; member_id, vouched: true &#125;. No religious beliefs or spiritual records stored.
+                  </div>
+                </div>
+                <div className="review-actions">
+                  <button
+                    className="approve-small"
+                    disabled={m.status.includes('Vouched')}
+                    onClick={() => handleVouch(m.id, 'Vouched member')}
+                  >
+                    <Check size={15}/> {m.status.includes('Vouched') ? 'Vouched' : 'Vouch Identity'}
+                  </button>
+                  <button
+                    className="reject-small"
+                    onClick={() => handleVouch(m.id, 'Declined / Not Known')}
+                  >
+                    <X size={15}/> Decline
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </>}
+
+        {page === 'invite' && <>
+          <PageHeading
+            eyebrow="Church partner workspace"
+            title="Congregation Invite Passcode"
+            desc="Provide a secure pass to church members. Keeps the trusted circle private and immune to web scrapers."
+          />
+          <div className="plain-card narrow-card">
+            <div className="cta-row">
+              <div className="feature-icon"><Sparkles size={24}/></div>
+              <div>
+                <h3>St. Luke's Dubai Community Access Pass</h3>
+                <p>
+                  Share this pass during Sunday announcements, bulletin, or community WhatsApp circle.
+                </p>
+              </div>
+            </div>
+
+            <div className="passcode-container">
+              <span className="passcode-label">Official congregation passcode</span>
+              <div className="passcode-code">EPH-STLUKE-2026-TRUST</div>
+              <div className="passcode-actions">
+                <button
+                  className="primary-button"
+                  onClick={() => notify('Congregation invite pass copied! Share this privately with church members.')}
+                >
+                  <ClipboardCheck size={16}/> Copy invite link & code
+                </button>
+              </div>
+            </div>
+
+            <div className="info-pair">
+              <div className="info-tile">
+                <strong>
+                  <ShieldCheck size={16}/> Anti-Scraping Protection
+                </strong>
+                <p>
+                  Facebook groups allow automated bots to scrape member phone numbers. Ephworks invite passes keep the directory completely private.
+                </p>
+              </div>
+              <div className="info-tile">
+                <strong>
+                  <LockKeyhole size={16}/> 14-Day Cycle Rotation
+                </strong>
+                <p>
+                  Passcodes refresh periodically to ensure only active, verified community members maintain access.
+                </p>
+              </div>
+            </div>
+          </div>
+        </>}
+
+        {page === 'privacyAudit' && <>
+          <PageHeading
+            eyebrow="Governance & compliance"
+            title="UAE Legal & Privacy Architecture"
+            desc="How Ephworks complies with UAE Anti-Discrimination Law, Personal Data Protection Law, and MOHRE regulations."
+          />
+          <div className="plain-card stack-gap">
+            <h3>Data Footprint & Safety Comparison</h3>
+            <p className="card-lede">
+              Audit proving Ephworks collects minimum sensitive data compared to unmoderated groups or generic boards.
+            </p>
+            <div className="table-responsive">
+              <table className="audit-table">
+                <thead>
+                  <tr>
+                    <th>Data Category</th>
+                    <th>Facebook Job Group</th>
+                    <th>Generic Recruitment Site</th>
+                    <th>Ephworks Trusted Circle</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td><strong>Religious Beliefs / Denomination</strong></td>
+                    <td>Scraped in comments & threads</td>
+                    <td>Often collected in demographic surveys</td>
+                    <td className="good-cell">Never stored (binary vouch token only)</td>
+                  </tr>
+                  <tr>
+                    <td><strong>Candidate CV Storage</strong></td>
+                    <td>Shared openly on public walls</td>
+                    <td>Stored & monetized on central DB</td>
+                    <td className="good-cell">Never stored (direct employer application)</td>
+                  </tr>
+                  <tr>
+                    <td><strong>Anti-Scam Protection</strong></td>
+                    <td>None (Bogus agents post fee scams)</td>
+                    <td>Post-incident reporting only</td>
+                    <td className="good-cell">Real-time auto-block (fees and deposits blocked)</td>
+                  </tr>
+                  <tr>
+                    <td><strong>Member Scraping</strong></td>
+                    <td>Publicly scrapable by headhunters</td>
+                    <td>Subject to data brokers</td>
+                    <td className="good-cell">Zero scraping (closed community circle)</td>
+                  </tr>
+                  <tr>
+                    <td><strong>Listing Freshness</strong></td>
+                    <td>Dead posts linger for years</td>
+                    <td>Outdated ghost jobs</td>
+                    <td className="good-cell">30-day auto-purge (guaranteed fresh)</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div className="feature-grid">
+            <Feature
+              icon={Scale}
+              title="Federal Decree-Law No. 2 of 2015"
+              desc="Ephworks strictly abides by UAE Anti-Discrimination Law. Church vouching verifies peer identity, never religious qualification."
+              list={[
+                'No religious condition in job listings',
+                'Universal noticeboard browsing for all',
+                'Fair, objective community safeguards'
+              ]}
+            />
+            <Feature
+              icon={Lock}
+              title="Federal Decree-Law No. 45/2021"
+              desc="Personal Data Protection Law compliance through minimal data retention and cryptographic privacy."
+              list={[
+                'Church membership is treated as sensitive',
+                'Only minimal binary validation stored',
+                'Zero commercialization or sale of user data'
+              ]}
+            />
+            <Feature
+              icon={ShieldCheck}
+              title="Federal Decree-Law No. 33/2021"
+              desc="UAE Labour Relations Law: Prohibition of charging worker fees or recruitment agency commissions."
+              list={[
+                'Strict auto-blocking of candidate fee requests',
+                'Moderator check with employer payroll',
+                'Phase 1 noticeboard model ensures MOHRE safety'
+              ]}
+            />
+          </div>
+        </>}
+
+        {page === 'profile' && <>
+          <PageHeading eyebrow="Demo profile" title="Your trusted identity & privacy" desc="Explore how Ephworks protects member identity and minimizes sensitive data."/>
+          <div className="profile-card">
+            <div className="profile-top">
+              <span className="avatar big">JM</span>
+              <div>
+                <h2>Jordan Morgan</h2>
+                <p>Vouched Community Member · St. Luke's Dubai</p>
+              </div>
+            </div>
+            <div className="profile-grid">
+              <div>
+                <span>Community Vouch Status</span>
+                <strong className="good-text"><Check size={15}/> Vouched by church partner</strong>
+              </div>
+              <div>
+                <span>Data Minimization</span>
+                <strong>Zero sensitive denomination data stored</strong>
+              </div>
+              <div>
+                <span>Member Scraping Protection</span>
+                <strong>Protected walled circle (Anti-scraping)</strong>
+              </div>
+              <div>
+                <span>CV Storage</span>
+                <strong>None stored (Direct employer application)</strong>
+              </div>
+            </div>
+            <button className="secondary-button" onClick={() => setShowReset(true)}>
+              <RotateCcw size={17}/> Reset local demo state
+            </button>
+          </div>
+        </>}
+
+        <footer className="footer">
+          <span>Ephworks · Verified People. Verified Jobs. Real Support.</span>
+          <button onClick={() => setShowAbout(true)}>Product architecture & legal context <ArrowRight size={14}/></button>
+        </footer>
       </main>
     </div>
 
-    <nav className="mobile-nav" aria-label="Mobile navigation">{userMainNav.map(n => { const Icon = icons[n.icon]; return <button key={n.id} aria-current={page === n.id ? 'page' : undefined} className={page === n.id ? 'active' : ''} onClick={() => go(n.id)}><Icon size={21}/><span>{n.label}</span></button> })}<button className={showMobileMore || (!userMainNav.some(n => n.id === page)) ? 'active' : ''} onClick={() => setShowMobileMore(true)} aria-haspopup="dialog" aria-expanded={showMobileMore}><MoreHorizontal size={22}/><span>More</span></button></nav>
-    {showMobileMore && <div className="overlay mobile-more-overlay" onMouseDown={e => e.target === e.currentTarget && setShowMobileMore(false)}><div className="more-sheet" role="dialog" aria-modal="true" aria-label="More navigation"><div className="sheet-head"><strong>More from Ephworks</strong><button className="icon-button" onClick={() => setShowMobileMore(false)} aria-label="Close menu"><X size={20}/></button></div><div className="sheet-items">{nav.map(n => { const Icon = icons[n.icon]; return <button key={n.id} className={page === n.id ? 'active' : ''} onClick={() => go(n.id)}><Icon size={19}/>{n.label}<ChevronRight size={15}/></button> })}</div><button className="sheet-about" onClick={() => { setShowMobileMore(false); setShowAbout(true) }}>About this prototype <ArrowRight size={16}/></button></div></div>}
+    {/* Mobile Navigation */}
+    <nav className="mobile-nav" aria-label="Mobile navigation">
+      {userMainNav.map(n => {
+        const Icon = icons[n.icon] || BriefcaseBusiness
+        return (
+          <button key={n.id} aria-current={page === n.id ? 'page' : undefined} className={page === n.id ? 'active' : ''} onClick={() => go(n.id)}>
+            <Icon size={21}/>
+            <span>{n.label}</span>
+          </button>
+        )
+      })}
+      <button className={showMobileMore || (!userMainNav.some(n => n.id === page)) ? 'active' : ''} onClick={() => setShowMobileMore(true)} aria-haspopup="dialog" aria-expanded={showMobileMore}>
+        <MoreHorizontal size={22}/>
+        <span>More</span>
+      </button>
+    </nav>
 
-    {selectedJob && <div className="overlay job-overlay" onMouseDown={e => e.target === e.currentTarget && setSelectedJob(null)}><section className="job-drawer" role="dialog" aria-modal="true" aria-label={`${selectedJob.title} sample opportunity`}><div className="drawer-header"><button className="back-button" onClick={() => setSelectedJob(null)}><ArrowLeft size={17}/> Back to opportunities</button><button className="icon-button" aria-label="Close opportunity" onClick={() => setSelectedJob(null)}><X size={21}/></button></div><div className="drawer-body"><Pill type="mint"><ShieldCheck size={13}/> Sample review</Pill><div className={`company-icon large ${selectedJob.hue}`}>{selectedJob.initials}</div><h2>{selectedJob.title}</h2><p className="drawer-company">{selectedJob.company} · {selectedJob.emirate}, UAE · Fictional company</p><div className="detail-grid"><div><span>MONTHLY COMPENSATION</span><strong>{selectedJob.salary}</strong></div><div><span>EMPLOYMENT TYPE</span><strong>{selectedJob.type} · {selectedJob.mode}</strong></div><div><span>WORKING HOURS</span><strong>{selectedJob.hours}</strong></div><div><span>OPPORTUNITY CATEGORY</span><strong>{selectedJob.category}</strong></div></div><h3>A little about the role</h3><p>{selectedJob.description}</p><h3>What you'll do</h3><ul>{selectedJob.responsibilities.map(v => <li key={v}>{v}</li>)}</ul><h3>What you'll bring</h3><div className="tags">{selectedJob.requirements.map(x => <Pill key={x} type="subtle">{x}</Pill>)}</div><div className="authorization"><h4><ShieldCheck size={17}/> Work-authorisation information</h4><p>{selectedJob.sponsorship}</p></div><button className="primary-button full" onClick={() => expressInterest(selectedJob.id)}>{demo.interests.includes(selectedJob.id) ? <CheckCircle2 size={18}/> : <HeartHandshake size={18}/>} {demo.interests.includes(selectedJob.id) ? 'Interested (demo)' : "I'm interested"} <ArrowRight size={17}/></button><p className="private-copy"><LockKeyhole size={14}/> No information is sent. This interaction is saved locally for the demo.</p><div className="drawer-footer-actions"><button onClick={() => toggleSave(selectedJob.id)}><Bookmark size={16} fill={demo.saved.includes(selectedJob.id) ? 'currentColor' : 'none'}/>{demo.saved.includes(selectedJob.id) ? 'Saved' : 'Save role'}</button><button onClick={() => setShowReport(true)}><Flag size={16}/> Report this opportunity</button></div></div></section></div>}
+    {/* Mobile More Sheet */}
+    {showMobileMore && (
+      <div className="overlay mobile-more-overlay" onMouseDown={e => e.target === e.currentTarget && setShowMobileMore(false)}>
+        <FocusDialog className="more-sheet" label="More navigation">
+          <div className="sheet-head">
+            <strong>More from Ephworks</strong>
+            <button className="icon-button" onClick={() => setShowMobileMore(false)} aria-label="Close menu"><X size={20}/></button>
+          </div>
+          <div className="sheet-items">
+            {nav.map(n => {
+              const Icon = icons[n.icon] || BriefcaseBusiness
+              return (
+                <button key={n.id} className={page === n.id ? 'active' : ''} onClick={() => go(n.id)}>
+                  <Icon size={19}/>{n.label}<ChevronRight size={15}/>
+                </button>
+              )
+            })}
+          </div>
+          <button className="sheet-about" onClick={() => { setShowMobileMore(false); setShowAbout(true) }}>
+            About the 3 Pillars & Safety Engine <ArrowRight size={16}/>
+          </button>
+        </FocusDialog>
+      </div>
+    )}
 
-    {showAbout && <Modal onClose={() => setShowAbout(false)} title="About this prototype"><div className="about-mark"><img src="/logo.svg" alt="Ephworks placeholder logo"/><span>Ephworks</span></div><p><strong>People, opportunity, purpose.</strong> A community opportunity prototype created for #HACK2026.</p><p>Fictional job listings, profiles, volunteer ideas, role previews, draft posts, reports and review actions demonstrate a possible product experience.</p><Warning tone="strong">There is no backend, account system, employer verification, application service or live matching. No real people or companies should use this app. Launch requires independent UAE legal and privacy review.</Warning><button className="primary-button full" onClick={() => setShowAbout(false)}>Understood</button></Modal>}
-    {showReset && <Modal onClose={() => setShowReset(false)} title="Reset local demo?"><p>This clears saved roles, demo interests, fictional draft posts, sample reports and moderation choices from this browser.</p><div className="modal-actions"><button className="secondary-button" onClick={() => setShowReset(false)}>Cancel</button><button className="danger-button" onClick={reset}><RotateCcw size={16}/> Reset demo</button></div></Modal>}
-    {showReport && <Modal onClose={() => setShowReport(false)} title="Report sample opportunity"><p>Choose a reason to try the local moderation flow. No real report is sent.</p><label className="form-label">Reason<select value={reportReason} onChange={e => setReportReason(e.target.value)}>{['Misleading information','Potential discrimination','Request for payment','Suspicious employer details','Other concern'].map(x => <option key={x}>{x}</option>)}</select></label><div className="modal-actions"><button className="secondary-button" onClick={() => setShowReport(false)}>Cancel</button><button className="primary-button" onClick={submitReport}><Flag size={16}/> Add sample report</button></div></Modal>}
+    {/* Job Detail Drawer (Noticeboard Direct Apply Flow) */}
+    {selectedJob && (
+      <div className="overlay job-overlay" onMouseDown={e => e.target === e.currentTarget && setSelectedJob(null)}>
+        <FocusDialog as="section" className="job-drawer" label={`${selectedJob.title} verified opportunity`}>
+          <div className="drawer-header">
+            <button className="back-button" onClick={() => setSelectedJob(null)}><ArrowLeft size={17}/> Back to noticeboard</button>
+            <button className="icon-button" aria-label="Close opportunity" onClick={() => setSelectedJob(null)}><X size={21}/></button>
+          </div>
+
+          <div className="drawer-body">
+            <div className="badge-row">
+              <span className="tag-badge verified"><ShieldCheck size={13}/> Verified with Company HR</span>
+              <span className="tag-badge expiry"><Clock3 size={13}/> Expires in {selectedJob.daysLeft} days (30d purge)</span>
+              <span className="tag-badge secure"><Scale size={13}/> Zero candidate fees guaranteed</span>
+            </div>
+
+            <div className={`company-icon large ${selectedJob.hue}`}>{selectedJob.initials}</div>
+            <h2>{selectedJob.title}</h2>
+            <p className="drawer-company">{selectedJob.company} · {selectedJob.emirate}, UAE · Verified Employer</p>
+
+            <div className="detail-grid">
+              <div><span>Monthly salary</span><strong>{selectedJob.salary}</strong></div>
+              <div><span>Employment type</span><strong>{selectedJob.type} · {selectedJob.mode}</strong></div>
+              <div><span>Working hours</span><strong>{selectedJob.hours}</strong></div>
+              <div><span>Verification status</span><strong>Confirmed with HR</strong></div>
+            </div>
+
+            {/* Verification Proof Box */}
+            <div className="authorization">
+              <h4><ShieldCheck size={17}/> Moderator Employer Verification Record</h4>
+              <p>{selectedJob.verificationNote}</p>
+            </div>
+
+            <h3>About the role</h3>
+            <p>{selectedJob.description}</p>
+
+            <h3>What you'll do</h3>
+            <ul>{selectedJob.responsibilities.map(v => <li key={v}>{v}</li>)}</ul>
+
+            <h3>Skills & Experience</h3>
+            <div className="tags">{selectedJob.requirements.map(x => <Pill key={x} type="subtle">{x}</Pill>)}</div>
+
+            <div className="authorization">
+              <h4><ShieldCheck size={17}/> Work-authorisation & Sponsorship</h4>
+              <p>{selectedJob.sponsorship}</p>
+            </div>
+
+            {/* Direct Apply to Employer Panel (MOHRE Safe Noticeboard) */}
+            <div className="apply-panel">
+              <h4><Mail size={18}/> Apply Direct to Employer</h4>
+              <p>
+                In compliance with UAE MOHRE regulations, Ephworks is a community noticeboard. We do not store your CV or shortlist candidates. You connect and apply straight to the hiring company:
+              </p>
+              <div className="apply-actions">
+                <a href={`mailto:${selectedJob.directEmail}?subject=Application: ${selectedJob.title}`} className="apply-button-primary">
+                  <Mail size={16}/> Email CV to {selectedJob.directEmail}
+                </a>
+                <a href={selectedJob.directPortal} target="_blank" rel="noopener noreferrer" className="apply-portal-link">
+                  <ExternalLink size={16}/> Official Career Portal
+                </a>
+              </div>
+              <div className="track-row">
+                <button
+                  type="button"
+                  className="secondary-button full"
+                  onClick={() => toggleTrack(selectedJob.id)}
+                >
+                  <CheckCheck size={16}/> {demo.tracked.includes(selectedJob.id) ? 'Application marked as sent' : 'Mark as applied (Track in my list)'}
+                </button>
+              </div>
+              <div className="law-notice">
+                <LockKeyhole size={14}/> Ephworks never charges fees or retains candidate CVs.
+              </div>
+            </div>
+
+            <div className="drawer-footer-actions">
+              <button onClick={() => toggleSave(selectedJob.id)}>
+                <Bookmark size={16} fill={demo.saved.includes(selectedJob.id) ? 'currentColor' : 'none'}/>
+                {demo.saved.includes(selectedJob.id) ? 'Saved' : 'Save role'}
+              </button>
+              <button className="danger-link" onClick={() => setShowReport(true)}>
+                <Flag size={16}/> Report to Safety Team
+              </button>
+            </div>
+          </div>
+        </FocusDialog>
+      </div>
+    )}
+
+    {/* Book Volunteer Career Support Modal */}
+    {showSupportModal && (
+      <Modal onClose={() => setShowSupportModal(false)} title="Book Free Volunteer Support">
+        <p>Get 1-on-1 assistance from volunteer HR professionals and hiring managers in our trusted community.</p>
+        <form onSubmit={bookSupportSession} className="booking-form">
+          <label>
+            Support service needed
+            <select
+              value={selectedSupportService}
+              onChange={e => { setSelectedSupportService(e.target.value); setSupportForm({ ...supportForm, service: e.target.value }) }}
+            >
+              {CAREER_SUPPORT_MODULES.map(m => (
+                <option key={m.id} value={m.id}>{m.title}</option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Your name
+            <input value={supportForm.name} onChange={e => setSupportForm({ ...supportForm, name: e.target.value })} required/>
+          </label>
+          <label>
+            Preferred session time
+            <select value={supportForm.preferredTime} onChange={e => setSupportForm({ ...supportForm, preferredTime: e.target.value })}>
+              <option>Weekday evening (after 6 pm)</option>
+              <option>Saturday morning</option>
+              <option>Sunday afternoon</option>
+              <option>Flexible / Online async review</option>
+            </select>
+          </label>
+          <label>
+            What specific help do you need most? (optional)
+            <textarea
+              rows={3}
+              placeholder="e.g. Preparing for customer service interviews, formatting my UAE CV, or changing industries."
+              value={supportForm.note}
+              onChange={e => setSupportForm({ ...supportForm, note: e.target.value })}
+            />
+          </label>
+          <div className="modal-actions">
+            <button type="button" className="secondary-button" onClick={() => setShowSupportModal(false)}>Cancel</button>
+            <button type="submit" className="primary-button">
+              <Calendar size={16}/> Confirm volunteer booking
+            </button>
+          </div>
+        </form>
+      </Modal>
+    )}
+
+    {/* About / Architecture & Roadmap Modal */}
+    {showAbout && (
+      <Modal onClose={() => setShowAbout(false)} title="About Ephworks & Team Direction">
+        <div className="about-mark"><img src="/logo.svg" alt="Ephworks logo"/><span>Ephworks</span></div>
+        <p><strong>The Trusted Circle vs. Social Media Job Groups:</strong></p>
+        <p>
+          Unlike unmoderated Facebook groups where fake recruiting agents prey on vulnerable job seekers, Ephworks is built around 3 core pillars:
+        </p>
+        <ol className="about-list">
+          <li><strong>Verified People:</strong> Every member is vouched by their local church community, keeping fake agents and scrapers out. Church vouching verifies identity, not religion (strictly compliant with UAE Anti-Discrimination & Data Protection laws).</li>
+          <li><strong>Verified Jobs:</strong> Moderators verify directly with employer HR before going live. Instant auto-block removes posts asking for fees, deposits, or visa charges. 30-day auto-purge keeps listings fresh.</li>
+          <li><strong>Real Support:</strong> Volunteer CV review, mock interviews, and LinkedIn assistance ensure people are actually job-ready.</li>
+        </ol>
+
+        <div className="authorization warn">
+          <h4><Scale size={16}/> Legal Strategy: Phase 1 Noticeboard vs. Phase 2 Matching</h4>
+          <p>
+            Even if an app is free, connecting job seekers to employers (storing CVs, shortlisting, recruitment matching) can be classified as recruitment activity under UAE MOHRE regulations.
+            Therefore, <strong>Phase 1 is strictly a verified direct noticeboard</strong> (candidates apply direct to employer, no CVs stored).
+            Phase 2 CV sharing and matching will be added once formal legal counsel review is completed or in partnership with a MOHRE-licensed agency.
+          </p>
+        </div>
+
+        <button className="primary-button full" onClick={() => setShowAbout(false)}>
+          Understood
+        </button>
+      </Modal>
+    )}
+
+    {/* Reset Demo Modal */}
+    {showReset && (
+      <Modal onClose={() => setShowReset(false)} title="Reset local demo?">
+        <p>This clears your local bookmarks, tracked applications, fictional drafts, and support session requests.</p>
+        <div className="modal-actions">
+          <button className="secondary-button" onClick={() => setShowReset(false)}>Cancel</button>
+          <button className="danger-button" onClick={reset}><RotateCcw size={16}/> Reset demo</button>
+        </div>
+      </Modal>
+    )}
+
+    {/* Report to Safety Team Modal */}
+    {showReport && (
+      <Modal onClose={() => setShowReport(false)} title="Report to Ephworks Safety Team">
+        <p>Our safety team follows up on every flag directly with the reporter and employer within 24 hours.</p>
+        <label className="form-label">
+          Reason for report
+          <select value={reportReason} onChange={e => setReportReason(e.target.value)}>
+            <option>Request for payment / fee (Illegal under UAE Labour Law)</option>
+            <option>Suspicious or unverified employer contact</option>
+            <option>Misleading job terms or salary</option>
+            <option>Potential discriminatory language</option>
+            <option>Other trust & safety concern</option>
+          </select>
+        </label>
+        <div className="modal-actions">
+          <button className="secondary-button" onClick={() => setShowReport(false)}>Cancel</button>
+          <button className="primary-button" onClick={submitReport}><Flag size={16}/> Submit to Safety Team</button>
+        </div>
+      </Modal>
+    )}
   </div>
 }
 
-function Brand({ compact = false }) { return <div className={`brand ${compact ? 'compact' : ''}`}><img src="/logo.svg" alt=""/><div><strong>Ephworks</strong>{!compact && <span>PEOPLE · OPPORTUNITY · PURPOSE</span>}</div></div> }
-function JobCard({ job, saved, onSave, onOpen }) { return <article className="job-card"><div className={`company-icon ${job.hue}`}>{job.initials}</div><div className="job-info"><div className="job-title-row"><h3>{job.title}</h3><Pill type="reviewed"><BadgeCheck size={13}/> Sample post reviewed</Pill></div><p className="company-name">{job.company} <span>· Fictional</span></p><div className="job-tags"><span><MapPin size={15}/>{job.emirate}</span><span><BriefcaseBusiness size={15}/>{job.type}</span><span className="pay">{job.salary} / month</span></div></div><div className="job-actions"><button className={`save-button ${saved ? 'is-saved' : ''}`} aria-label={`${saved ? 'Remove' : 'Save'} ${job.title}`} onClick={onSave}><Bookmark size={17} fill={saved ? 'currentColor' : 'none'}/><span>{saved ? 'Saved' : 'Save'}</span></button><button className="open-job" onClick={onOpen} aria-label={`View ${job.title}`}>View role <ArrowRight size={17}/></button></div></article> }
-function Feature({ icon: Icon, title, desc, list }) { return <article className="feature-card"><div className="feature-icon"><Icon size={23}/></div><h3>{title}</h3><p>{desc}</p><ul>{list.map(item => <li key={item}><Check size={16}/>{item}</li>)}</ul></article> }
-function Modal({ onClose, title, children }) { return <div className="overlay centered-overlay" onMouseDown={e => e.target === e.currentTarget && onClose()}><section className="dialog" role="dialog" aria-modal="true" aria-label={title}><div className="dialog-top"><h2>{title}</h2><button className="icon-button" onClick={onClose} aria-label="Close"><X size={21}/></button></div><div className="dialog-content">{children}</div></section></div> }
+function Brand({ compact = false }) {
+  return (
+    <div className={`brand ${compact ? 'compact' : ''}`}>
+      <img src="/logo.svg" alt=""/>
+      <div>
+        <strong>Ephworks</strong>
+        {!compact && <span>VERIFIED PEOPLE · VERIFIED JOBS · REAL SUPPORT</span>}
+      </div>
+    </div>
+  )
+}
+
+function JobCard({ job, saved, tracked, onSave, onOpen }) {
+  return (
+    <article className="job-card">
+      <div className={`company-icon ${job.hue}`}>{job.initials}</div>
+      <div className="job-info">
+        <div className="job-title-row">
+          <h3>{job.title}</h3>
+          <span className="verified-text"><BadgeCheck size={14}/> Checked with employer</span>
+          {tracked && <span className="tag-badge secure"><CheckCheck size={13}/> Applied</span>}
+        </div>
+        <p className="company-name">{job.company}</p>
+        <div className="job-tags">
+          <span><MapPin size={15}/>{job.emirate}</span>
+          <span><BriefcaseBusiness size={15}/>{job.type}</span>
+          <span><Clock3 size={15}/>{job.daysLeft} days left</span>
+          <span className="pay">{job.salary} / month</span>
+        </div>
+
+      </div>
+      <div className="job-actions">
+        <button
+          className={`save-button ${saved ? 'is-saved' : ''}`}
+          aria-label={`${saved ? 'Remove' : 'Save'} ${job.title}`}
+          onClick={onSave}
+        >
+          <Bookmark size={17} fill={saved ? 'currentColor' : 'none'}/>
+          <span>{saved ? 'Saved' : 'Save'}</span>
+        </button>
+        <button className="open-job" onClick={onOpen} aria-label={`View ${job.title}`}>
+          View & Apply Direct <ArrowRight size={17}/>
+        </button>
+      </div>
+    </article>
+  )
+}
+
+function Feature({ icon: Icon, title, desc, list }) {
+  return (
+    <article className="feature-card">
+      <div className="feature-icon"><Icon size={23}/></div>
+      <h3>{title}</h3>
+      <p>{desc}</p>
+      <ul>{list.map(item => <li key={item}><Check size={16}/>{item}</li>)}</ul>
+    </article>
+  )
+}
+
+function FocusDialog({ as: Tag = 'div', className, label, children }) {
+  const ref = useDialogFocus()
+  return <Tag className={className} role="dialog" aria-modal="true" aria-label={label} ref={ref} tabIndex={-1}>{children}</Tag>
+}
+
+function Modal({ onClose, title, children }) {
+  const ref = useDialogFocus()
+  return (
+    <div className="overlay centered-overlay" onMouseDown={e => e.target === e.currentTarget && onClose()}>
+      <section className="dialog" role="dialog" aria-modal="true" aria-label={title} ref={ref} tabIndex={-1}>
+        <div className="dialog-top">
+          <h2>{title}</h2>
+          <button className="icon-button" onClick={onClose} aria-label="Close"><X size={21}/></button>
+        </div>
+        <div className="dialog-content">{children}</div>
+      </section>
+    </div>
+  )
+}

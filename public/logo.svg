@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Ephworks placeholder mark">
-  <rect width="64" height="64" rx="19" fill="#16363c"/>
-  <path d="M41.5 20H23v24h18.5M23 32h14" stroke="#baf0d4" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
-  <circle cx="44.5" cy="20" r="5" fill="#55bea5"/>
+  <rect width="64" height="64" rx="19" fill="#0369a1"/>
+  <path d="M41.5 20H23v24h18.5M23 32h14" stroke="#ffffff" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+  <circle cx="44.5" cy="20" r="5" fill="#4ade80"/>
 </svg>
