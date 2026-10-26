@@ -437,7 +437,7 @@ button:active:not(:disabled){transform:translateY(1px)}
 .about-mark{display:flex;align-items:center;gap:10px;margin-bottom:16px;font:700 20px var(--heading);color:var(--fg)}
 .about-mark img{width:40px;border-radius:10px}
 .about-list{padding-left:20px;font-size:14px;line-height:1.7;color:var(--fg-2)}
-.mobile-nav,.mobile-more-overlay{display:none}
+.mobile-nav,.mobile-more-overlay,.mobile-account{display:none}
 
 /* ---------- Responsive ---------- */
 @media(max-width:1200px){
@@ -478,18 +478,6 @@ button:active:not(:disabled){transform:translateY(1px)}
   .drawer-header{padding:12px 16px}
   .drawer-body{padding:20px 20px 96px}
   .footer{flex-direction:column;align-items:flex-start;padding-bottom:96px}
-  .toast-banner{left:16px;right:16px;bottom:84px;max-width:none}
-  .mobile-nav{position:fixed;left:0;right:0;bottom:0;z-index:20;display:flex;justify-content:space-around;padding:6px 4px max(6px,env(safe-area-inset-bottom));background:var(--surface);border-top:1px solid var(--border)}
-  .mobile-nav button{flex:1;max-width:120px;min-height:54px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;font-size:11px;font-weight:600;line-height:1.15;color:var(--muted)}
-  .mobile-nav button.active{color:var(--primary)}
-  .mobile-more-overlay{display:flex;align-items:flex-end;z-index:35}
-  .more-sheet{width:100%;max-height:85vh;overflow:auto;padding:16px 16px max(24px,env(safe-area-inset-bottom));background:var(--surface);border-radius:20px 20px 0 0}
-  .sheet-head{display:flex;align-items:center;justify-content:space-between;padding-bottom:12px;border-bottom:1px solid var(--border);font-size:16px}
-  .sheet-items{display:grid;gap:2px;padding:10px 0}
-  .sheet-items button{display:flex;align-items:center;gap:12px;width:100%;min-height:48px;padding:0 12px;border-radius:var(--radius-sm);text-align:left;font-size:14px;font-weight:600;color:var(--fg-2)}
-  .sheet-items button.active{background:var(--primary-50);color:var(--primary)}
-  .sheet-items button svg:last-child{margin-left:auto}
-  .sheet-about{display:flex;justify-content:space-between;align-items:center;width:100%;min-height:48px;padding:0 14px;border-radius:var(--radius-sm);background:var(--primary-50);color:var(--primary);font-size:14px;font-weight:600}
   .job-drawer{border-left:0}
 }
 
@@ -585,7 +573,65 @@ body{background:radial-gradient(60vw 50vw at 0% 0%,#bae6fd 0,transparent 60%),ra
 .sidebar .side-link+.side-link::before{content:'';position:absolute;left:12px;right:12px;top:-2.5px;height:1px;background:rgba(255,255,255,.12);pointer-events:none;transition:opacity var(--ease)}
 .sidebar .side-link.active::before,.sidebar .side-link.active+.side-link::before,
 .sidebar .side-link:hover::before,.sidebar .side-link:hover+.side-link::before{opacity:0}
+/* short windows (phone landscape): sidebar scrolls on its own instead of cutting off the profile */
+.sidebar{overflow-y:auto;scrollbar-width:thin;scrollbar-color:rgba(255,255,255,.2) transparent}
 @media(prefers-reduced-transparency:reduce){.sidebar{background:#082f49}}
+
+/* ---------- Phone UI: clean top bar, icon-only bottom nav, menu sheet ---------- */
+@media(max-width:760px){
+  html{-webkit-tap-highlight-color:transparent}
+  /* top bar: brand + account; demo roles and utilities live in the menu sheet */
+  .topbar{flex-wrap:nowrap;min-height:56px;padding:max(8px,env(safe-area-inset-top)) max(16px,env(safe-area-inset-right)) 8px max(16px,env(safe-area-inset-left))}
+  .topbar .header-actions{display:none}
+  .mobile-account{display:grid;place-items:center;width:44px;height:44px;margin-left:auto;border-radius:50%}
+  .mobile-account:active{background:var(--subtle)}
+  .mobile-account .avatar{width:36px;height:36px}
+  .main-content{padding-left:max(16px,env(safe-area-inset-left));padding-right:max(16px,env(safe-area-inset-right))}
+  .pilot-actions{display:none}
+  .pilot-strip{margin-bottom:16px}
+  /* iOS zooms into fields under 16px */
+  input,select,textarea,.search-box input,.select-box select,.hs-field input,.hs-field select,.post-form input,.post-form select,.post-form textarea,.booking-form input,.booking-form select,.booking-form textarea,.form-label select{font-size:16px}
+  /* touch targets >= 44px */
+  .tab-list button{min-height:44px;padding:12px 0}
+  .jc .jc-save{width:44px;height:44px}
+  .jc .jc-open,.outline-small,.approve-small,.reject-small,.primary-button,.secondary-button{min-height:44px}
+  .toast-banner button{width:44px;height:44px;margin:-10px -10px -10px 0}
+  .footer button,.glass-link{min-height:44px}
+  /* bottom nav: icons only, names via aria-label, active item on a pill */
+  .mobile-nav{position:fixed;left:0;right:0;bottom:0;z-index:20;display:flex;justify-content:space-around;padding:6px max(8px,env(safe-area-inset-right)) calc(6px + env(safe-area-inset-bottom)) max(8px,env(safe-area-inset-left));border-top:1px solid var(--border)}
+  .mobile-nav button{flex:1;max-width:96px;min-height:52px;display:grid;place-items:center;color:var(--muted)}
+  .nav-pill{display:grid;place-items:center;width:60px;height:36px;border-radius:var(--radius-pill);transition:background var(--ease),color var(--ease)}
+  .mobile-nav button:active .nav-pill{background:var(--subtle)}
+  .mobile-nav button.active{color:var(--primary)}
+  .mobile-nav button.active .nav-pill{background:var(--primary-100)}
+  .mobile-nav button.active svg{stroke-width:2.4}
+  .toast-banner{left:16px;right:16px;bottom:calc(76px + env(safe-area-inset-bottom));max-width:none}
+  .footer{padding-bottom:calc(88px + env(safe-area-inset-bottom))}
+  /* menu sheet */
+  .mobile-more-overlay{display:flex;align-items:flex-end;z-index:35}
+  .more-sheet{width:100%;max-height:88vh;overflow:auto;padding:8px 16px calc(16px + env(safe-area-inset-bottom));border-radius:24px 24px 0 0;box-shadow:0 -12px 40px -12px rgba(2,6,23,.35);animation:sheetUp .24s cubic-bezier(.2,.8,.2,1)}
+  .sheet-handle{width:40px;height:5px;margin:4px auto 12px;border-radius:var(--radius-pill);background:#cbd5e1}
+  .sheet-account{display:flex;align-items:center;gap:12px;padding:0 4px 16px;border-bottom:1px solid var(--border)}
+  .sheet-account strong{display:block;font:600 16px/1.3 var(--heading);color:var(--fg)}
+  .sheet-account small{display:block;margin-top:2px;font-size:13px;color:var(--muted)}
+  .sheet-account .avatar{width:44px;height:44px;font-size:15px}
+  .sheet-account .icon-button{margin-left:auto;width:44px;height:44px}
+  .sheet-label{margin:18px 4px 8px;font-size:13px;font-weight:600;color:var(--muted)}
+  .sheet-items{display:grid;gap:6px}
+  .sheet-items button{display:flex;align-items:center;gap:12px;width:100%;min-height:52px;padding:0 12px;border-radius:12px;background:var(--surface-2);text-align:left;font-size:15px;font-weight:600;color:var(--fg)}
+  .sheet-items button:active{background:var(--subtle)}
+  .sheet-items button.active{background:var(--primary-50);color:var(--primary)}
+  .sheet-icon{width:32px;height:32px;flex-shrink:0;display:grid;place-items:center;border-radius:10px;background:var(--surface);border:1px solid var(--border);color:var(--primary)}
+  .sheet-items button>svg:last-child{margin-left:auto;color:var(--muted)}
+  .sheet-roles{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .sheet-roles button{min-height:44px;padding:0 10px;border-radius:10px;border:1px solid var(--border);background:var(--surface);font-size:14px;font-weight:600;color:var(--fg-2)}
+  .sheet-roles button.selected{background:var(--primary);border-color:var(--primary);color:#fff}
+  .sheet-links{display:grid;gap:2px;margin-top:18px;padding-top:10px;border-top:1px solid var(--border)}
+  .sheet-links button{display:flex;align-items:center;gap:10px;min-height:44px;padding:0 8px;border-radius:8px;font-size:14px;font-weight:600;color:var(--fg-2);text-align:left}
+  .sheet-links button:active{background:var(--subtle)}
+  .sheet-links svg{color:var(--muted)}
+}
+@keyframes sheetUp{from{transform:translateY(32px);opacity:.6}to{transform:none;opacity:1}}
 
 @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}*,*::before,*::after{animation-duration:.001ms!important;transition-duration:.001ms!important}}
 

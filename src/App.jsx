@@ -279,6 +279,9 @@ export default function App() {
           <button className="icon-button help-button" aria-label="About this prototype" title="About this prototype" onClick={() => setShowAbout(true)}><CircleHelp size={19}/></button>
           <span className="avatar header-avatar">JM</span>
         </div>
+        <button className="mobile-account" aria-label="Open menu" aria-haspopup="dialog" aria-expanded={showMobileMore} onClick={() => setShowMobileMore(true)}>
+          <span className="avatar">JM</span>
+        </button>
       </header>
 
       <main className="main-content">
@@ -1080,39 +1083,55 @@ export default function App() {
       {userMainNav.map(n => {
         const Icon = icons[n.icon] || BriefcaseBusiness
         return (
-          <button key={n.id} aria-current={page === n.id ? 'page' : undefined} className={page === n.id ? 'active' : ''} onClick={() => go(n.id)}>
-            <Icon size={21}/>
-            <span>{n.label}</span>
+          <button key={n.id} aria-label={n.label} title={n.label} aria-current={page === n.id ? 'page' : undefined} className={page === n.id ? 'active' : ''} onClick={() => go(n.id)}>
+            <span className="nav-pill"><Icon size={24} aria-hidden="true"/></span>
           </button>
         )
       })}
-      <button className={showMobileMore || (!userMainNav.some(n => n.id === page)) ? 'active' : ''} onClick={() => setShowMobileMore(true)} aria-haspopup="dialog" aria-expanded={showMobileMore}>
-        <MoreHorizontal size={22}/>
-        <span>More</span>
+      <button aria-label="More" title="More" className={showMobileMore || (!userMainNav.some(n => n.id === page)) ? 'active' : ''} onClick={() => setShowMobileMore(true)} aria-haspopup="dialog" aria-expanded={showMobileMore}>
+        <span className="nav-pill"><Menu size={24} aria-hidden="true"/></span>
       </button>
     </nav>
 
     {/* Mobile More Sheet */}
     {showMobileMore && (
       <div className="overlay mobile-more-overlay" onMouseDown={e => e.target === e.currentTarget && setShowMobileMore(false)}>
-        <FocusDialog className="more-sheet" label="More navigation">
-          <div className="sheet-head">
-            <strong>More from Ephworks</strong>
+        <FocusDialog className="more-sheet" label="Menu">
+          <div className="sheet-handle" aria-hidden="true"/>
+          <div className="sheet-account">
+            <span className="avatar">JM</span>
+            <div>
+              <strong>Jordan Morgan</strong>
+              <small>Vouched member · St. Luke's Dubai</small>
+            </div>
             <button className="icon-button" onClick={() => setShowMobileMore(false)} aria-label="Close menu"><X size={20}/></button>
           </div>
-          <div className="sheet-items">
-            {nav.map(n => {
-              const Icon = icons[n.icon] || BriefcaseBusiness
-              return (
-                <button key={n.id} className={page === n.id ? 'active' : ''} onClick={() => go(n.id)}>
-                  <Icon size={19}/>{n.label}<ChevronRight size={15}/>
-                </button>
-              )
-            })}
+
+          {nav.length > userMainNav.length && <>
+            <p className="sheet-label">More pages</p>
+            <div className="sheet-items">
+              {nav.slice(userMainNav.length).map(n => {
+                const Icon = icons[n.icon] || BriefcaseBusiness
+                return (
+                  <button key={n.id} className={page === n.id ? 'active' : ''} aria-current={page === n.id ? 'page' : undefined} onClick={() => go(n.id)}>
+                    <span className="sheet-icon"><Icon size={19} aria-hidden="true"/></span>{n.label}<ChevronRight size={16} aria-hidden="true"/>
+                  </button>
+                )
+              })}
+            </div>
+          </>}
+
+          <p className="sheet-label">Demo view</p>
+          <div className="sheet-roles" role="group" aria-label="Preview as role">
+            {Object.entries(NAMES).map(([key, label]) => (
+              <button key={key} type="button" className={role === key ? 'selected' : ''} aria-pressed={role === key} onClick={() => setRole(key)}>{label}</button>
+            ))}
           </div>
-          <button className="sheet-about" onClick={() => { setShowMobileMore(false); setShowAbout(true) }}>
-            About the 3 Pillars & Safety Engine <ArrowRight size={16}/>
-          </button>
+
+          <div className="sheet-links">
+            <button onClick={() => { setShowMobileMore(false); setShowAbout(true) }}><CircleHelp size={18} aria-hidden="true"/> About Ephworks & legal notes</button>
+            <button onClick={() => { setShowMobileMore(false); setShowReset(true) }}><RotateCcw size={18} aria-hidden="true"/> Reset demo</button>
+          </div>
         </FocusDialog>
       </div>
     )}
