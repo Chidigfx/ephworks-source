@@ -1,4 +1,4 @@
-﻿/* Ephworks design system — flat, professional blue (ui-ux-pro-max "Flat Design")
+/* Ephworks design system — flat, professional blue (ui-ux-pro-max "Flat Design")
    Poppins headings / Open Sans body. All colours come from the tokens below. */
 :root{
   --primary:#0369a1;--primary-hover:#075985;--primary-50:#f0f9ff;--primary-100:#e0f2fe;--primary-200:#bae6fd;
@@ -39,7 +39,6 @@ img{max-width:100%}
 .brand img{width:36px;height:36px;display:block;border-radius:10px}
 .brand strong{font:600 20px/1 var(--heading);color:var(--fg);letter-spacing:-.02em}
 .brand span{display:none}
-.sidebar-tag{display:flex;align-items:center;gap:8px;margin:16px 8px 24px;padding:8px 10px;border-radius:var(--radius-sm);background:var(--primary-50);border:1px solid var(--primary-100);color:var(--primary-hover);font-size:12px;font-weight:600}
 .status-dot{width:8px;height:8px;border-radius:50%;background:var(--accent);display:inline-block}
 .side-label{font-size:12px;font-weight:600;color:var(--muted);margin:0 10px 8px}
 .sidebar-nav{display:grid;gap:2px}
@@ -549,6 +548,45 @@ body{background:radial-gradient(60vw 50vw at 0% 0%,#bae6fd 0,transparent 60%),ra
   /* cheaper on phones: keep translucency, drop per-card blur */
   .job-card,.plain-card,.feature-card,.queue-card,.draft-card,.stat,.search-box,.select-box,.pilot-strip{-webkit-backdrop-filter:none;backdrop-filter:none;background:rgba(255,255,255,.9)}
 }
+/* ---------- Dark frosted sidebar: navy matches the hero/why stages ---------- */
+.sidebar{
+  background:
+    radial-gradient(220px 200px at 0% 0%,rgba(56,189,248,.18),transparent 70%),
+    radial-gradient(240px 220px at 100% 85%,rgba(14,165,233,.14),transparent 70%),
+    linear-gradient(180deg,rgba(8,47,73,.96),rgba(9,44,70,.96));
+  -webkit-backdrop-filter:var(--blur);backdrop-filter:var(--blur);
+  border-right:1px solid rgba(255,255,255,.08);
+  box-shadow:inset -1px 0 0 rgba(255,255,255,.04),inset 0 1px 0 rgba(255,255,255,.08),8px 0 32px -16px rgba(2,6,23,.35);
+  color:#cbd5e1
+}
+.sidebar :focus-visible{outline-color:#fff}
+.sidebar .brand strong{color:#fff}
+.sidebar .brand img{box-shadow:0 0 0 1px rgba(255,255,255,.22)}
+.sidebar .side-label{color:#b6c3d4}
+.sidebar .side-link{color:#cbd5e1;border:1px solid transparent}
+.sidebar .side-link svg{color:#94a3b8}
+.sidebar .side-link:hover{background:rgba(255,255,255,.06);color:#fff}
+.sidebar .side-link:hover svg{color:#e0f2fe}
+.sidebar .side-link.active{background:rgba(255,255,255,.12);border-color:rgba(255,255,255,.14);color:#fff;box-shadow:inset 0 1px 0 rgba(255,255,255,.1)}
+.sidebar .side-link.active svg{color:#7dd3fc}
+.sidebar .side-link .count{background:#38bdf8;color:#082f49;font-weight:700}
+.sidebar-profile{border-top-color:rgba(255,255,255,.1)}
+.sidebar-profile strong{color:#fff}
+.sidebar-profile small{color:#b6c3d4}
+.sidebar-profile .avatar{background:rgba(125,211,252,.18);color:#e0f2fe;box-shadow:inset 0 0 0 1px rgba(125,211,252,.3)}
+/* sidebar zones: brand | nav | profile, split by faded hairlines */
+.sidebar{position:sticky;box-shadow:inset -1px 0 0 rgba(125,211,252,.42),inset 0 1px 0 rgba(255,255,255,.08),8px 0 32px -16px rgba(2,6,23,.35)}
+.sidebar .side-label{position:relative;margin-top:32px;padding-top:24px}
+.sidebar .side-label::before,.sidebar-profile::before{content:'';position:absolute;left:-2px;right:-2px;top:0;height:1px;background:linear-gradient(90deg,transparent,rgba(255,255,255,.28) 15%,rgba(255,255,255,.28) 85%,transparent)}
+.sidebar-profile{position:relative;border-top:0;padding-top:16px}
+/* hairline between nav items; hidden next to the active or hovered pill */
+.sidebar .sidebar-nav{gap:3px}
+.sidebar .side-link{position:relative}
+.sidebar .side-link+.side-link::before{content:'';position:absolute;left:12px;right:12px;top:-2.5px;height:1px;background:rgba(255,255,255,.12);pointer-events:none;transition:opacity var(--ease)}
+.sidebar .side-link.active::before,.sidebar .side-link.active+.side-link::before,
+.sidebar .side-link:hover::before,.sidebar .side-link:hover+.side-link::before{opacity:0}
+@media(prefers-reduced-transparency:reduce){.sidebar{background:#082f49}}
+
 @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}*,*::before,*::after{animation-duration:.001ms!important;transition-duration:.001ms!important}}
 
 /* ===== Job card (.jc) - scoped to the card, uses the current theme tokens ===== */

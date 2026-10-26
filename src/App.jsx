@@ -239,7 +239,6 @@ export default function App() {
   return <div className="app-shell">
     <aside className="sidebar" aria-label="Main navigation">
       <Brand />
-      <div className="sidebar-tag"><span className="status-dot"/> UAE · Trusted Community Circle</div>
       <div className="side-label">Your workspace</div>
       <nav className="sidebar-nav">
         {nav.map(n => {
