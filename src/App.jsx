@@ -752,31 +752,28 @@ export default function App() {
             title="Job verification queue"
             desc="Moderators check every role directly with the hiring company before it goes live. Zero scam or fee posts permitted."
           />
-          <div className="phase-ribbon">
-            <span>
-              <strong><ShieldCheck size={16}/> Moderator Verification Protocol:</strong>
-              1. Direct HR contact confirmed • 2. Auto-block zero-fee audit passed • 3. 30-day expiry timer initialized.
-            </span>
+          <div className="rp">
+            <div className="rp-head"><ShieldCheck size={16}/> Moderator verification protocol</div>
+            <ol className="rp-steps">
+              <li><b>1</b><span>Direct HR contact confirmed</span></li>
+              <li><b>2</b><span>Zero-fee audit passed</span></li>
+              <li><b>3</b><span>30-day expiry timer started</span></li>
+            </ol>
           </div>
 
           <div className="review-list">
             {SAMPLE_JOBS.slice(0, 3).map(j => {
               const status = demo.reviews[j.id] || 'Live on noticeboard'
               return (
-                <QueueCard
+                <ReviewCard
                   key={j.id}
-                  avatar={<div className={`company-icon ${j.hue}`}>{j.initials}</div>}
-                  title={j.title}
+                  job={j}
                   status={status}
                   tone={status.startsWith('Flagged') ? 'bad' : 'ok'}
-                  sub={`${j.company} · ${j.emirate} · ${j.daysLeft} days left`}
-                  note={j.verificationNote}
-                  footNote={<><ShieldCheck size={15}/> Zero-fee check passed</>}
-                >
-                  <button className="outline-small" onClick={() => setSelectedJob(j)}>View details</button>
-                  <button className="reject-small" onClick={() => reviewDraft(j.id, 'Flagged for review')}><Flag size={15}/> Flag</button>
-                  <button className="approve-small" onClick={() => reviewDraft(j.id, 'Confirmed with HR')}><Check size={15}/> Confirm HR</button>
-                </QueueCard>
+                  onView={() => setSelectedJob(j)}
+                  onFlag={() => reviewDraft(j.id, 'Flagged for review')}
+                  onConfirm={() => reviewDraft(j.id, 'Confirmed with HR')}
+                />
               )
             })}
           </div>
@@ -864,11 +861,12 @@ export default function App() {
               </button>
             }
           />
-          <div className="phase-ribbon">
-            <span>
-              <strong><ShieldCheck size={16}/> Active Church Admin:</strong> St. Luke's Dubai • 
-              <strong> Legal compliance status:</strong> Zero denomination data stored • UAE Data Law compliant.
-            </span>
+          <div className="rp">
+            <div className="rp-head"><ShieldCheck size={16}/> Active church admin: St. Luke's Dubai</div>
+            <ol className="rp-steps rp-two">
+              <li><b><ShieldCheck size={13}/></b><span>Zero denomination data stored</span></li>
+              <li><b><ShieldCheck size={13}/></b><span>UAE Data Law compliant</span></li>
+            </ol>
           </div>
 
           <div className="review-list">
@@ -1376,6 +1374,40 @@ function JobCard({ job, saved, tracked, onSave, onOpen }) {
   )
 }
 
+
+function ReviewCard({ job, status, tone, onView, onFlag, onConfirm }) {
+  const life = Math.max(4, Math.min(100, Math.round((job.daysLeft / 30) * 100)))
+  return (
+    <article className={`rc ${tone}`}>
+      <div className="rc-top">
+        <span className="rc-status"><span className="rc-dot" aria-hidden="true"/> {status}</span>
+        <span className="rc-life" title={`${job.daysLeft} of 30 days left`}>
+          <i style={{ '--life': `${life}%` }} aria-hidden="true"/>
+          {job.daysLeft} days left
+        </span>
+      </div>
+
+      <div className="rc-body">
+        <div className="rc-mono" aria-hidden="true">{job.initials}</div>
+        <div className="rc-id">
+          <h3>{job.title}</h3>
+          <p>{job.company} <span>·</span> {job.emirate}</p>
+        </div>
+      </div>
+
+      <blockquote className="rc-note">{job.verificationNote}</blockquote>
+
+      <div className="rc-foot">
+        <span className="rc-check"><ShieldCheck size={15}/> Zero-fee check passed</span>
+        <div className="rc-actions">
+          <button className="rc-btn" onClick={onView}>View details</button>
+          <button className="rc-btn rc-flag" onClick={onFlag}><Flag size={15}/> Flag</button>
+          <button className="rc-btn rc-confirm" onClick={onConfirm}><Check size={15}/> Confirm HR</button>
+        </div>
+      </div>
+    </article>
+  )
+}
 
 function QueueCard({ avatar, title, status, tone, sub, note, footNote, children }) {
   return (
