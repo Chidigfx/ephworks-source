@@ -1333,42 +1333,49 @@ function Brand({ compact = false }) {
 }
 
 function JobCard({ job, saved, tracked, onSave, onOpen }) {
+  const life = Math.max(4, Math.min(100, Math.round((job.daysLeft / 30) * 100)))
   return (
-    <article className="job-card">
-      <div className={`company-icon ${job.hue}`}>{job.initials}</div>
-      <div className="job-main">
-        <h3>{job.title}</h3>
-        <p className="job-sub">
-          <span>{job.company}</span>
-          <span className="verified-text"><BadgeCheck size={15}/> Checked with employer</span>
-          {tracked && <span className="tag-badge secure"><CheckCheck size={13}/> Applied</span>}
-        </p>
-        <ul className="job-meta">
-          <li><MapPin size={15}/>{job.emirate}</li>
-          <li><BriefcaseBusiness size={15}/>{job.type}</li>
-          <li><Clock3 size={15}/>{job.daysLeft} days left</li>
-        </ul>
+    <article className="jc">
+      <div className="jc-top">
+        <span className="jc-check"><BadgeCheck size={15}/> Checked with employer</span>
+        {tracked && <span className="jc-applied"><CheckCheck size={13}/> Applied</span>}
+        <button
+          className={`jc-save ${saved ? 'is-saved' : ''}`}
+          aria-label={`${saved ? 'Remove' : 'Save'} ${job.title}`}
+          aria-pressed={saved}
+          title={saved ? 'Saved' : 'Save'}
+          onClick={onSave}
+        >
+          <Bookmark size={18} fill={saved ? 'currentColor' : 'none'}/>
+        </button>
       </div>
-      <div className="job-side">
-        <p className="job-pay"><b>{job.salary}</b><span>per month</span></p>
-        <div className="job-buttons">
-          <button
-            className={`save-icon ${saved ? 'is-saved' : ''}`}
-            aria-label={`${saved ? 'Remove' : 'Save'} ${job.title}`}
-            aria-pressed={saved}
-            title={saved ? 'Saved' : 'Save'}
-            onClick={onSave}
-          >
-            <Bookmark size={18} fill={saved ? 'currentColor' : 'none'}/>
-          </button>
-          <button className="open-job" onClick={onOpen} aria-label={`View and apply: ${job.title}`}>
-            View & apply <ArrowRight size={16}/>
-          </button>
+
+      <div className="jc-body">
+        <div className="jc-mono" aria-hidden="true">{job.initials}</div>
+        <div className="jc-id">
+          <h3>{job.title}</h3>
+          <p>{job.company} <span>·</span> {job.emirate}</p>
         </div>
+        <p className="jc-pay"><b>{job.salary}</b><span>per month</span></p>
+      </div>
+
+      <div className="jc-foot">
+        <ul className="jc-facts">
+          <li>{job.type}</li>
+          <li>{job.mode}</li>
+          <li className="jc-life" title={`${job.daysLeft} of 30 days left`}>
+            <i style={{ '--life': `${life}%` }} aria-hidden="true"/>
+            {job.daysLeft} days left
+          </li>
+        </ul>
+        <button className="jc-open" onClick={onOpen} aria-label={`View and apply: ${job.title}`}>
+          View role <ArrowRight size={16}/>
+        </button>
       </div>
     </article>
   )
 }
+
 
 function QueueCard({ avatar, title, status, tone, sub, note, footNote, children }) {
   return (
