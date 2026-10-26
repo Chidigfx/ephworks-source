@@ -4,14 +4,14 @@ import {
   CheckCircle2, ChevronDown, ChevronRight, CircleHelp, ClipboardCheck,
   FilePenLine, FileText, Flag, HandHeart, HeartHandshake, Home,
   LockKeyhole, MapPin, Menu, MoreHorizontal, Plus, Search, ShieldCheck,
-  SlidersHorizontal, Sparkles, UsersRound, X, RotateCcw, ExternalLink,
+  SlidersHorizontal, UsersRound, LifeBuoy, KeyRound, X, RotateCcw, ExternalLink,
   Clock3, Mail, Building2, Eye, Send, Info, AlertTriangle, ShieldAlert,
   Calendar, CheckCheck, Scale, Lock
 } from 'lucide-react'
 import { NAV, SAMPLE_JOBS, SAMPLE_VOLUNTEER, CAREER_SUPPORT_MODULES, TRUST_PILLARS, SAMPLE_VOUCH_REQUESTS } from './data'
 
 const icons = {
-  briefcase: BriefcaseBusiness, bookmark: Bookmark, sparkles: Sparkles,
+  briefcase: BriefcaseBusiness, bookmark: Bookmark, sparkles: LifeBuoy,
   heart: HeartHandshake, users: UsersRound, shield: ShieldCheck,
   plus: Plus, file: FileText, check: ClipboardCheck, flag: Flag
 }
@@ -209,10 +209,10 @@ export default function App() {
 
   const bookSupportSession = e => {
     e.preventDefault()
-    const module = CAREER_SUPPORT_MODULES.find(m => m.id === supportForm.service)
+    const module = CAREER_SUPPORT_MODULES.find(m => m.id === selectedSupportService)
     const newSession = {
       id: `session-${Date.now()}`,
-      service: module?.title || supportForm.service,
+      service: module?.title || selectedSupportService,
       preferredTime: supportForm.preferredTime,
       note: supportForm.note,
       status: 'Matched with Volunteer HR Mentor'
@@ -300,58 +300,86 @@ export default function App() {
         )}
 
         {page === 'opportunities' && <>
-          <section className="hero">
-            <div className="hero-copy">
-              <p className="hero-eyebrow">A private job board for church communities in the UAE</p>
-              <h1>Find work through people who know you.</h1>
-              <p className="hero-lede">Every job here has been checked with the employer. Every member is vouched for by their church. Nobody will ask you for money.</p>
-              <div className="hero-cta">
-                <button className="hero-button" onClick={() => document.getElementById('opp-list')?.scrollIntoView({ behavior: 'smooth' })}>
-                  See open jobs
-                </button>
-                <button className="hero-ghost" onClick={() => go('career')}>Get help with your CV</button>
+          <section className="hero-stage">
+            <img className="stage-bg" src="/images/community.webp" fetchpriority="high" alt="" width="1200" height="896"/>
+            <div className="hero-inner">
+              <div className="hero-copy">
+                <p className="glass-chip"><span className="status-dot"/> A private job board for UAE church communities</p>
+                <h1>Find work through people who <em>know you.</em></h1>
+                <p className="hero-lede">Every job here has been checked with the employer. Every member is vouched for by their church. Nobody will ask you for money.</p>
+                <form className="hero-search" role="search" onSubmit={e => { e.preventDefault(); document.getElementById('opp-list')?.scrollIntoView({ behavior: 'smooth' }) }}>
+                  <label className="hs-field">
+                    <Search size={18}/>
+                    <span className="sr-only">Job title, company or skill</span>
+                    <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Job title, company or skill"/>
+                  </label>
+                  <label className="hs-field hs-select">
+                    <MapPin size={18}/>
+                    <span className="sr-only">Emirate</span>
+                    <select value={emirate} onChange={e => setEmirate(e.target.value)}>
+                      {['All emirates', 'Dubai', 'Abu Dhabi', 'Sharjah'].map(x => <option key={x}>{x}</option>)}
+                    </select>
+                  </label>
+                  <button className="hero-button" type="submit"><Search size={17}/> Search jobs</button>
+                </form>
+                <button className="glass-link" onClick={() => go('career')}>Get free help with your CV <ArrowRight size={16}/></button>
+              </div>
+              <div className="hero-float">
+                <div className="glass-card float-card">
+                  <span className="float-icon"><ShieldCheck size={22}/></span>
+                  <div>
+                    <strong>{SAMPLE_JOBS.length} jobs open</strong>
+                    <small>Every one checked with the employer</small>
+                  </div>
+                </div>
+                <ul className="glass-card float-list" aria-label="What we check">
+                  <li><BadgeCheck size={18}/> Members vouched for by their church</li>
+                  <li><LockKeyhole size={18}/> Fee requests blocked automatically</li>
+                  <li><Clock3 size={18}/> Posts expire after 30 days</li>
+                </ul>
               </div>
             </div>
-            <figure className="hero-photo">
-              <img src="/images/community.webp" fetchpriority="high" alt="Members of a community chatting over tea with folders and laptops" width="1200" height="896"/>
-              <figcaption><b>{SAMPLE_JOBS.length} jobs open</b> All checked with the employer</figcaption>
-            </figure>
           </section>
 
-          <ul className="trust-line" aria-label="What we check">
-            <li>Members vouched for</li>
-            <li>Employers contacted first</li>
-            <li>Fee requests blocked</li>
-            <li>Posts expire after 30 days</li>
+          <ul className="stat-row" aria-label="At a glance">
+            <li className="stat featured"><b>{SAMPLE_JOBS.length}</b><span>Jobs open right now</span></li>
+            <li className="stat"><b>100%</b><span>Checked with the employer</span></li>
+            <li className="stat"><b>AED 0</b><span>Fees to apply, ever</span></li>
+            <li className="stat"><b>30 days</b><span>Longest a post can stay up</span></li>
           </ul>
 
-          <section className="why">
-            <img className="why-photo" src="/images/workday.webp" loading="lazy" decoding="async" alt="A young woman leaving an office building in Dubai at the end of her first week" width="896" height="1200"/>
-            <div className="why-body">
-              <h2>Why not just use a Facebook group?</h2>
-              <p className="why-intro">Because anyone can post in a Facebook group, and some of them are not who they say they are. Here, three things have to be true first.</p>
-              <ol className="why-list">
+          <section className="why-stage">
+            <img className="stage-bg" src="/images/workday.webp" loading="lazy" decoding="async" alt="" width="896" height="1200"/>
+            <div className="why-inner">
+              <div className="why-head">
+                <p className="glass-chip">Three checks, every time</p>
+                <h2>Why not just use a Facebook group?</h2>
+                <p className="why-intro">Because anyone can post in a Facebook group, and some of them are not who they say they are. Here, three things have to be true first.</p>
+              </div>
+              <ol className="why-cards">
                 {TRUST_PILLARS.map(p => (
-                  <li key={p.num}>
+                  <li key={p.num} className="glass-card why-card">
                     <span className="why-num">{p.num}</span>
-                    <div>
-                      <h3>{p.title}</h3>
-                      <p>{p.desc}</p>
-                      <small>{p.legalNote}</small>
-                    </div>
+                    <h3>{p.title}</h3>
+                    <p>{p.desc}</p>
+                    <small>{p.legalNote}</small>
                   </li>
                 ))}
               </ol>
             </div>
           </section>
 
-          <section className="support-split">
-            <img src="/images/mentor.webp" loading="lazy" decoding="async" alt="A volunteer mentor marking up a printed CV with a young job seeker" width="1200" height="896"/>
-            <div>
+          <section className="support-stage">
+            <div className="support-copy">
+              <p className="eyebrow">Free volunteer support</p>
               <h2>Someone to sit down with you and fix the CV.</h2>
               <p>Volunteers from HR and hiring teams give a free CV review, a practice interview, or a LinkedIn tidy-up. It is the part a Facebook group will never do for you.</p>
-              <button className="hero-button" onClick={() => go('career')}>Book a volunteer</button>
+              <button className="primary-button" onClick={() => go('career')}>Book a volunteer <ArrowRight size={16}/></button>
             </div>
+            <figure className="support-photo">
+              <img src="/images/mentor.webp" loading="lazy" decoding="async" alt="A volunteer mentor marking up a printed CV with a young job seeker" width="1200" height="896"/>
+              <figcaption className="glass-card float-badge"><FileText size={18}/> CV review · Mock interview · LinkedIn</figcaption>
+            </figure>
           </section>
 
           <section id="opp-list" className="opportunity-section">
@@ -413,30 +441,35 @@ export default function App() {
             desc="Unlike generic job boards, Ephworks provides real, free support from volunteer HR professionals, hiring managers, and career mentors."
             action={
               <button className="primary-button" onClick={() => { setSelectedSupportService('cv-review'); setShowSupportModal(true) }}>
-                <Calendar size={16}/> Request volunteer session
+                <Calendar size={16}/> Request a session
               </button>
             }
           />
-          <div className="feature-grid">
+          <div className="service-grid">
             {CAREER_SUPPORT_MODULES.map(mod => (
-              <div className="feature-card" key={mod.id}>
-                <div className="feature-icon"><Sparkles size={22}/></div>
-                <Pill type="mint">{mod.badge}</Pill>
-                <h3>{mod.title}</h3>
-                <p>{mod.summary}</p>
-                <ul>
-                  {mod.highlights.map(h => <li key={h}><Check size={15}/>{h}</li>)}
-                </ul>
-                <div className="support-turnaround">
-                  <Clock3 size={13}/> {mod.turnaround}
+              <article className="service-card" key={mod.id}>
+                <div className="service-intro">
+                  <p className="service-format">{mod.badge}</p>
+                  <h3>{mod.title}</h3>
+                  <p className="service-summary">{mod.summary}</p>
                 </div>
-                <button
-                  className="support-action-btn"
-                  onClick={() => { setSelectedSupportService(mod.id); setShowSupportModal(true) }}
-                >
-                  Book free {mod.title.toLowerCase()} <ArrowRight size={14}/>
-                </button>
-              </div>
+                <div className="service-covered">
+                  <p className="service-label">What's covered</p>
+                  <ul>
+                    {mod.highlights.map(h => <li key={h}><Check size={16}/>{h}</li>)}
+                  </ul>
+                </div>
+                <footer className="service-foot">
+                  <span className="service-time"><Clock3 size={15}/> {mod.turnaround}</span>
+                  <button
+                    className="secondary-button"
+                    aria-label={`Book ${mod.title}`}
+                    onClick={() => { setSelectedSupportService(mod.id); setShowSupportModal(true) }}
+                  >
+                    Book this session <ArrowRight size={16}/>
+                  </button>
+                </footer>
+              </article>
             ))}
           </div>
 
@@ -727,32 +760,25 @@ export default function App() {
           </div>
 
           <div className="review-list">
-            {SAMPLE_JOBS.slice(0, 3).map(j => (
-              <div className="review-card" key={j.id}>
-                <div className="company-icon sage"><Building2 size={21}/></div>
-                <div className="review-info">
-                  <div className="review-title-row">
-                    <h3>{j.title}</h3>
-                    <span className="tag-badge verified">Verified with Company</span>
-                    <span className="tag-badge expiry">{j.daysLeft}d left</span>
-                  </div>
-                  <p>{j.company} · {j.emirate} · Fictional Company</p>
-                  <div className="review-note">
-                    {j.verificationNote}
-                  </div>
-                  <Pill type="subtle">{demo.reviews[j.id] || 'Verified & Active on Noticeboard'}</Pill>
-                </div>
-                <div className="review-actions">
-                  <button className="outline-small" onClick={() => setSelectedJob(j)}>View</button>
-                  <button className="approve-small" onClick={() => reviewDraft(j.id, 'Confirmed with HR')}>
-                    <Check size={15}/> Confirm HR
-                  </button>
-                  <button className="reject-small" onClick={() => reviewDraft(j.id, 'Flagged for Review')}>
-                    <Flag size={15}/> Flag
-                  </button>
-                </div>
-              </div>
-            ))}
+            {SAMPLE_JOBS.slice(0, 3).map(j => {
+              const status = demo.reviews[j.id] || 'Live on noticeboard'
+              return (
+                <QueueCard
+                  key={j.id}
+                  avatar={<div className={`company-icon ${j.hue}`}>{j.initials}</div>}
+                  title={j.title}
+                  status={status}
+                  tone={status.startsWith('Flagged') ? 'bad' : 'ok'}
+                  sub={`${j.company} · ${j.emirate} · ${j.daysLeft} days left`}
+                  note={j.verificationNote}
+                  footNote={<><ShieldCheck size={15}/> Zero-fee check passed</>}
+                >
+                  <button className="outline-small" onClick={() => setSelectedJob(j)}>View details</button>
+                  <button className="reject-small" onClick={() => reviewDraft(j.id, 'Flagged for review')}><Flag size={15}/> Flag</button>
+                  <button className="approve-small" onClick={() => reviewDraft(j.id, 'Confirmed with HR')}><Check size={15}/> Confirm HR</button>
+                </QueueCard>
+              )
+            })}
           </div>
         </>}
 
@@ -766,23 +792,21 @@ export default function App() {
             <div className="job-list">
               {demo.reports.map(r => {
                 const j = SAMPLE_JOBS.find(x => x.id === r.jobId)
+                const resolved = r.status.includes('Resolved')
                 return (
-                  <div className="review-card" key={r.id}>
-                    <div className="feature-icon danger"><Flag size={20}/></div>
-                    <div className="review-info">
-                      <h3>{j?.title || 'Reported role'}</h3>
-                      <p><strong>Reason:</strong> {r.reason}</p>
-                      <small className="review-meta">Submitted: {r.created || 'Just now'} · Safety team protocol: Follow up within 24h</small>
-                      <div className="review-status"><Pill type="subtle">{r.status}</Pill></div>
-                    </div>
-                    <button
-                      className="approve-small"
-                      disabled={r.status.includes('Resolved')}
-                      onClick={() => markReport(r.id)}
-                    >
-                      {r.status.includes('Resolved') ? 'Resolved' : 'Resolve report'}
+                  <QueueCard
+                    key={r.id}
+                    avatar={<div className="feature-icon danger"><Flag size={20}/></div>}
+                    title={j?.title || 'Reported role'}
+                    status={resolved ? 'Resolved' : 'Open'}
+                    tone={resolved ? 'ok' : 'pending'}
+                    sub={`Reason: ${r.reason}`}
+                    footNote={<><Clock3 size={15}/> Submitted {r.created || 'just now'} · follow-up within 24h</>}
+                  >
+                    <button className="approve-small" disabled={resolved} onClick={() => markReport(r.id)}>
+                      <Check size={15}/> {resolved ? 'Resolved' : 'Mark resolved'}
                     </button>
-                  </div>
+                  </QueueCard>
                 )
               })}
             </div>
@@ -836,7 +860,7 @@ export default function App() {
             desc="Review and vouch for members from your local church community. Keeps out fake recruiter agents and scammers while ensuring data privacy."
             action={
               <button className="primary-button" onClick={() => go('invite')}>
-                <Sparkles size={16}/> Get church invite pass
+                <KeyRound size={16}/> Get church invite pass
               </button>
             }
           />
@@ -848,41 +872,26 @@ export default function App() {
           </div>
 
           <div className="review-list">
-            {demo.vouchQueue.map(m => (
-              <div className="review-card" key={m.id}>
-                <div className="company-icon sage">{m.initials}</div>
-                <div className="review-info">
-                  <div className="review-title-row">
-                    <h3>{m.name}</h3>
-                    <span className="tag-badge verified">{m.status}</span>
-                    <span className="tag-badge expiry">Requested {m.requestedDate}</span>
-                  </div>
-                  <p>{m.email} · {m.church}</p>
-                  <div className="review-note">
-                    {m.note}
-                  </div>
-                  <div className="review-meta data-line">
-                    <LockKeyhole size={13}/>
-                    Data minimization payload: &#123; member_id, vouched: true &#125;. No religious beliefs or spiritual records stored.
-                  </div>
-                </div>
-                <div className="review-actions">
-                  <button
-                    className="approve-small"
-                    disabled={m.status.includes('Vouched')}
-                    onClick={() => handleVouch(m.id, 'Vouched member')}
-                  >
-                    <Check size={15}/> {m.status.includes('Vouched') ? 'Vouched' : 'Vouch Identity'}
+            {demo.vouchQueue.map(m => {
+              const vouched = m.status.includes('Vouched'), declined = m.status.includes('Declined')
+              return (
+                <QueueCard
+                  key={m.id}
+                  avatar={<div className="company-icon sage">{m.initials}</div>}
+                  title={m.name}
+                  status={vouched ? 'Vouched' : declined ? 'Declined' : 'Awaiting vouch'}
+                  tone={vouched ? 'ok' : declined ? 'bad' : 'pending'}
+                  sub={`${m.email} · ${m.church} · Requested ${m.requestedDate}`}
+                  note={m.note}
+                  footNote={<><LockKeyhole size={15}/> Stores a yes/no vouch only</>}
+                >
+                  <button className="reject-small" disabled={declined} onClick={() => handleVouch(m.id, 'Declined / Not Known')}><X size={15}/> Decline</button>
+                  <button className="approve-small" disabled={vouched} onClick={() => handleVouch(m.id, 'Vouched member')}>
+                    <Check size={15}/> {vouched ? 'Vouched' : 'Vouch for member'}
                   </button>
-                  <button
-                    className="reject-small"
-                    onClick={() => handleVouch(m.id, 'Declined / Not Known')}
-                  >
-                    <X size={15}/> Decline
-                  </button>
-                </div>
-              </div>
-            ))}
+                </QueueCard>
+              )
+            })}
           </div>
         </>}
 
@@ -894,7 +903,7 @@ export default function App() {
           />
           <div className="plain-card narrow-card">
             <div className="cta-row">
-              <div className="feature-icon"><Sparkles size={24}/></div>
+              <div className="feature-icon"><KeyRound size={22}/></div>
               <div>
                 <h3>St. Luke's Dubai Community Access Pass</h3>
                 <p>
@@ -1327,34 +1336,56 @@ function JobCard({ job, saved, tracked, onSave, onOpen }) {
   return (
     <article className="job-card">
       <div className={`company-icon ${job.hue}`}>{job.initials}</div>
-      <div className="job-info">
-        <div className="job-title-row">
-          <h3>{job.title}</h3>
-          <span className="verified-text"><BadgeCheck size={14}/> Checked with employer</span>
+      <div className="job-main">
+        <h3>{job.title}</h3>
+        <p className="job-sub">
+          <span>{job.company}</span>
+          <span className="verified-text"><BadgeCheck size={15}/> Checked with employer</span>
           {tracked && <span className="tag-badge secure"><CheckCheck size={13}/> Applied</span>}
+        </p>
+        <ul className="job-meta">
+          <li><MapPin size={15}/>{job.emirate}</li>
+          <li><BriefcaseBusiness size={15}/>{job.type}</li>
+          <li><Clock3 size={15}/>{job.daysLeft} days left</li>
+        </ul>
+      </div>
+      <div className="job-side">
+        <p className="job-pay"><b>{job.salary}</b><span>per month</span></p>
+        <div className="job-buttons">
+          <button
+            className={`save-icon ${saved ? 'is-saved' : ''}`}
+            aria-label={`${saved ? 'Remove' : 'Save'} ${job.title}`}
+            aria-pressed={saved}
+            title={saved ? 'Saved' : 'Save'}
+            onClick={onSave}
+          >
+            <Bookmark size={18} fill={saved ? 'currentColor' : 'none'}/>
+          </button>
+          <button className="open-job" onClick={onOpen} aria-label={`View and apply: ${job.title}`}>
+            View & apply <ArrowRight size={16}/>
+          </button>
         </div>
-        <p className="company-name">{job.company}</p>
-        <div className="job-tags">
-          <span><MapPin size={15}/>{job.emirate}</span>
-          <span><BriefcaseBusiness size={15}/>{job.type}</span>
-          <span><Clock3 size={15}/>{job.daysLeft} days left</span>
-          <span className="pay">{job.salary} / month</span>
-        </div>
+      </div>
+    </article>
+  )
+}
 
+function QueueCard({ avatar, title, status, tone, sub, note, footNote, children }) {
+  return (
+    <article className="queue-card">
+      {avatar}
+      <div className="queue-main">
+        <div className="queue-head">
+          <h3>{title}</h3>
+          <span className={`status-chip ${tone}`}>{status}</span>
+        </div>
+        <p className="queue-sub">{sub}</p>
+        {note && <p className="queue-note">{note}</p>}
       </div>
-      <div className="job-actions">
-        <button
-          className={`save-button ${saved ? 'is-saved' : ''}`}
-          aria-label={`${saved ? 'Remove' : 'Save'} ${job.title}`}
-          onClick={onSave}
-        >
-          <Bookmark size={17} fill={saved ? 'currentColor' : 'none'}/>
-          <span>{saved ? 'Saved' : 'Save'}</span>
-        </button>
-        <button className="open-job" onClick={onOpen} aria-label={`View ${job.title}`}>
-          View & Apply Direct <ArrowRight size={17}/>
-        </button>
-      </div>
+      <footer className="queue-foot">
+        <span className="queue-foot-note">{footNote}</span>
+        <div className="queue-actions">{children}</div>
+      </footer>
     </article>
   )
 }

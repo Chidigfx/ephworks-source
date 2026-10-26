@@ -140,44 +140,44 @@ export const SAMPLE_JOBS = [
 export const CAREER_SUPPORT_MODULES = [
   {
     id: 'cv-review',
-    title: 'Volunteer CV Review',
+    title: 'CV review',
     icon: 'file-check',
-    badge: '1-on-1 Feedback',
+    badge: 'One-to-one feedback',
     summary: 'Receive structured, line-by-line feedback from volunteer UAE HR professionals to tailor your CV to local hiring standards.',
     highlights: [
       'Tailored feedback for UAE ATS systems',
       'Clarity on achievements vs daily tasks',
       'Formatting and layout refinement'
     ],
-    turnaround: 'Typically 48–72 hours',
+    turnaround: 'Feedback in 2–3 days',
     volunteersCount: '12 active HR volunteers'
   },
   {
     id: 'mock-interview',
-    title: 'Mock Interview Practice',
+    title: 'Mock interview practice',
     icon: 'sparkles',
-    badge: 'Live 30-min Prep',
+    badge: 'Live 30-minute session',
     summary: 'Practice answering behavioral, competency, and situational questions in a safe, encouraging environment before facing real employers.',
     highlights: [
       'STAR technique (Situation, Task, Action, Result)',
       'Practical UAE workplace cultural pointers',
       'Constructive verbal and confidence tips'
     ],
-    turnaround: 'Flexible slots evenings & weekends',
+    turnaround: 'Evening and weekend slots',
     volunteersCount: '8 volunteer managers'
   },
   {
     id: 'linkedin-help',
-    title: 'LinkedIn Profile Polish',
+    title: 'LinkedIn profile review',
     icon: 'users',
-    badge: 'Visibility Polish',
+    badge: 'Profile walkthrough',
     summary: 'Optimize your LinkedIn headline, summary, and experience section so legitimate hiring managers and recruiters can discover you.',
     highlights: [
       'Keyword optimization for your industry',
       'Compelling professional summary statement',
       'Professional photo and banner best practices'
     ],
-    turnaround: 'Self-paced or 1-on-1 check',
+    turnaround: 'Self-paced or one-to-one',
     volunteersCount: '6 digital mentors'
   }
 ]
