@@ -227,5 +227,43 @@ check('moderators see counts', r.rows?.length === 1, r)
 r = await as(OTHER, `delete from public.job_interest where job_id = $1 returning job_id`, [jobId])
 check('member removes own interest', r.rows?.length === 1, r)
 
+// Church suggestions ---------------------------------------------------------------
+r = await as(OTHER, `insert into public.church_suggestions (name, emirate, status) values ('  New Life Church Ajman ', 'Ajman', 'approved') returning id, name, status`)
+check('suggestion forced to pending and trimmed', r.rows?.[0]?.status === 'pending' && r.rows[0].name === 'New Life Church Ajman', r)
+const sugId = r.rows?.[0]?.id
+r = await as(OTHER, `insert into public.church_suggestions (name, emirate) values ('new life church ajman', 'Ajman')`)
+check('same suggestion twice refused', /one_open_suggestion/.test(r.error || ''), r)
+r = await as(OTHER, `insert into public.church_suggestions (name, emirate) values ('Somewhere Church', 'Narnia')`)
+check('suggestion needs a real emirate', Boolean(r.error), r)
+r = await as(EMP, `select id from public.church_suggestions`)
+check('other members cannot read suggestions', r.rows?.length === 0, r)
+r = await as(OTHER, `select public.decide_church_suggestion($1, true)`, [sugId])
+check('member cannot add a church', /Only admins/.test(r.error || ''), r)
+r = await as(OTHER, `insert into public.churches (name) values ('Sneaky Church')`)
+check('member cannot insert churches directly', Boolean(r.error), r)
+
+r = await as(OTHER, `insert into public.role_applications (role, display_name, note, church_suggestion_id) values ('church_admin', 'Other', 'I run the church office there.', $1) returning id`, [sugId])
+check('church admin can apply for a suggested church', r.rows?.length === 1, r)
+const sugApp = r.rows?.[0]?.id
+r = await as(ADM, `select public.decide_application($1, true)`, [sugApp])
+check('application waits until the church is added', /Add their church first/.test(r.error || ''), r)
+
+r = await as(ADM, `select public.decide_church_suggestion($1, true, 'New Life Church, Ajman') as church`, [sugId])
+const newChurch = r.rows?.[0]?.church
+check('admin adds the suggested church', Boolean(newChurch), r)
+r = await as(OTHER, `select name, emirate from public.churches where id = $1`, [newChurch])
+check('church added with corrected name and emirate', r.rows?.[0]?.name === 'New Life Church, Ajman' && r.rows[0].emirate === 'Ajman', r)
+r = await as(ADM, `select public.decide_church_suggestion($1, false)`, [sugId])
+check('suggestion cannot be decided twice', /no longer waiting/.test(r.error || ''), r)
+
+r = await as(EMP, `insert into public.church_suggestions (name, emirate) values ('St. Luke''s Dubai (sample)', 'Dubai') returning id`)
+r = await as(ADM, `select public.decide_church_suggestion($1, true) as church`, [r.rows?.[0]?.id])
+const stLuke = (await as(EMP, `select id from public.churches where name ilike 'st. luke%'`)).rows
+check('duplicate suggestion maps onto the existing church', stLuke.length === 1 && r.rows?.[0]?.church === stLuke[0].id, { r, stLuke })
+
+r = await as(ADM, `select public.decide_application($1, true)`, [sugApp])
+r = await as(OTHER, `select role, church_id from public.profiles where id = $1`, [OTHER])
+check('approved church admin is tied to the new church', r.rows?.[0]?.role === 'church_admin' && r.rows[0].church_id === newChurch, r)
+
 console.log(failed ? `\n${failed} failed` : '\nAll checks passed')
 process.exit(failed ? 1 : 0)

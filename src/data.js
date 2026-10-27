@@ -247,43 +247,41 @@ export const SAMPLE_VOUCH_REQUESTS = [
   }
 ]
 
+// Navigation. Staff sections appear only for accounts holding that role, behind "Your work" (App.jsx)
 export const NAV = {
-  seeker: [
-    { id: 'opportunities', label: 'Verified noticeboard', icon: 'briefcase' },
-    { id: 'career', label: 'Real support', icon: 'sparkles' },
-    { id: 'interests', label: 'My tracked roles', icon: 'bookmark' },
-    { id: 'volunteering', label: 'Volunteering', icon: 'heart' },
-    { id: 'apply', label: 'Apply to help', icon: 'badge' },
-    { id: 'churches', label: 'Church vouching & trust', icon: 'users' },
+  home: { id: 'home', label: 'Home', icon: 'home' },
+  // Always visible: top bar on desktop, bottom bar on phones
+  member: [
+    { id: 'opportunities', label: 'Jobs', icon: 'briefcase' },
+    { id: 'interests', label: 'Saved', icon: 'bookmark' },
+    { id: 'post', label: 'Post a job', icon: 'plus' }
+  ],
+  // Account menu (opens from the avatar)
+  menu: [
+    { id: 'drafts', label: 'My posts', icon: 'file' },
+    { id: 'career', label: 'Get help', icon: 'sparkles' },
+    { id: 'apply', label: 'Get involved', icon: 'heart' },
     { id: 'profile', label: 'Profile & privacy', icon: 'shield' }
   ],
-  employer: [
-    { id: 'opportunities', label: 'Noticeboard', icon: 'briefcase' },
-    { id: 'post', label: 'Post opportunity', icon: 'plus' },
-    { id: 'drafts', label: 'My posts', icon: 'file' },
-    { id: 'guidelines', label: 'Posting & legal standards', icon: 'shield' },
-    { id: 'apply', label: 'Apply to help', icon: 'badge' },
-    { id: 'profile', label: 'Profile & privacy', icon: 'users' }
+  // Reference pages, linked from the footer
+  footer: [
+    { id: 'churches', label: 'How trust works' },
+    { id: 'guidelines', label: 'Posting rules' },
+    { id: 'volunteering', label: 'Volunteer roles' }
   ],
   moderator: [
-    { id: 'review', label: 'Verification queue', icon: 'check' },
-    { id: 'reports', label: 'Safety team reports', icon: 'flag' },
-    { id: 'opportunities', label: 'Noticeboard preview', icon: 'briefcase' },
-    { id: 'guidelines', label: 'Trust & safety standards', icon: 'shield' },
-    { id: 'profile', label: 'Profile & privacy', icon: 'users' }
-  ],
-  admin: [
-    { id: 'people', label: 'People', icon: 'users' },
-    { id: 'applications', label: 'Role applications', icon: 'badge' },
-    { id: 'review', label: 'Verification queue', icon: 'check' },
-    { id: 'reports', label: 'Safety team reports', icon: 'flag' },
-    { id: 'opportunities', label: 'Noticeboard preview', icon: 'briefcase' }
+    { id: 'review', label: 'Review', icon: 'check' },
+    { id: 'reports', label: 'Reports', icon: 'flag' }
   ],
   church: [
-    { id: 'vouch', label: 'Member vouch queue', icon: 'users' },
-    { id: 'invite', label: 'Congregation invite pass', icon: 'sparkles' },
-    { id: 'privacyAudit', label: 'UAE privacy & legal audit', icon: 'shield' },
-    { id: 'opportunities', label: 'Noticeboard preview', icon: 'briefcase' }
+    { id: 'vouch', label: 'Vouches', icon: 'users' },
+    { id: 'invite', label: 'Invite pass', icon: 'sparkles' },
+    { id: 'privacyAudit', label: 'Privacy', icon: 'shield' }
+  ],
+  admin: [
+    { id: 'applications', label: 'Applications', icon: 'badge' },
+    { id: 'people', label: 'People', icon: 'users' },
+    { id: 'churchRequests', label: 'Churches', icon: 'heart' }
   ]
 }
 
@@ -303,4 +301,9 @@ export const SAMPLE_MEMBERS = [
 export const SAMPLE_APPLICATIONS = [
   { id: 'app-01', user_id: 'member-david', role: 'volunteer', church_id: null, display_name: 'David Okafor', note: 'Operations lead, happy to run mock interviews twice a month.', status: 'pending', created_at: '2026-10-25T09:00:00Z' },
   { id: 'app-02', user_id: 'member-priya', role: 'church_admin', church_id: 'church-grace', display_name: 'Priya Nair', note: 'Church office coordinator at Grace Fellowship; I know most members by name.', status: 'pending', created_at: '2026-10-26T14:30:00Z' }
+]
+
+// Same shape as church_suggestions rows
+export const SAMPLE_CHURCH_SUGGESTIONS = [
+  { id: 'sug-01', suggested_by: 'member-david', name: 'Bethel Fellowship Fujairah', emirate: 'Fujairah', status: 'pending', church_id: null, created_at: '2026-10-26T10:00:00Z' }
 ]

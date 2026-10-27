@@ -8,28 +8,31 @@ import {
   Clock3, Mail, Building2, Eye, Send, Info, AlertTriangle, ShieldAlert,
   Calendar, CheckCheck, Scale, Lock, UserRound, Heart, Ban
 } from 'lucide-react'
-import { NAV, SAMPLE_JOBS, SAMPLE_VOLUNTEER, CAREER_SUPPORT_MODULES, TRUST_PILLARS, SAMPLE_VOUCH_REQUESTS, SAMPLE_CHURCHES, SAMPLE_MEMBERS, SAMPLE_APPLICATIONS } from './data'
+import { NAV, SAMPLE_JOBS, SAMPLE_VOLUNTEER, CAREER_SUPPORT_MODULES, TRUST_PILLARS, SAMPLE_VOUCH_REQUESTS, SAMPLE_CHURCHES, SAMPLE_MEMBERS, SAMPLE_APPLICATIONS, SAMPLE_CHURCH_SUGGESTIONS } from './data'
 import { supabase, api, toJob } from './supabase'
 import { scanPost } from './scam'
 
 const icons = {
   briefcase: BriefcaseBusiness, bookmark: Bookmark, sparkles: LifeBuoy,
   heart: HeartHandshake, users: UsersRound, shield: ShieldCheck,
-  plus: Plus, file: FileText, check: ClipboardCheck, flag: Flag, badge: BadgeCheck
+  plus: Plus, file: FileText, check: ClipboardCheck, flag: Flag, badge: BadgeCheck, home: Home
 }
-const NAMES = { seeker: 'Job seeker', employer: 'Employer', moderator: 'Moderator', church: 'Church Partner Admin', admin: 'Admin' }
+// Demo-only persona switcher (no backend). With Supabase the menu comes from the signed-in account's role.
+const PERSONAS = { member: 'Member', moderator: 'Moderator', church_admin: 'Church admin', super_admin: 'Admin' }
 const demoKey = 'ephworks-local-demo-v4'
 const defaultDemo = {
   saved: [],
   tracked: [],
   interested: [],
-  role: 'seeker',
+  role: 'member', // demo persona, a key of PERSONAS
   drafts: [], // jobs rows, same shape as public.jobs, so toJob() renders them
   reports: [],
   supportSessions: [],
   vouchQueue: SAMPLE_VOUCH_REQUESTS,
   members: SAMPLE_MEMBERS,
-  applications: SAMPLE_APPLICATIONS
+  applications: SAMPLE_APPLICATIONS,
+  churchSuggestions: SAMPLE_CHURCH_SUGGESTIONS,
+  addedChurches: [] // churches admins added in the demo
 }
 
 // [stored value, label]; values must match the reports.reason check in the migration
@@ -43,15 +46,20 @@ const REPORT_REASONS = [
 const JOB_STATUS = { pending: 'Pending moderator company verification', published: 'Live · verified with HR', rejected: 'Not approved by moderator' }
 const VOUCH_STATUS = { pending: 'Awaiting church vouch', vouched: 'Vouched', declined: 'Declined' }
 const DEMO_ME = 'demo-me' // the demo persona's own vouch request id
-const EMPTY_VOUCH = { church: '', note: '' }
+const NO_CHURCH = { id: '', name: '', emirate: '' } // a picked partner church (id) or a typed one to suggest (name + emirate)
+const EMPTY_VOUCH = { church: NO_CHURCH, note: '' }
 const ROLE_LABELS = { member: 'Member', volunteer: 'Volunteer mentor', moderator: 'Moderator', church_admin: 'Church admin', admin: 'Admin', super_admin: 'Super admin' }
 const APPLY_ROLES = [
   ['volunteer', 'Volunteer mentor', 'Give free CV reviews, practice interviews or LinkedIn help to job seekers.'],
   ['church_admin', 'Church admin', 'Confirm which members of your church can post jobs. Only a yes/no is stored.']
 ]
 const APP_STATUS = { pending: 'Waiting for review', approved: 'Approved', declined: 'Declined' }
-const EMPTY_APPLY = { role: 'volunteer', church: '', name: '', note: '', agreed: false }
-const EMPTY_DRAFT = { title: '', company: '', emirate: 'Dubai', type: 'Full-time', pay: '', email: '', portal: '', description: '' }
+const EMPTY_APPLY = { role: 'volunteer', church: NO_CHURCH, name: '', note: '', agreed: false }
+// Must match the jobs.emirate / type / mode checks in the first migration
+const EMIRATES = ['Abu Dhabi', 'Dubai', 'Sharjah', 'Ajman', 'Umm Al Quwain', 'Ras Al Khaimah', 'Fujairah']
+const WORK_TYPES = ['Full-time', 'Part-time']
+const WORK_SETTINGS = ['On-site', 'Hybrid', 'Remote']
+const EMPTY_DRAFT = { title: '', company: '', emirate: 'Dubai', type: 'Full-time', mode: 'On-site', pay: '', email: '', portal: '', description: '' }
 
 function getSavedDemo() {
   try {
@@ -68,7 +76,9 @@ function getSavedDemo() {
       supportSessions: Array.isArray(value.supportSessions) ? value.supportSessions : [],
       vouchQueue: Array.isArray(value.vouchQueue) ? value.vouchQueue : SAMPLE_VOUCH_REQUESTS,
       members: Array.isArray(value.members) ? value.members : SAMPLE_MEMBERS,
-      applications: Array.isArray(value.applications) ? value.applications : SAMPLE_APPLICATIONS
+      applications: Array.isArray(value.applications) ? value.applications : SAMPLE_APPLICATIONS,
+      churchSuggestions: Array.isArray(value.churchSuggestions) ? value.churchSuggestions : SAMPLE_CHURCH_SUGGESTIONS,
+      addedChurches: Array.isArray(value.addedChurches) ? value.addedChurches : []
     }
   } catch { return defaultDemo }
 }
@@ -96,14 +106,14 @@ function useDialogFocus() {
 }
 
 function Pill({ children, type = '' }) { return <span className={`pill ${type}`}>{children}</span> }
-function Empty({ icon: Icon = Bookmark, title, description }) { return <div className="empty"><span className="empty-symbol"><Icon size={28}/></span><h3>{title}</h3><p>{description}</p></div> }
+function Empty({ icon: Icon = Bookmark, title, description, action }) { return <div className="empty"><span className="empty-symbol"><Icon size={28}/></span><h3>{title}</h3><p>{description}</p>{action}</div> }
 function PageHeading({ eyebrow, title, desc, action }) { return <div className="page-heading"><div><div className="eyebrow">{eyebrow}</div><h1>{title}</h1>{desc && <p>{desc}</p>}</div>{action}</div> }
 function SectionTitle({ title, subtitle, action }) { return <div className="section-title"><div><h2>{title}</h2>{subtitle && <p>{subtitle}</p>}</div>{action}</div> }
 function Warning({ children, tone = '' }) { return <div className={`notice ${tone}`}><Info size={17} className="notice-icon"/><span>{children}</span></div> }
 
 export default function App() {
   const [demo, setDemo] = useState(getSavedDemo)
-  const [page, setPage] = useState('opportunities')
+  const [page, setPage] = useState('home')
   const [selectedJob, setSelectedJob] = useState(null)
   const [showMobileMore, setShowMobileMore] = useState(false)
   const [search, setSearch] = useState('')
@@ -121,8 +131,8 @@ export default function App() {
   const [draftForm, setDraftForm] = useState(EMPTY_DRAFT)
   const [jobs, setJobs] = useState(supabase ? [] : SAMPLE_JOBS)
   const [session, setSession] = useState(null)
-  const [server, setServer] = useState({ myJobs: [], queue: [], reports: [], posterVouches: {}, myVouch: null, vouchRequests: [], members: [], applications: [], interested: [], interestCounts: {} })
-  const [churches, setChurches] = useState(supabase ? [] : SAMPLE_CHURCHES)
+  const [server, setServer] = useState({ myJobs: [], queue: [], reports: [], posterVouches: {}, myVouch: null, vouchRequests: [], members: [], applications: [], interested: [], interestCounts: {}, churchSuggestions: [] })
+  const [serverChurches, setChurches] = useState([])
   const [vouchForm, setVouchForm] = useState(EMPTY_VOUCH)
   const [applyForm, setApplyForm] = useState(EMPTY_APPLY)
   const [memberSearch, setMemberSearch] = useState('')
@@ -136,14 +146,14 @@ export default function App() {
   const [googleEnabled, setGoogleEnabled] = useState(false)
   const [supportForm, setSupportForm] = useState({ name: 'Jordan Morgan', service: 'cv-review', preferredTime: 'Weekday evening', note: '' })
 
-  // With a backend, the Moderator, Church and Admin views are only offered to accounts whose profile says so.
-  // Admins also moderate; suspended accounts get no extra views (the server refuses them anyway).
-  const serverRoles = { moderator: ['moderator', 'admin', 'super_admin'], church: ['church_admin'], admin: ['admin', 'super_admin'] }
-  const roleOptions = Object.entries(NAMES).filter(([key]) => !supabase || !serverRoles[key] || (!profile.suspended && serverRoles[key].includes(profile.role)))
-  const role = roleOptions.some(([key]) => key === demo.role) ? demo.role : 'seeker'
-  const nav = NAV[role]
-  const currentNav = nav.find(n => n.id === page)
   const uid = session?.user.id
+  const churches = supabase ? serverChurches : [...SAMPLE_CHURCHES, ...demo.addedChurches]
+  // What this account can do. Admins also moderate; suspended accounts get no staff tools (the server refuses them anyway).
+  const accountRole = supabase ? (uid && !profile.suspended && profile.role) || 'member' : PERSONAS[demo.role] ? demo.role : 'member'
+  const canModerate = ['moderator', 'admin', 'super_admin'].includes(accountRole)
+  const isChurchAdmin = accountRole === 'church_admin'
+  const isAdmin = ['admin', 'super_admin'].includes(accountRole)
+  const staffNav = isAdmin ? [NAV.moderator[0], ...NAV.admin, NAV.moderator[1]] : canModerate ? NAV.moderator : isChurchAdmin ? NAV.church : []
 
   // Real-time scam detection for the employer post form
   const draftScan = useMemo(() => scanPost(`${draftForm.title} ${draftForm.pay} ${draftForm.description}`, draftForm.email),
@@ -176,6 +186,10 @@ export default function App() {
   const applications = supabase ? server.applications : demo.applications
   const myApplications = applications.filter(a => a.user_id === myId)
   const pendingApplications = applications.filter(a => a.status === 'pending').length
+  const churchSuggestions = supabase ? server.churchSuggestions : demo.churchSuggestions
+  const mySuggestions = churchSuggestions.filter(c => c.suggested_by === myId && c.status === 'pending')
+  const pendingChurchRequests = churchSuggestions.filter(c => c.status === 'pending').length
+  const suggestionFor = id => churchSuggestions.find(c => c.id === id)
   const churchName = id => churches.find(c => c.id === id)?.name
   // Mirrors check_can_manage() in the migration, so controls only appear where the server would allow them
   const canManage = (member, nextRole) => member.id !== myId && member.role !== 'super_admin' && nextRole !== 'super_admin'
@@ -186,7 +200,7 @@ export default function App() {
 
   const visibleJobs = useMemo(() => board.filter(j =>
     (emirate === 'All emirates' || j.emirate === emirate) &&
-    (workType === 'Any work type' || j.type === workType) &&
+    (workType === 'Any work type' || j.type === workType || j.mode === workType) &&
     (`${j.title} ${j.company} ${j.category}`.toLowerCase().includes(search.trim().toLowerCase())) &&
     (tab !== 'saved' || demo.saved.includes(j.id))
   ), [board, emirate, workType, search, tab, demo.saved])
@@ -209,31 +223,31 @@ export default function App() {
     return () => data.subscription.unsubscribe()
   }, [])
 
-  const moderates = role === 'moderator' || role === 'admin'
   // RLS decides what each list returns: moderators see the full queue, members only their own rows
   const refresh = () => supabase && Promise.all([
     api.liveJobs(),
     uid ? api.myJobs(uid) : [],
-    uid && moderates ? api.pendingJobs() : [],
-    uid && moderates ? api.reports() : [],
-    uid && moderates ? api.posterVouches() : [],
+    uid && canModerate ? api.pendingJobs() : [],
+    uid && canModerate ? api.reports() : [],
+    uid && canModerate ? api.posterVouches() : [],
     uid ? api.myVouch(uid) : null,
-    uid && role === 'church' ? api.vouchRequests() : [],
-    uid && serverRoles.admin.includes(profile.role) ? api.members() : [],
+    uid && isChurchAdmin ? api.vouchRequests() : [],
+    uid && isAdmin ? api.members() : [],
     uid ? api.applications() : [],
     uid ? api.myInterest(uid) : [],
-    uid ? api.interestCounts() : {}
-  ]).then(([live, mine, queue, reports, posters, myVouch, vouchRequests, members, applications, interested, interestCounts]) => {
+    uid ? api.interestCounts() : {},
+    uid ? api.churchSuggestions() : []
+  ]).then(([live, mine, queue, reports, posters, myVouch, vouchRequests, members, applications, interested, interestCounts, churchSuggestions]) => {
     setJobs(live.map(toJob))
     setServer({
       myJobs: mine.map(toJob), queue: queue.map(toJob), reports, myVouch,
       posterVouches: Object.fromEntries(posters.map(p => [p.user_id, p.status])),
       vouchRequests: vouchRequests.filter(v => v.user_id !== uid), // admins can't vouch for themselves
-      members, applications, interested, interestCounts
+      members, applications, interested, interestCounts, churchSuggestions
     })
   }).catch(err => notify(`Could not load from the server: ${err.message}`))
 
-  useEffect(() => { refresh() }, [uid, role, profile.role])
+  useEffect(() => { refresh() }, [uid, accountRole])
 
   useEffect(() => {
     if (!supabase || !uid) return setProfile({})
@@ -250,11 +264,22 @@ export default function App() {
     return () => { document.removeEventListener('visibilitychange', recheck); window.removeEventListener('focus', recheck) }
   }, [uid])
 
-  // Leave role-only pages if the view stops being available (e.g. after signing out)
+  const pendingVouches = vouchRows.filter(m => m.status === 'pending').length
+  const waitingFor = canModerate && queue.length ? 'review' : isChurchAdmin && pendingVouches ? 'vouch' : isAdmin && pendingApplications ? 'applications' : isAdmin && pendingChurchRequests ? 'churchRequests' : null
+  const landed = useRef(null)
   useEffect(() => {
-    const owner = { review: 'moderator', reports: 'moderator', vouch: 'church', invite: 'church', people: 'admin', applications: 'admin' }[page]
-    if (owner && owner !== role && !(owner === 'moderator' && role === 'admin')) setPage('opportunities')
-  }, [role, page])
+    if (!supabase || !uid || !waitingFor || landed.current === uid) return
+    landed.current = uid
+    if (page === 'home') setPage(waitingFor)
+  }, [uid, waitingFor])
+
+  useEffect(() => { document.querySelector('.work-tabs .active')?.scrollIntoView({ block: 'nearest', inline: 'center' }) }, [page])
+
+  // Leave staff pages if the account loses access (e.g. after signing out)
+  useEffect(() => {
+    const allowed = { review: canModerate, reports: canModerate, vouch: isChurchAdmin, invite: isChurchAdmin, privacyAudit: isChurchAdmin, people: isAdmin, applications: isAdmin, churchRequests: isAdmin }[page]
+    if (allowed === false) setPage('home')
+  }, [accountRole, page])
 
   // True (and opens sign-in) when a server action needs an account first
   const needsSignIn = () => {
@@ -307,9 +332,9 @@ export default function App() {
   const go = id => { setPage(id); setShowMobileMore(false); setBanner(null); window.scrollTo({ top: 0, behavior: 'smooth' }) }
   const setRole = next => {
     updateDemo({ role: next })
-    setPage({ moderator: 'review', church: 'vouch', admin: 'people' }[next] || 'opportunities')
+    setPage({ moderator: 'review', church_admin: 'vouch', super_admin: 'review' }[next] || 'home')
     setShowMobileMore(false)
-    notify(`Switched to ${NAMES[next]} demo view`)
+    notify(`Switched to ${PERSONAS[next]} demo view`)
   }
   const handleVouch = (id, status) => {
     const done = () => notify(status === 'vouched' ? 'Member vouched. Only a yes/no is stored, never belief or denomination data.' : 'Vouch request declined.')
@@ -321,8 +346,8 @@ export default function App() {
   // Job posters ask their partner church to confirm they are known to the community before anything they post can go live
   const requestVouch = e => {
     e.preventDefault()
-    const church = churches.find(c => c.id === vouchForm.church)
-    if (!church) return notify('Choose your partner church first.')
+    const church = churches.find(c => c.id === vouchForm.church.id)
+    if (!church) return suggestChurch(vouchForm.church).then(added => added && setVouchForm(EMPTY_VOUCH))
     const note = vouchForm.note.trim()
     const done = () => { setVouchForm(EMPTY_VOUCH); notify(`Request sent to ${church.name}. Their admin only confirms you are known to the community.`) }
     if (supabase) {
@@ -333,6 +358,40 @@ export default function App() {
     }
     const request = { id: DEMO_ME, name: account.name, requestedDate: 'Just now', church: church.name, status: 'pending', note: `Job poster · ${note || 'No note added.'}` }
     updateDemo({ vouchQueue: [request, ...demo.vouchQueue.filter(m => m.id !== DEMO_ME)] })
+    done()
+  }
+
+  // A church that isn't a partner yet: admins check it and add it, then the member can ask it to vouch.
+  // Resolves to the suggestion row, or null when nothing was sent.
+  const suggestChurch = ({ name, emirate }, quiet = false) => {
+    const row = { name: name.trim(), emirate }
+    if (row.name.length < 2 || !emirate) {
+      notify('Pick your church from the list, or choose its emirate so we can add it.')
+      return Promise.resolve(null)
+    }
+    if (supabase && needsSignIn()) return Promise.resolve(null)
+    const done = added => {
+      if (!quiet) notify(`Thanks. We'll check ${row.name} and add it, usually within a few days. Then you can ask them to vouch for you here.`)
+      return added
+    }
+    if (supabase) return api.suggestChurch(row).then(added => { refresh(); return done(added) })
+      .catch(err => { notify(/one_open_suggestion/.test(err.message) ? `You already suggested ${row.name}. We'll add it soon.` : err.message); return null })
+    const added = { ...row, id: `sug-${Date.now()}`, suggested_by: DEMO_ME, status: 'pending', church_id: null, created_at: new Date().toISOString() }
+    updateDemo({ churchSuggestions: [added, ...demo.churchSuggestions] })
+    return Promise.resolve(done(added))
+  }
+
+  const decideChurchSuggestion = (suggestion, approve, finalName) => {
+    const name = (finalName || suggestion.name).trim()
+    const done = () => notify(approve ? `${name} is now a partner church. Members can choose it and apply to be its admin.` : 'Church request declined.')
+    if (supabase) return api.decideChurchSuggestion(suggestion.id, approve, name)
+      .then(() => { refresh(); api.churches().then(setChurches); done() }).catch(fail)
+    const existing = churches.find(c => c.name.toLowerCase() === name.toLowerCase())
+    const church = approve && (existing || { id: `church-${Date.now()}`, name, emirate: suggestion.emirate })
+    updateDemo({
+      addedChurches: church && !existing ? [...demo.addedChurches, church] : demo.addedChurches,
+      churchSuggestions: demo.churchSuggestions.map(c => c.id === suggestion.id ? { ...c, status: approve ? 'approved' : 'declined', church_id: church?.id || null } : c)
+    })
     done()
   }
 
@@ -362,7 +421,7 @@ export default function App() {
   }
 
   const reset = () => {
-    setDemo({ ...defaultDemo }); setPage('opportunities'); setSelectedJob(null); setSearch(''); setEmirate('All emirates'); setWorkType('Any work type'); setTab('all'); setShowReset(false); setShowMobileMore(false); notify('Demo reset. Your local sample activity was cleared.')
+    setDemo({ ...defaultDemo }); setPage('home'); setSelectedJob(null); setSearch(''); setEmirate('All emirates'); setWorkType('Any work type'); setTab('all'); setShowReset(false); setShowMobileMore(false); notify('Demo reset. Your local sample activity was cleared.')
   }
 
   const submitDraft = e => {
@@ -370,9 +429,9 @@ export default function App() {
     if (draftScan.blocked.length > 0) {
       return notify(`Auto-block triggered: Remove prohibited terms (${draftScan.blocked.join(', ')}) before saving.`)
     }
-    const { title, company, emirate, type, pay, email, portal, description } = draftForm
+    const { title, company, emirate, type, mode, pay, email, portal, description } = draftForm
     if ([title, company, pay, email, description].some(v => !v.trim())) return notify('Complete all required fields before saving the post.')
-    const row = { title: title.trim(), company: company.trim(), emirate, type, salary: pay.trim(), description: description.trim(), direct_email: email.trim(), direct_portal: portal.trim() || null }
+    const row = { title: title.trim(), company: company.trim(), emirate, type, mode, salary: pay.trim(), description: description.trim(), direct_email: email.trim(), direct_portal: portal.trim() || null }
     const done = () => {
       setDraftForm(EMPTY_DRAFT)
       go('drafts')
@@ -433,22 +492,28 @@ export default function App() {
     e.preventDefault()
     if (supabase && needsSignIn()) return
     const { role: appRole, church, name, note } = applyForm
-    if (appRole === 'church_admin' && !church) return notify('Choose the church you would vouch for.')
-    const row = { role: appRole, church_id: appRole === 'church_admin' ? church : null, display_name: name.trim() || account.name, note: note.trim() }
-    const already = 'You already have an application for this role waiting for review.'
-    const done = () => { setApplyForm(EMPTY_APPLY); notify(`Application sent. An admin will contact you for a short check before approving you as ${ROLE_LABELS[appRole]}.`) }
-    if (supabase) return api.apply(row).then(() => { refresh(); done() }).catch(err => notify(/one_open_application/.test(err.message) ? already : err.message))
-    if (myApplications.some(a => a.role === appRole && a.status === 'pending')) return notify(already)
-    updateDemo({ applications: [{ ...row, id: `app-${Date.now()}`, user_id: DEMO_ME, status: 'pending', created_at: new Date().toISOString() }, ...demo.applications] })
-    done()
+    const listed = appRole === 'church_admin' && churches.find(c => c.id === church.id)
+    const send = suggestion => {
+      if (appRole === 'church_admin' && !listed && !suggestion) return
+      const row = { role: appRole, church_id: listed ? listed.id : null, church_suggestion_id: suggestion?.id || null, display_name: name.trim() || account.name, note: note.trim() }
+      const already = 'You already have an application for this role waiting for review.'
+      const done = () => { setApplyForm(EMPTY_APPLY); notify(`Application sent. An admin will contact you for a short check before approving you as ${ROLE_LABELS[appRole]}${suggestion ? `, and add ${suggestion.name} as a partner church` : ''}.`) }
+      if (supabase) return api.apply(row).then(() => { refresh(); done() }).catch(err => notify(/one_open_application/.test(err.message) ? already : err.message))
+      if (myApplications.some(a => a.role === appRole && a.status === 'pending')) return notify(already)
+      updateDemo({ applications: [{ ...row, id: `app-${Date.now()}`, user_id: DEMO_ME, status: 'pending', created_at: new Date().toISOString() }, ...demo.applications] })
+      done()
+    }
+    if (appRole === 'church_admin' && !listed) return suggestChurch(church, true).then(send)
+    send(null)
   }
 
   const decideApplication = (app, approve) => {
     const done = () => notify(approve ? `Approved. ${app.display_name} is now ${ROLE_LABELS[app.role]}; their new view appears next time they open Ephworks.` : 'Application declined.')
     if (supabase) return api.decideApplication(app.id, approve).then(() => { refresh(); done() }).catch(fail)
+    const church = app.church_id || suggestionFor(app.church_suggestion_id)?.church_id || null
     updateDemo({
-      applications: demo.applications.map(a => a.id === app.id ? { ...a, status: approve ? 'approved' : 'declined' } : a),
-      members: approve ? demo.members.map(m => m.id === app.user_id ? { ...m, role: app.role, church_id: app.church_id } : m) : demo.members
+      applications: demo.applications.map(a => a.id === app.id ? { ...a, status: approve ? 'approved' : 'declined', church_id: church } : a),
+      members: approve ? demo.members.map(m => m.id === app.user_id ? { ...m, role: app.role, church_id: church } : m) : demo.members
     })
     done()
   }
@@ -515,7 +580,7 @@ export default function App() {
 
   // Who the header and menus show: the signed-in account, a guest, or the demo persona without a backend
   const meta = session?.user.user_metadata || {}
-  const account = !supabase ? { name: 'Jordan Morgan', detail: myVouch?.status === 'vouched' ? `Vouched member · ${myVouch.church}` : `Church vouch: ${VOUCH_STATUS[myVouch?.status]?.toLowerCase() || 'not requested'}` }
+  const account = !supabase ? { name: 'Jordan Morgan', detail: 'jordan@example.test' } // matches SAMPLE_MEMBERS; vouch status lives on the Profile page
     : session ? { name: meta.full_name || meta.name || session.user.email.split('@')[0], detail: session.user.email, photo: meta.avatar_url || meta.picture }
     : { name: 'Guest', detail: 'Not signed in', guest: true }
 
@@ -523,51 +588,105 @@ export default function App() {
     ? server.reports.map(r => ({ id: r.id, title: r.jobs?.title, reason: r.reason, resolved: r.status === 'resolved', created: new Date(r.created_at).toLocaleString() }))
     : demo.reports.map(r => ({ ...r, title: SAMPLE_JOBS.find(x => x.id === r.jobId)?.title, resolved: r.status.includes('Resolved') }))
 
-  const userMainNav = nav.slice(0, 3)
+  // Phone bottom bar: Home, Jobs, Saved, then Post (members) or the first staff queue. On desktop the logo is Home.
+  const userMainNav = [NAV.home, NAV.member[0], NAV.member[1], staffNav[0] || NAV.member[2]]
+  const navCount = id => ({
+    interests: demo.saved.length + demo.tracked.length + interestedIds.length,
+    review: canModerate ? queue.length : 0,
+    vouch: isChurchAdmin ? pendingVouches : 0,
+    applications: isAdmin ? pendingApplications : 0,
+    churchRequests: isAdmin ? pendingChurchRequests : 0
+  })[id] || 0
+  const workCount = staffNav.reduce((sum, n) => sum + navCount(n.id), 0)
+  // Account menu: whatever the phone bottom bar leaves out (top-bar duplicates are hidden on desktop by CSS)
+  const menuItems = [...NAV.member.filter(n => !userMainNav.includes(n)), ...NAV.menu]
+
+  const savedLists = [
+    { title: 'Interested', note: 'The employer only sees a count, never your name', jobs: board.filter(j => interestedIds.includes(j.id)) },
+    { title: 'Applied', note: 'Kept on this device', jobs: board.filter(j => demo.tracked.includes(j.id)) },
+    { title: 'Saved', note: 'Kept on this device', jobs: board.filter(j => demo.saved.includes(j.id)) }
+  ]
+
+  // The job feed: on Home under the hero, and on its own as the Jobs page
+  const jobFeed = <>
+      <div className="filters">
+        <label className="search-box">
+          <Search size={19}/>
+          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search verified jobs, companies, or skills" aria-label="Search opportunities"/>
+        </label>
+        <label className="select-box">
+          <span>Filter by emirate</span>
+          <select value={emirate} onChange={e => setEmirate(e.target.value)}>
+            {['All emirates', ...EMIRATES].map(x => <option key={x}>{x}</option>)}
+          </select>
+        </label>
+        <label className="select-box">
+          <span>Employment type</span>
+          <select value={workType} onChange={e => setWorkType(e.target.value)}>
+            {['Any work type', ...WORK_TYPES, ...WORK_SETTINGS].map(x => <option key={x}>{x}</option>)}
+          </select>
+        </label>
+      </div>
+
+      <div className="listing-header">
+        <span className="result-count">{visibleJobs.length} verified {visibleJobs.length === 1 ? 'role' : 'roles'}</span>
+      </div>
+
+      <div className="job-list">
+        {visibleJobs.length ? visibleJobs.map(job => (
+          <JobCard
+            key={job.id}
+            job={job}
+            saved={demo.saved.includes(job.id)}
+            tracked={demo.tracked.includes(job.id)}
+            onSave={() => toggleSave(job.id)}
+            onOpen={() => setSelectedJob(job)}
+            interested={interestedIds.includes(job.id)}
+            onInterest={() => toggleInterest(job.id)}
+          />
+        )) : board.length
+          ? <Empty title="No verified roles match" description="Try a different keyword or change your filters." icon={Search}/>
+          : <Empty title="No jobs live yet" description="New jobs appear here once a moderator has checked them with the employer. Check back soon." icon={BriefcaseBusiness}/>}
+      </div>
+
+      <div className="disclaimer-foot">
+        <ShieldCheck size={18}/> You apply straight to the employer. We never store CVs, charge fees or place candidates.
+      </div>
+  </>
 
   return <div className="app-shell">
-    <aside className="sidebar" aria-label="Main navigation">
-      <Brand />
-      <div className="side-label">Your workspace</div>
-      <nav className="sidebar-nav">
-        {nav.map(n => {
-          const Icon = icons[n.icon] || BriefcaseBusiness
-          return (
-            <button key={n.id} type="button" className={`side-link ${page === n.id ? 'active' : ''}`} aria-current={page === n.id ? 'page' : undefined} onClick={() => go(n.id)}>
-              <Icon size={18}/>
-              <span>{n.label}</span>
-              {n.id === 'interests' && (demo.saved.length + demo.tracked.length + interestedIds.length) > 0 && (
-                <span className="count">{demo.saved.length + demo.tracked.length + interestedIds.length}</span>
-              )}
-              {n.id === 'applications' && pendingApplications > 0 && <span className="count">{pendingApplications}</span>}
-            </button>
-          )
-        })}
-      </nav>
-      <div className="sidebar-profile">
-        <Avatar account={account}/>
-        <span>
-          <strong>{account.name}</strong>
-          <small>{account.detail}</small>
-        </span>
-      </div>
-    </aside>
-
     <div className="body-area">
       <header className="topbar">
-        <div className="mobile-brand"><Brand compact /></div>
-        <div className="breadcrumb"><span>Workspace</span><ChevronRight size={15}/><strong>{currentNav?.label || 'Verified noticeboard'}</strong></div>
+        <button type="button" className="topbar-brand" aria-label="Ephworks home" onClick={() => go('home')}><Brand compact/></button>
+        <nav className="top-links" aria-label="Main">
+          {NAV.member.map(n => (
+            <button key={n.id} type="button" className={page === n.id ? 'active' : ''} aria-current={page === n.id ? 'page' : undefined} onClick={() => go(n.id)}>
+              {n.label}
+              {navCount(n.id) > 0 && <span className="count">{navCount(n.id)}</span>}
+            </button>
+          ))}
+        </nav>
         <div className="header-actions">
-          <div className="role-selector" role="group" aria-label="Preview as role">
-            <span className="role-kicker">Demo view</span>
-            {roleOptions.map(([key, label]) => (
-              <button key={key} type="button" onClick={() => setRole(key)} className={role === key ? 'selected' : ''} aria-pressed={role === key}>
-                {label}
-              </button>
-            ))}
-          </div>
-          <button className="icon-button help-button" aria-label="About this prototype" title="About this prototype" onClick={() => setShowAbout(true)}><CircleHelp size={19}/></button>
-          <Avatar account={account} className="header-avatar"/>
+          {!supabase && (
+            <label className="demo-select">
+              <span>Demo view</span>
+              <select value={accountRole} onChange={e => setRole(e.target.value)}>
+                {Object.entries(PERSONAS).map(([key, label]) => <option key={key} value={key}>{label}</option>)}
+              </select>
+            </label>
+          )}
+          {staffNav.length > 0 && (
+            <button type="button" className={`work-button ${staffNav.some(n => n.id === page) ? 'active' : ''}`} onClick={() => go(waitingFor || staffNav[0].id)}>
+              <ClipboardCheck size={17}/> Your work
+              {workCount > 0 && <span className="count">{workCount}</span>}
+            </button>
+          )}
+          {supabase && !session
+            ? <button type="button" className="primary-button" onClick={() => setShowSignIn(true)}>Sign in</button>
+            : null}
+          <button type="button" className="account-button" aria-label="Open menu" aria-haspopup="dialog" aria-expanded={showMobileMore} onClick={() => setShowMobileMore(true)}>
+            <Avatar account={account}/><ChevronDown size={16} aria-hidden="true"/>
+          </button>
         </div>
         <button className="mobile-account" aria-label="Open menu" aria-haspopup="dialog" aria-expanded={showMobileMore} onClick={() => setShowMobileMore(true)}>
           <Avatar account={account}/>
@@ -579,7 +698,7 @@ export default function App() {
           <span className="pilot-text"><b>Pilot.</b> You apply straight to the employer. We never store your CV.</span>
           <span className="pilot-actions">
             <button type="button" onClick={() => setShowAbout(true)}>Legal notes</button>
-            <button type="button" onClick={() => setShowReset(true)}>Reset demo</button>
+            {!supabase && <button type="button" onClick={() => setShowReset(true)}>Reset demo</button>}
             {supabase && (session
               ? <button type="button" onClick={signOut}>Sign out</button>
               : <button type="button" onClick={() => setShowSignIn(true)}>Sign in</button>)}
@@ -590,6 +709,16 @@ export default function App() {
           <Warning tone="strong">Your account is suspended. You can browse the noticeboard, but you can't post, vouch, report or review. Contact the Ephworks team if you think this is a mistake.</Warning>
         )}
 
+        {staffNav.some(n => n.id === page) && (
+          <nav className="tab-list work-tabs" aria-label="Your work">
+            {staffNav.map(n => (
+              <button key={n.id} type="button" className={page === n.id ? 'active' : ''} aria-current={page === n.id ? 'page' : undefined} onClick={() => go(n.id)}>
+                {n.label}{navCount(n.id) > 0 && <span className="tab-count">{navCount(n.id)}</span>}
+              </button>
+            ))}
+          </nav>
+        )}
+
         {banner && (
           <div className="toast-banner" role="status">
             <CheckCircle2 size={18}/>
@@ -598,7 +727,7 @@ export default function App() {
           </div>
         )}
 
-        {page === 'opportunities' && <>
+        {page === 'home' && <>
           <section className="hero-stage">
             <img className="stage-bg" src="/images/community.webp" fetchpriority="high" alt="" width="1200" height="896"/>
             <div className="hero-inner">
@@ -619,7 +748,7 @@ export default function App() {
                     <MapPin size={18}/>
                     <span className="sr-only">Emirate</span>
                     <select value={emirate} onChange={e => setEmirate(e.target.value)}>
-                      {['All emirates', 'Dubai', 'Abu Dhabi', 'Sharjah'].map(x => <option key={x}>{x}</option>)}
+                      {['All emirates', ...EMIRATES].map(x => <option key={x}>{x}</option>)}
                     </select>
                   </label>
                   <button className="hero-button" type="submit"><Search size={17}/> Search jobs</button>
@@ -650,6 +779,10 @@ export default function App() {
             <li className="stat"><b>30 days</b><span>Longest a post can stay up</span></li>
           </ul>
 
+          <section id="opp-list" className="opportunity-section">
+            <SectionTitle title="Verified UAE opportunities" subtitle="Apply directly to employers · every post expires after 30 days"/>
+            {jobFeed}
+          </section>
           <section className="why-stage">
             <img className="stage-bg" src="/images/workday.webp" loading="lazy" decoding="async" alt="" width="896" height="1200"/>
             <div className="why-inner">
@@ -683,58 +816,12 @@ export default function App() {
               <figcaption className="glass-card float-badge"><FileText size={18}/> CV review · Mock interview · LinkedIn</figcaption>
             </figure>
           </section>
+        </>}
 
-          <section id="opp-list" className="opportunity-section">
-            <SectionTitle title="Verified UAE opportunities" subtitle="Direct applications to employers • 30-day freshness guarantee" />
-            <div className="filters">
-              <label className="search-box">
-                <Search size={19}/>
-                <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search verified jobs, companies, or skills" aria-label="Search opportunities"/>
-              </label>
-              <label className="select-box">
-                <span>Filter by emirate</span>
-                <select value={emirate} onChange={e => setEmirate(e.target.value)}>
-                  {['All emirates','Dubai','Abu Dhabi','Sharjah'].map(x => <option key={x}>{x}</option>)}
-                </select>
-              </label>
-              <label className="select-box">
-                <span>Employment type</span>
-                <select value={workType} onChange={e => setWorkType(e.target.value)}>
-                  {['Any work type', 'Full-time', 'Part-time'].map(x => <option key={x}>{x}</option>)}
-                </select>
-              </label>
-            </div>
-
-            <div className="listing-header">
-              <div className="tab-list" role="group" aria-label="Show roles">
-                <button type="button" aria-pressed={tab === 'all'} className={tab === 'all' ? 'active' : ''} onClick={() => setTab('all')}>
-                  All verified roles
-                </button>
-                <button type="button" aria-pressed={tab === 'saved'} className={tab === 'saved' ? 'active' : ''} onClick={() => setTab('saved')}>
-                  Saved <span className="tab-count">{demo.saved.length}</span>
-                </button>
-              </div>
-              <span className="result-count">{visibleJobs.length} verified {visibleJobs.length === 1 ? 'role' : 'roles'}</span>
-            </div>
-
-            <div className="job-list">
-              {visibleJobs.length ? visibleJobs.map(job => (
-                <JobCard
-                  key={job.id}
-                  job={job}
-                  saved={demo.saved.includes(job.id)}
-                  tracked={demo.tracked.includes(job.id)}
-                  onSave={() => toggleSave(job.id)}
-                  onOpen={() => setSelectedJob(job)}
-                  interested={interestedIds.includes(job.id)}
-                  onInterest={() => toggleInterest(job.id)}
-                />
-              )) : <Empty title="No verified roles match" description="Try a different keyword or change your filters." icon={Search}/>}
-            </div>
-
-            <div className="disclaimer-foot">
-              <ShieldCheck size={18}/> Ephworks Phase 1 Noticeboard: In compliance with UAE MOHRE guidelines, applications are submitted directly to the verified employer. We never store candidate CVs, charge worker fees, or offer paid placements.
-            </div>
+        {page === 'opportunities' && <>
+          <section className="opportunity-section">
+            <PageHeading eyebrow="Checked with every employer" title="Jobs"/>
+            {jobFeed}
           </section>
         </>}
 
@@ -814,66 +901,29 @@ export default function App() {
         </>}
 
         {page === 'interests' && <>
-          <PageHeading
-            eyebrow="Your tracked activity"
-            title="My tracked roles & applications"
-            desc="Roles you're interested in, saved, or applied to directly with employers. Saved and applied roles stay in this browser. Interest is kept with your account when you're signed in, and employers only ever see a count."
-          />
-          <SectionTitle title="Roles you're interested in" subtitle={`${interestedIds.length} ${interestedIds.length === 1 ? 'role' : 'roles'} marked with I'm interested`}/>
-          {interestedIds.length ? (
-            <div className="job-list">
-              {board.filter(j => interestedIds.includes(j.id)).map(job => (
-                <JobCard
-                  key={job.id}
-                  job={job}
-                  saved={demo.saved.includes(job.id)}
-                  tracked={demo.tracked.includes(job.id)}
-                  onSave={() => toggleSave(job.id)}
-                  onOpen={() => setSelectedJob(job)}
-                  interested
-                  onInterest={() => toggleInterest(job.id)}
-                />
-              ))}
-            </div>
-          ) : <Empty title="No roles marked yet" description="Tap I'm interested on any role on the noticeboard to keep it here." icon={Heart}/>}
-
-          <div className="spacer-24"/>
-          <SectionTitle title="Roles marked as applied" subtitle={`${demo.tracked.length} roles you applied to directly`}/>
-          {demo.tracked.length ? (
-            <div className="job-list">
-              {board.filter(j => demo.tracked.includes(j.id)).map(job => (
-                <JobCard
-                  key={job.id}
-                  job={job}
-                  saved={demo.saved.includes(job.id)}
-                  tracked={true}
-                  onSave={() => toggleSave(job.id)}
-                  onOpen={() => setSelectedJob(job)}
-                  interested={interestedIds.includes(job.id)}
-                  onInterest={() => toggleInterest(job.id)}
-                />
-              ))}
-            </div>
-          ) : <Empty title="No applications tracked yet" description="When you apply directly to a role, click 'Mark as applied' in the role view to track it here." icon={ClipboardCheck}/>}
-
-          <div className="spacer-24"/>
-          <SectionTitle title="Saved opportunities" subtitle={`${demo.saved.length} roles bookmarked`}/>
-          {demo.saved.length ? (
-            <div className="job-list">
-              {board.filter(j => demo.saved.includes(j.id)).map(job => (
-                <JobCard
-                  key={job.id}
-                  job={job}
-                  saved
-                  tracked={demo.tracked.includes(job.id)}
-                  onSave={() => toggleSave(job.id)}
-                  onOpen={() => setSelectedJob(job)}
-                  interested={interestedIds.includes(job.id)}
-                  onInterest={() => toggleInterest(job.id)}
-                />
-              ))}
-            </div>
-          ) : <Empty title="Nothing saved yet" description="Save a verified role from the noticeboard to keep it here." icon={Bookmark}/>}
+          <PageHeading eyebrow="Your jobs" title="Saved" desc="Jobs you're interested in, saved or marked as applied."/>
+          {savedLists.some(l => l.jobs.length) ? savedLists.filter(l => l.jobs.length).map(l => (
+            <section key={l.title} className="saved-section">
+              <SectionTitle title={l.title} subtitle={l.note}/>
+              <div className="job-list">
+                {l.jobs.map(job => (
+                  <JobCard
+                    key={job.id}
+                    job={job}
+                    saved={demo.saved.includes(job.id)}
+                    tracked={demo.tracked.includes(job.id)}
+                    onSave={() => toggleSave(job.id)}
+                    onOpen={() => setSelectedJob(job)}
+                    interested={interestedIds.includes(job.id)}
+                    onInterest={() => toggleInterest(job.id)}
+                  />
+                ))}
+              </div>
+            </section>
+          )) : (
+            <Empty icon={Heart} title="Nothing saved yet" description="Tap I'm interested or the bookmark on any job and it shows up here."
+              action={<button type="button" className="primary-button" onClick={() => go('opportunities')}>Browse jobs <ArrowRight size={16}/></button>}/>
+          )}
         </>}
 
         {page === 'volunteering' && <>
@@ -906,8 +956,8 @@ export default function App() {
             title="Church vouching, peer trust & UAE legal compliance"
             desc="How our decentralized vouching circle creates trust without discrimination or sensitive data exposure."
             action={
-              <button className="primary-button" onClick={() => setRole('church')}>
-                <UsersRound size={16}/> Preview Church Admin Portal
+              <button className="primary-button" onClick={() => supabase ? applyFor('church_admin') : setRole('church_admin')}>
+                <UsersRound size={16}/> {supabase ? 'Become a church admin' : 'Preview the church admin view'}
               </button>
             }
           />
@@ -951,8 +1001,8 @@ export default function App() {
               This simple human touchpoint completely eliminates the fake profiles, automated bots, and scam brokers that plague Facebook job groups.
             </p>
             <div className="card-actions">
-              <button className="secondary-button" onClick={() => setRole('church')}>
-                <UsersRound size={15}/> Switch to Church Partner Workspace <ArrowRight size={14}/>
+              <button className="secondary-button" onClick={() => supabase ? applyFor('church_admin') : setRole('church_admin')}>
+                <UsersRound size={15}/> {supabase ? 'Apply as your church’s admin' : 'Preview the church admin view'} <ArrowRight size={14}/>
               </button>
             </div>
           </div>
@@ -962,11 +1012,11 @@ export default function App() {
           </Warning>
         </>}
 
-        {page === 'post' && <>
+        {page === 'post' && <div className="page-narrow">
           <PageHeading
-            eyebrow="Pillar 2 · Verified jobs"
-            title="Post a verified opportunity"
-            desc="Draft an opportunity for your company. All posts are checked directly with HR and audited by our anti-scam engine."
+            eyebrow="For employers"
+            title="Post a job"
+            desc="Every post is checked with the employer before it goes live. Posting is free, always."
           />
           {supabase && profile.suspended ? <Empty icon={Ban} title="Paused on your account" description="This is switched off while your account is suspended."/> : <>
           <section className="plain-card vouch-panel" aria-labelledby="vouch-title">
@@ -985,18 +1035,13 @@ export default function App() {
             </div>
             {myVouch?.status !== 'vouched' && (
               <form className="booking-form vouch-form" onSubmit={requestVouch}>
-                <label>
-                  Your partner church
-                  <select required value={vouchForm.church} onChange={e => setVouchForm({ ...vouchForm, church: e.target.value })}>
-                    <option value="">Choose a church</option>
-                    {churches.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                  </select>
-                </label>
+                <ChurchPicker label="Your church" churches={churches} value={vouchForm.church} onChange={church => setVouchForm({ ...vouchForm, church })}/>
                 <label>
                   Note for your church admin (optional)
                   <input maxLength={300} placeholder="e.g. How the admin knows you and the company you hire for" value={vouchForm.note} onChange={e => setVouchForm({ ...vouchForm, note: e.target.value })}/>
                 </label>
-                <button className="primary-button" type="submit"><Send size={16}/> {myVouch ? 'Send request again' : 'Request church vouch'}</button>
+                {mySuggestions.map(c => <p key={c.id} className="audit-line waiting"><Clock3 size={14}/> We're checking {c.name} ({c.emirate}). You can ask them to vouch once it's added.</p>)}
+                <button className="primary-button" type="submit"><Send size={16}/> {vouchForm.church.id || !vouchForm.church.name.trim() ? (myVouch ? 'Send request again' : 'Request church vouch') : 'Suggest this church'}</button>
               </form>
             )}
           </section>
@@ -1015,9 +1060,9 @@ export default function App() {
                   </ul>
                 </div>
               </div>
-            ) : (
+            ) : (draftForm.title || draftForm.pay || draftForm.description) && (
               <div className="auto-block-clean">
-                <CheckCircle2 size={16}/> Auto-block scam scan: 0 fee or payment triggers detected. Post complies with UAE Labour Law anti-fee rules.
+                <CheckCircle2 size={16}/> No fee or payment requests found. Candidates must never be charged.
               </div>
             )}
             {draftScan.flags.length > 0 && (
@@ -1035,20 +1080,23 @@ export default function App() {
                 Company name
                 <input maxLength={95} placeholder="e.g. Cedar Lane Services" value={draftForm.company} onChange={e => setDraftForm({ ...draftForm, company: e.target.value })} required/>
               </label>
-              <div className="form-two">
+              <div className="form-two form-three">
                 <label>
                   Emirate
                   <select value={draftForm.emirate} onChange={e => setDraftForm({ ...draftForm, emirate: e.target.value })}>
-                    <option>Dubai</option>
-                    <option>Abu Dhabi</option>
-                    <option>Sharjah</option>
+                    {EMIRATES.map(x => <option key={x}>{x}</option>)}
                   </select>
                 </label>
                 <label>
                   Work type
                   <select value={draftForm.type} onChange={e => setDraftForm({ ...draftForm, type: e.target.value })}>
-                    <option>Full-time</option>
-                    <option>Part-time</option>
+                    {WORK_TYPES.map(x => <option key={x}>{x}</option>)}
+                  </select>
+                </label>
+                <label>
+                  Work setting
+                  <select value={draftForm.mode} onChange={e => setDraftForm({ ...draftForm, mode: e.target.value })}>
+                    {WORK_SETTINGS.map(x => <option key={x}>{x}</option>)}
                   </select>
                 </label>
               </div>
@@ -1089,7 +1137,7 @@ export default function App() {
             </form>
           </div>
           </>}
-        </>}
+        </div>}
 
         {page === 'drafts' && <>
           <PageHeading
@@ -1108,7 +1156,7 @@ export default function App() {
                     <Pill type="subtle">{JOB_STATUS[d.status] || d.status}</Pill>
                     <span className="tag-badge expiry">{d.status === 'published' ? `Expires in ${d.daysLeft} days` : 'Expires 30 days after approval'}</span>
                     <h3>{d.title}</h3>
-                    <p>{d.company} · {d.emirate} · {d.type}</p>
+                    <p>{d.company} · {d.emirate} · {d.type} · {d.mode}</p>
                     <small>{d.salary} / month</small>
                     <div className="draft-desc">{d.description}</div>
                     <div className="audit-line">
@@ -1203,7 +1251,7 @@ export default function App() {
           ) : <Empty icon={Flag} title="No open safety reports" description="When a member flags a job with fees or misleading information, the safety team queue displays it here."/>}
         </>}
 
-        {page === 'apply' && <>
+        {page === 'apply' && <div className="page-narrow">
           <PageHeading
             eyebrow="Join the team"
             title="Apply to help run Ephworks"
@@ -1222,13 +1270,7 @@ export default function App() {
               ))}
             </fieldset>
             {applyForm.role === 'church_admin' && (
-              <label>
-                Your church
-                <select required value={applyForm.church} onChange={e => setApplyForm({ ...applyForm, church: e.target.value })}>
-                  <option value="">Choose a church</option>
-                  {churches.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                </select>
-              </label>
+              <ChurchPicker label="Your church" churches={churches} value={applyForm.church} onChange={church => setApplyForm({ ...applyForm, church })}/>
             )}
             <label>
               Your name
@@ -1256,13 +1298,13 @@ export default function App() {
                   title={ROLE_LABELS[a.role]}
                   status={APP_STATUS[a.status]}
                   tone={a.status === 'approved' ? 'ok' : a.status === 'declined' ? 'bad' : 'pending'}
-                  sub={[churchName(a.church_id), `Sent ${new Date(a.created_at).toLocaleDateString()}`].filter(Boolean).join(' · ')}
+                  sub={[churchName(a.church_id) || suggestionFor(a.church_suggestion_id)?.name, `Sent ${new Date(a.created_at).toLocaleDateString()}`].filter(Boolean).join(' · ')}
                   note={a.note}
                 />
               ))}
             </div>
           </>}
-        </>}
+        </div>}
 
         {page === 'people' && <>
           <PageHeading
@@ -1303,6 +1345,22 @@ export default function App() {
           ) : <Empty icon={UsersRound} title="No one matches" description="Try a different name, email or role."/>}
         </>}
 
+        {page === 'churchRequests' && <>
+          <PageHeading
+            eyebrow="Admin"
+            title="Church requests"
+            desc="Churches members want to use that aren't partners yet. Check each one is real, fix the spelling if needed, then add it."
+          />
+          {supabase && !session ? <Empty icon={KeyRound} title="Sign in as an admin" description="Sign in with an admin account to review church requests."/>
+          : churchSuggestions.length ? (
+            <div className="review-list">
+              {[...churchSuggestions].sort((a, b) => (b.status === 'pending') - (a.status === 'pending')).map(c => (
+                <ChurchRequestCard key={c.id} suggestion={c} churches={churches} suggester={members.find(m => m.id === c.suggested_by)} onDecide={decideChurchSuggestion}/>
+              ))}
+            </div>
+          ) : <Empty icon={HeartHandshake} title="No church requests" description="When a member types a church that isn't listed, it appears here for you to check and add."/>}
+        </>}
+
         {page === 'applications' && <>
           <PageHeading
             eyebrow="Admin"
@@ -1315,8 +1373,10 @@ export default function App() {
               {[...applications].sort((a, b) => (b.status === 'pending') - (a.status === 'pending')).map(a => {
                 const applicant = members.find(m => m.id === a.user_id)
                 const pending = a.status === 'pending'
+                const newChurch = !a.church_id && suggestionFor(a.church_suggestion_id)
                 const blocked = !applicant ? 'Account no longer exists'
                   : applicant.id === myId ? 'You can’t decide your own application'
+                  : newChurch && newChurch.status !== 'approved' ? `Add ${newChurch.name} under Your work → Churches first`
                   : applicant.suspended ? 'Restore this account before deciding'
                   : !canManage(applicant, a.role) ? 'Only the super admin can decide this one' : null
                 return (
@@ -1326,7 +1386,7 @@ export default function App() {
                     title={a.display_name}
                     status={APP_STATUS[a.status]}
                     tone={a.status === 'approved' ? 'ok' : a.status === 'declined' ? 'bad' : 'pending'}
-                    sub={[`Wants to be ${ROLE_LABELS[a.role]}`, churchName(a.church_id), applicant?.email, new Date(a.created_at).toLocaleDateString()].filter(Boolean).join(' · ')}
+                    sub={[`Wants to be ${ROLE_LABELS[a.role]}`, churchName(a.church_id || newChurch?.church_id) || (newChurch && `${newChurch.name} (new church)`), applicant?.email, new Date(a.created_at).toLocaleDateString()].filter(Boolean).join(' · ')}
                     note={a.note}
                     footNote={pending && blocked && <><LockKeyhole size={15}/> {blocked}</>}
                   >
@@ -1568,45 +1628,72 @@ export default function App() {
           </div>
         </>}
 
-        {page === 'profile' && <>
-          <PageHeading eyebrow="Demo profile" title="Your trusted identity & privacy" desc="Explore how Ephworks protects member identity and minimizes sensitive data."/>
-          <div className="profile-card">
-            <div className="profile-top">
-              <Avatar account={account} className="big"/>
-              <div>
-                <h2>{account.name}</h2>
-                <p>{account.detail}</p>
+        {page === 'profile' && <div className="page-narrow">
+          <PageHeading eyebrow="Your account" title="Profile"/>
+          {supabase && !session ? (
+            <Empty icon={KeyRound} title="Sign in to see your profile" description="Your church vouch, posts and saved jobs show here once you sign in."
+              action={<button type="button" className="primary-button" onClick={() => setShowSignIn(true)}>Sign in</button>}/>
+          ) : (
+            <div className="profile-card">
+              <div className="profile-top">
+                <Avatar account={account} className="big"/>
+                <div>
+                  <h2>{account.name}</h2>
+                  <p>{account.detail}</p>
+                </div>
+                <span className={`status-chip ${supabase && profile.suspended ? 'bad' : accountRole === 'member' ? 'neutral' : 'ok'}`}>
+                  {supabase && profile.suspended ? 'Suspended' : ROLE_LABELS[accountRole]}
+                </span>
               </div>
+
+              <div className="profile-vouch">
+                <div>
+                  <span>Church vouch</span>
+                  {myVouch?.status === 'vouched'
+                    ? <strong className="good-text"><Check size={15}/> Vouched by {myVouch.church}</strong>
+                    : <strong>{myVouch ? `${VOUCH_STATUS[myVouch.status]} · ${myVouch.church}` : 'Not requested yet'}</strong>}
+                  {myVouch?.status !== 'vouched' && <small>Needed before your job posts can go live.</small>}
+                </div>
+                {myVouch?.status !== 'vouched' && (
+                  <button type="button" className="secondary-button" onClick={() => go('post')}>
+                    {!myVouch ? 'Request vouch' : myVouch.status === 'declined' ? 'Ask again' : 'Change request'} <ArrowRight size={15}/>
+                  </button>
+                )}
+              </div>
+
+              <div className="sheet-items profile-activity">
+                {[
+                  ['interests', Bookmark, 'Saved jobs', demo.saved.length + demo.tracked.length + interestedIds.length],
+                  ['drafts', FileText, 'My posts', myPosts.length, myPosts.filter(p => p.status === 'published').length],
+                  myApplications.length > 0 && ['apply', BadgeCheck, 'Role applications', myApplications.length, null, myApplications.filter(a => a.status === 'pending').length]
+                ].filter(Boolean).map(([id, Icon, label, total, live, waiting]) => (
+                  <button key={id} type="button" onClick={() => go(id)}>
+                    <span className="sheet-icon"><Icon size={19} aria-hidden="true"/></span>
+                    {label}
+                    <small>{total}{live ? ` · ${live} live` : ''}{waiting ? ` · ${waiting} waiting` : ''}</small>
+                    <ChevronRight size={16} aria-hidden="true"/>
+                  </button>
+                ))}
+              </div>
+
+              <p className="profile-privacy">
+                <LockKeyhole size={16} aria-hidden="true"/>
+                <span>We keep your name, email and a yes/no church vouch. Never your CV or your beliefs. <button type="button" onClick={() => go('churches')}>How trust works</button></span>
+              </p>
+
+              {supabase
+                ? <button type="button" className="secondary-button" onClick={signOut}><KeyRound size={16}/> Sign out</button>
+                : <button type="button" className="secondary-button" onClick={() => setShowReset(true)}><RotateCcw size={16}/> Reset demo</button>}
             </div>
-            <div className="profile-grid">
-              <div>
-                <span>Community Vouch Status</span>
-                {myVouch?.status === 'vouched'
-                  ? <strong className="good-text"><Check size={15}/> Vouched by {myVouch.church}</strong>
-                  : <strong>{VOUCH_STATUS[myVouch?.status] || 'Not requested yet'}</strong>}
-              </div>
-              <div>
-                <span>Data Minimization</span>
-                <strong>Zero sensitive denomination data stored</strong>
-              </div>
-              <div>
-                <span>Member Scraping Protection</span>
-                <strong>Protected walled circle (Anti-scraping)</strong>
-              </div>
-              <div>
-                <span>CV Storage</span>
-                <strong>None stored (Direct employer application)</strong>
-              </div>
-            </div>
-            <button className="secondary-button" onClick={() => setShowReset(true)}>
-              <RotateCcw size={17}/> Reset local demo state
-            </button>
-          </div>
-        </>}
+          )}
+        </div>}
 
         <footer className="footer">
           <span>Ephworks · Free for everyone, always · Verified People. Verified Jobs. Real Support.</span>
-          <button onClick={() => setShowAbout(true)}>Product architecture & legal context <ArrowRight size={14}/></button>
+          <nav className="footer-links" aria-label="About Ephworks">
+            {NAV.footer.map(n => <button key={n.id} type="button" onClick={() => go(n.id)}>{n.label}</button>)}
+            <button type="button" onClick={() => setShowAbout(true)}>Legal notes</button>
+          </nav>
         </footer>
       </main>
     </div>
@@ -1617,16 +1704,16 @@ export default function App() {
         const Icon = icons[n.icon] || BriefcaseBusiness
         return (
           <button key={n.id} aria-label={n.label} title={n.label} aria-current={page === n.id ? 'page' : undefined} className={page === n.id ? 'active' : ''} onClick={() => go(n.id)}>
-            <span className="nav-pill"><Icon size={24} aria-hidden="true"/></span>
+            <span className="nav-pill"><Icon size={24} aria-hidden="true"/>{n.id !== 'interests' && navCount(n.id) > 0 && <span className="nav-badge">{navCount(n.id)}</span>}</span>
           </button>
         )
       })}
-      <button aria-label="More" title="More" className={showMobileMore || (!userMainNav.some(n => n.id === page)) ? 'active' : ''} onClick={() => setShowMobileMore(true)} aria-haspopup="dialog" aria-expanded={showMobileMore}>
+      <button aria-label="Menu" title="Menu" className={showMobileMore || menuItems.some(n => n.id === page) ? 'active' : ''} onClick={() => setShowMobileMore(true)} aria-haspopup="dialog" aria-expanded={showMobileMore}>
         <span className="nav-pill"><Menu size={24} aria-hidden="true"/></span>
       </button>
     </nav>
 
-    {/* Mobile More Sheet */}
+    {/* Account menu: dropdown on desktop, bottom sheet on phones */}
     {showMobileMore && (
       <div className="overlay mobile-more-overlay" onMouseDown={e => e.target === e.currentTarget && setShowMobileMore(false)}>
         <FocusDialog className="more-sheet" label="Menu">
@@ -1640,26 +1727,28 @@ export default function App() {
             <button className="icon-button" onClick={() => setShowMobileMore(false)} aria-label="Close menu"><X size={20}/></button>
           </div>
 
-          {nav.length > userMainNav.length && <>
-            <p className="sheet-label">More pages</p>
-            <div className="sheet-items">
-              {nav.slice(userMainNav.length).map(n => {
-                const Icon = icons[n.icon] || BriefcaseBusiness
-                return (
-                  <button key={n.id} className={page === n.id ? 'active' : ''} aria-current={page === n.id ? 'page' : undefined} onClick={() => go(n.id)}>
-                    <span className="sheet-icon"><Icon size={19} aria-hidden="true"/></span>{n.label}<ChevronRight size={16} aria-hidden="true"/>
-                  </button>
-                )
-              })}
-            </div>
-          </>}
-
-          <p className="sheet-label">Demo view</p>
-          <div className="sheet-roles" role="group" aria-label="Preview as role">
-            {roleOptions.map(([key, label]) => (
-              <button key={key} type="button" className={role === key ? 'selected' : ''} aria-pressed={role === key} onClick={() => setRole(key)}>{label}</button>
-            ))}
+          <div className="sheet-items">
+            {menuItems.map(n => {
+              const Icon = icons[n.icon] || BriefcaseBusiness
+              return (
+                <button key={n.id} className={`${page === n.id ? 'active' : ''} ${NAV.member.includes(n) ? 'in-top-bar' : ''}`} aria-current={page === n.id ? 'page' : undefined} onClick={() => go(n.id)}>
+                  <span className="sheet-icon"><Icon size={19} aria-hidden="true"/></span>{n.label}
+                  <ChevronRight size={16} aria-hidden="true"/>
+                </button>
+              )
+            })}
           </div>
+
+          {!supabase && (
+            <div className="sheet-demo">
+              <p className="sheet-label">Demo view</p>
+              <div className="sheet-roles" role="group" aria-label="Preview as role">
+                {Object.entries(PERSONAS).map(([key, label]) => (
+                  <button key={key} type="button" className={accountRole === key ? 'selected' : ''} aria-pressed={accountRole === key} onClick={() => setRole(key)}>{label}</button>
+                ))}
+              </div>
+            </div>
+          )}
 
           <div className="sheet-links">
             <button onClick={() => { setShowMobileMore(false); setShowAbout(true) }}><CircleHelp size={18} aria-hidden="true"/> About Ephworks & legal notes</button>
@@ -2060,6 +2149,74 @@ function QueueCard({ avatar, title, status, tone, sub, note, footNote, children 
         <div className="queue-actions">{children}</div>
       </footer>
     </article>
+  )
+}
+
+// Type to find a partner church. Anything not listed can be suggested with its emirate; admins add it after a check.
+function ChurchPicker({ label, churches, value, onChange }) {
+  const chosen = churches.find(c => c.id === value.id)
+  const query = value.name.trim().toLowerCase()
+  const matches = query ? churches.filter(c => c.name.toLowerCase().includes(query)).slice(0, 6) : []
+  if (chosen) return (
+    <div className="church-picker">
+      <span className="church-label">{label}</span>
+      <div className="church-chosen">
+        <CheckCircle2 size={18} aria-hidden="true"/><strong>{chosen.name}</strong>
+        <button type="button" onClick={() => onChange(NO_CHURCH)}>Change</button>
+      </div>
+    </div>
+  )
+  return (
+    <div className="church-picker">
+      <label>
+        {label}
+        <input autoComplete="off" maxLength={95} placeholder="Start typing your church's name" value={value.name} onChange={e => onChange({ ...value, id: '', name: e.target.value })}/>
+      </label>
+      {matches.length > 0 && (
+        <div className="church-matches" aria-label="Partner churches">
+          {matches.map(c => <button key={c.id} type="button" onClick={() => onChange({ ...NO_CHURCH, id: c.id, name: c.name })}>{c.name}{c.emirate && <small>{c.emirate}</small>}</button>)}
+        </div>
+      )}
+      {query.length >= 2 && (
+        <div className="church-new">
+          <p>{matches.length ? 'Not one of these?' : 'Not a partner church yet.'} We'll add <strong>{value.name.trim()}</strong> after a quick check.</p>
+          <label>
+            Emirate
+            <select value={value.emirate} onChange={e => onChange({ ...value, emirate: e.target.value })}>
+              <option value="">Choose emirate</option>
+              {EMIRATES.map(x => <option key={x}>{x}</option>)}
+            </select>
+          </label>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// One church suggestion: add it as typed (or corrected), match it to a similar existing church, or decline
+function ChurchRequestCard({ suggestion, churches, suggester, onDecide }) {
+  const [name, setName] = useState(suggestion.name)
+  const pending = suggestion.status === 'pending'
+  // distinctive words only: generic church words and place names would match half the list
+  const common = ['church', 'fellowship', 'community', 'sample', ...EMIRATES.join(' ').toLowerCase().split(' ')]
+  const words = suggestion.name.toLowerCase().split(/\W+/).filter(w => w.length > 3 && !common.includes(w))
+  const similar = churches.filter(c => words.some(w => c.name.toLowerCase().includes(w))).slice(0, 3)
+  const added = churches.find(c => c.id === suggestion.church_id)
+  return (
+    <QueueCard
+      avatar={<div className="feature-icon"><HeartHandshake size={20}/></div>}
+      title={suggestion.name}
+      status={pending ? 'Waiting for review' : suggestion.status === 'approved' ? 'Added' : 'Declined'}
+      tone={pending ? 'pending' : suggestion.status === 'approved' ? 'ok' : 'bad'}
+      sub={[suggestion.emirate, suggester && `Suggested by ${suggester.email}`, new Date(suggestion.created_at).toLocaleDateString(), added && `Added as ${added.name}`].filter(Boolean).join(' · ')}
+      note={pending && similar.length > 0 && <>Similar partner churches: {similar.map(c => <button key={c.id} type="button" className="link-button" onClick={() => onDecide(suggestion, true, c.name)}>Same as {c.name}</button>)}</>}
+    >
+      {pending && <>
+        <input className="member-select church-name-edit" aria-label="Church name to add" maxLength={95} value={name} onChange={e => setName(e.target.value)}/>
+        <button type="button" className="reject-small" onClick={() => onDecide(suggestion, false)}><X size={15}/> Decline</button>
+        <button type="button" className="approve-small" disabled={name.trim().length < 2} onClick={() => onDecide(suggestion, true, name)}><Check size={15}/> Add church</button>
+      </>}
+    </QueueCard>
   )
 }
 

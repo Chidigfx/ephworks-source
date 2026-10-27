@@ -56,7 +56,11 @@ export const api = {
   // Lets the UI hide "Continue with Google" until the provider is switched on in the dashboard
   googleEnabled: () => fetch(`${url}/auth/v1/settings`, { headers: { apikey: key } }).then(r => r.json()).then(s => Boolean(s.external?.google)).catch(() => false),
   profile: uid => run(supabase.from('profiles').select('role, church_id, suspended').eq('id', uid)).then(rows => rows[0] || {}),
-  churches: () => run(supabase.from('churches').select('id, name').order('name')),
+  churches: () => run(supabase.from('churches').select('id, name, emirate').order('name')),
+  // RLS returns every suggestion to admins and only their own to everyone else
+  churchSuggestions: () => run(supabase.from('church_suggestions').select('*').order('created_at', { ascending: false })),
+  suggestChurch: row => run(supabase.from('church_suggestions').insert(row).select().single()),
+  decideChurchSuggestion: (suggestion, approve, final_name = null) => run(supabase.rpc('decide_church_suggestion', { suggestion, approve, final_name })),
   myVouch: uid => run(supabase.from('vouches').select('*').eq('user_id', uid)).then(rows => rows[0] || null),
   // Members re-request after a decline by editing their row; the server resets it to pending
   requestVouch: (existing, request) => existing

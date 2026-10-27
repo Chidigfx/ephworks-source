@@ -7,13 +7,17 @@ This is a **reconstruction** of the October 2026 Ephworks #HACK prototype based 
 ## What is included
 
 - React 18 + Vite frontend, with all editable source in `src/`
-- Responsive dark-navy / mint desktop navigation and mobile bottom navigation with a **More** sheet
-- Job seeker, employer and moderator demo previews
+- Responsive top bar on desktop, bottom navigation with a menu sheet on phones
+- **Simple navigation**: a slim top bar with Jobs, Saved and Post a job; everything else (My posts, Get help, Get involved, Profile) sits in the avatar menu, and reference pages are in the footer. Staff get one **Your work** button with a count, and tabs across their queues. Staff open on the queue that needs them
+- **Home and Jobs**: Home is the welcome page with the full job feed under the headline and search, then why Ephworks and free support; Jobs is the same feed on its own (search, filters, results). On phones, Home shrinks to the promise, headline and search, and longer intros are hidden
+- Demo views (Member, Moderator, Church admin, Admin) only when no backend is connected
 - Five fictional sample UAE opportunities with search and filters
 - **Post a Job** end to end with sample data: employer posts, church vouch, moderator HR check, then the post appears on the noticeboard for 30 days
 - **I'm interested** on every role, saved to your account when signed in. Employers only see a count on their post, never who is interested (passing candidate details on could count as recruitment). Save and "mark as applied" stay in your browser
 - **Scam checks**: fee, deposit and payment-transfer terms are blocked outright; WhatsApp-only contact, guaranteed jobs or visas, "no interview", passport requests, pressure language and personal email addresses are flagged for the moderator to check with HR
 - **Church membership verification for job posters**: a post cannot be published until the poster's partner church has vouched for them (yes/no only)
+- **Type to find your church**: posters and church-admin applicants search the partner list; a church that isn't listed can be suggested with its emirate, and an admin checks it, fixes the spelling or matches it to an existing church, then adds it (**Your work → Churches**)
+- All seven emirates, and On-site / Hybrid / Remote alongside Full-time / Part-time
 - Reports and review controls
 - **Apply to help**: anyone signed in can apply to be a volunteer mentor or church admin; admins approve or decline. Moderators are invite-only (assigned on the People page)
 - **People dashboard** for admins: every account with name, email, role, church and post count; change roles or suspend an account
@@ -42,7 +46,7 @@ The `dist/` folder contains the compiled static website after building. To edit 
 
 Without env vars the app runs as the local-only demo. With them, jobs, employer posts, moderation and safety reports use Supabase; saved/tracked roles stay in the browser.
 
-1. Create a Supabase project, then run every file in `supabase/migrations/` in the SQL editor, oldest first (`20261026…` to `20261030…`). `20261028…` adds partner churches (three fictional *sample* churches; replace them before launch) and poster vouching; `20261029…` adds admin roles, role applications and suspension; `20261030…` adds I'm interested.
+1. Create a Supabase project, then run every file in `supabase/migrations/` in the SQL editor, oldest first (`20261026…` to `20261031…`). `20261028…` adds partner churches (three fictional *sample* churches; replace them before launch) and poster vouching; `20261029…` adds admin roles, role applications and suspension; `20261030…` adds I'm interested; `20261031…` adds church suggestions.
 2. Copy `.env.example` to `.env.local` and fill in the project URL and anon key.
 3. Under Authentication → URL Configuration, add your dev and production URLs as redirect URLs (email sign-in links).
 4. Optional Google sign-in (sends no email, and shows the account photo): create an OAuth client in Google Cloud with redirect URI `https://<project-ref>.supabase.co/auth/v1/callback`, then enable Google under Authentication → Providers. The "Continue with Google" button appears automatically once the provider is on.
@@ -54,12 +58,12 @@ Rules enforced in the database, not the browser: members can only submit `pendin
 
 ### Publishing workflow
 
-1. **Employer** (Post opportunity page) asks their partner church for a vouch, then writes the post. Blocked scam terms stop the form; softer warning signs are shown to the poster and the moderator.
-2. **Church Partner Admin** (Member vouch queue) vouches for or declines the poster. Only a yes/no is stored.
-3. **Moderator** (Verification queue) sees the vouch status and scam checks on each post. "Confirm HR" stays disabled until the poster is vouched and no blocked terms remain; every warning flag has to be ticked as checked with HR, and a verification note is required.
+1. **Poster** (Post a job page) asks their partner church for a vouch, then writes the post. Blocked scam terms stop the form; softer warning signs are shown to the poster and the moderator.
+2. **Church admin** (Church vouches) vouches for or declines the poster. Only a yes/no is stored.
+3. **Moderator** (Review posts) sees the vouch status and scam checks on each post. "Confirm HR" stays disabled until the poster is vouched and no blocked terms remain; every warning flag has to be ticked as checked with HR, and a verification note is required.
 4. The post goes live on the noticeboard for 30 days. Seekers can tap **I'm interested** and apply directly to the employer.
 
-Without Supabase the same flow runs on sample data in your browser: switch between the Employer, Church Partner Admin, Moderator and Admin demo views. In the Admin view the demo persona is the super admin.
+Without Supabase the same flow runs on sample data in your browser: switch between the Member, Church admin, Moderator and Admin demo views. In the Admin view the demo persona is the super admin. With Supabase connected there is no view switcher: the menu follows the signed-in account's role.
 
 ## Important differences from the original
 
