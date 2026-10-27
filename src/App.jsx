@@ -6,9 +6,11 @@ import {
   LockKeyhole, MapPin, Menu, MoreHorizontal, Plus, Search, ShieldCheck,
   SlidersHorizontal, UsersRound, LifeBuoy, KeyRound, X, RotateCcw, ExternalLink,
   Clock3, Mail, Building2, Eye, Send, Info, AlertTriangle, ShieldAlert,
-  Calendar, CheckCheck, Scale, Lock
+  Calendar, CheckCheck, Scale, Lock, UserRound, Heart
 } from 'lucide-react'
-import { NAV, SAMPLE_JOBS, SAMPLE_VOLUNTEER, CAREER_SUPPORT_MODULES, TRUST_PILLARS, SAMPLE_VOUCH_REQUESTS } from './data'
+import { NAV, SAMPLE_JOBS, SAMPLE_VOLUNTEER, CAREER_SUPPORT_MODULES, TRUST_PILLARS, SAMPLE_VOUCH_REQUESTS, SAMPLE_CHURCHES } from './data'
+import { supabase, api, toJob } from './supabase'
+import { scanPost } from './scam'
 
 const icons = {
   briefcase: BriefcaseBusiness, bookmark: Bookmark, sparkles: LifeBuoy,
@@ -16,23 +18,31 @@ const icons = {
   plus: Plus, file: FileText, check: ClipboardCheck, flag: Flag
 }
 const NAMES = { seeker: 'Job seeker', employer: 'Employer', moderator: 'Moderator', church: 'Church Partner Admin' }
-const demoKey = 'ephworks-local-demo-v3'
+const demoKey = 'ephworks-local-demo-v4'
 const defaultDemo = {
   saved: [],
   tracked: [],
+  interested: [],
   role: 'seeker',
-  drafts: [],
-  reviews: {},
+  drafts: [], // jobs rows, same shape as public.jobs, so toJob() renders them
   reports: [],
   supportSessions: [],
   vouchQueue: SAMPLE_VOUCH_REQUESTS
 }
 
-const FORBIDDEN_SCAM_KEYWORDS = [
-  'fee', 'fees', 'deposit', 'visa charge', 'visa charges', 'visa fee', 'visa cost',
-  'payment required', 'processing fee', 'upfront', 'bank transfer', 'registration fee',
-  'security deposit', 'pay before'
+// [stored value, label]; values must match the reports.reason check in the migration
+const REPORT_REASONS = [
+  ['Request for payment / fee', 'Request for payment / fee (Illegal under UAE Labour Law)'],
+  ['Suspicious or unverified employer contact', 'Suspicious or unverified employer contact'],
+  ['Misleading job terms or salary', 'Misleading job terms or salary'],
+  ['Potential discriminatory language', 'Potential discriminatory language'],
+  ['Other trust & safety concern', 'Other trust & safety concern']
 ]
+const JOB_STATUS = { pending: 'Pending moderator company verification', published: 'Live · verified with HR', rejected: 'Not approved by moderator' }
+const VOUCH_STATUS = { pending: 'Awaiting church vouch', vouched: 'Vouched', declined: 'Declined' }
+const DEMO_ME = 'demo-me' // the demo persona's own vouch request id
+const EMPTY_VOUCH = { church: '', note: '' }
+const EMPTY_DRAFT = { title: '', company: '', emirate: 'Dubai', type: 'Full-time', pay: '', email: '', portal: '', description: '' }
 
 function getSavedDemo() {
   try {
@@ -43,11 +53,11 @@ function getSavedDemo() {
       ...value,
       saved: Array.isArray(value.saved) ? value.saved : [],
       tracked: Array.isArray(value.tracked) ? value.tracked : [],
+      interested: Array.isArray(value.interested) ? value.interested : [],
       drafts: Array.isArray(value.drafts) ? value.drafts : [],
       reports: Array.isArray(value.reports) ? value.reports : [],
       supportSessions: Array.isArray(value.supportSessions) ? value.supportSessions : [],
-      vouchQueue: Array.isArray(value.vouchQueue) ? value.vouchQueue : SAMPLE_VOUCH_REQUESTS,
-      reviews: value.reviews && typeof value.reviews === 'object' ? value.reviews : {}
+      vouchQueue: Array.isArray(value.vouchQueue) ? value.vouchQueue : SAMPLE_VOUCH_REQUESTS
     }
   } catch { return defaultDemo }
 }
@@ -95,30 +105,136 @@ export default function App() {
   const [showReport, setShowReport] = useState(false)
   const [showSupportModal, setShowSupportModal] = useState(false)
   const [selectedSupportService, setSelectedSupportService] = useState('cv-review')
-  const [reportReason, setReportReason] = useState('Request for payment / fee')
-  const [draftForm, setDraftForm] = useState({ title: '', company: '', emirate: 'Dubai', type: 'Full-time', pay: '', description: '' })
+  const [reportReason, setReportReason] = useState(REPORT_REASONS[0][0])
+  const [draftForm, setDraftForm] = useState(EMPTY_DRAFT)
+  const [jobs, setJobs] = useState(supabase ? [] : SAMPLE_JOBS)
+  const [session, setSession] = useState(null)
+  const [server, setServer] = useState({ myJobs: [], queue: [], reports: [], posterVouches: {}, myVouch: null, vouchRequests: [] })
+  const [churches, setChurches] = useState(supabase ? [] : SAMPLE_CHURCHES)
+  const [vouchForm, setVouchForm] = useState(EMPTY_VOUCH)
+  const [showSignIn, setShowSignIn] = useState(false)
+  const [signInEmail, setSignInEmail] = useState('')
+  const [verifying, setVerifying] = useState(null)
+  const [profile, setProfile] = useState({})
+  const [sendingLink, setSendingLink] = useState(false)
+  const linkInFlight = useRef(false)
+  const [googleEnabled, setGoogleEnabled] = useState(false)
   const [supportForm, setSupportForm] = useState({ name: 'Jordan Morgan', service: 'cv-review', preferredTime: 'Weekday evening', note: '' })
 
-  const role = NAMES[demo.role] ? demo.role : 'seeker'
+  // With a backend, the Moderator and Church views are only offered to accounts whose profile says so
+  const serverRoles = { moderator: 'moderator', church: 'church_admin' }
+  const roleOptions = Object.entries(NAMES).filter(([key]) => !supabase || !serverRoles[key] || profile.role === serverRoles[key])
+  const role = roleOptions.some(([key]) => key === demo.role) ? demo.role : 'seeker'
   const nav = NAV[role]
   const currentNav = nav.find(n => n.id === page)
-  const demoJobs = SAMPLE_JOBS
+  const uid = session?.user.id
 
-  // Real-time scam detection for employer draft form
-  const scamTriggers = useMemo(() => {
-    const combined = `${draftForm.title} ${draftForm.pay} ${draftForm.description}`.toLowerCase()
-    return FORBIDDEN_SCAM_KEYWORDS.filter(kw => combined.includes(kw))
-  }, [draftForm.title, draftForm.pay, draftForm.description])
+  // Real-time scam detection for the employer post form
+  const draftScan = useMemo(() => scanPost(`${draftForm.title} ${draftForm.pay} ${draftForm.description}`, draftForm.email),
+    [draftForm.title, draftForm.pay, draftForm.description, draftForm.email])
 
-  const visibleJobs = useMemo(() => demoJobs.filter(j =>
+  // Without a backend, posts live in demo.drafts and join the sample jobs once a moderator publishes them
+  const demoJobs = demo.drafts.map(toJob)
+  const board = supabase ? jobs : [...demoJobs.filter(j => j.status === 'published' && j.daysLeft > 0), ...SAMPLE_JOBS]
+  const myPosts = supabase ? server.myJobs : demoJobs
+  const queue = supabase ? server.queue : demoJobs.filter(j => j.status === 'pending')
+
+  // The signed-in member's (or demo persona's) church vouch; null until requested
+  const myVouch = supabase
+    ? server.myVouch && { status: server.myVouch.status, church: churches.find(c => c.id === server.myVouch.church_id)?.name }
+    : demo.vouchQueue.find(m => m.id === DEMO_ME) || null
+  const posterVouched = job => (supabase ? server.posterVouches[job.employerId] : myVouch?.status) === 'vouched'
+  const scanJob = job => scanPost(`${job.title} ${job.salary} ${job.description}`, job.directEmail)
+  const adminChurch = churches.find(c => c.id === profile.church_id)?.name
+  const vouchRows = supabase
+    ? server.vouchRequests.map(v => ({ id: v.user_id, name: v.display_name, church: adminChurch, requestedDate: new Date(v.created_at).toLocaleDateString(), status: v.status, note: v.note }))
+    : demo.vouchQueue
+
+  const visibleJobs = useMemo(() => board.filter(j =>
     (emirate === 'All emirates' || j.emirate === emirate) &&
     (workType === 'Any work type' || j.type === workType) &&
     (`${j.title} ${j.company} ${j.category}`.toLowerCase().includes(search.trim().toLowerCase())) &&
     (tab !== 'saved' || demo.saved.includes(j.id))
-  ), [emirate, workType, search, tab, demo.saved])
+  ), [board, emirate, workType, search, tab, demo.saved])
 
   const updateDemo = patch => setDemo(prev => ({ ...prev, ...patch }))
   const notify = message => setBanner(message)
+  const fail = err => notify(err.message)
+
+  useEffect(() => {
+    if (!supabase) return
+    api.googleEnabled().then(setGoogleEnabled)
+    // A cancelled or failed Google sign-in comes back with the reason in the URL
+    const params = new URLSearchParams(window.location.hash.slice(1) || window.location.search)
+    if (params.get('error_description')) {
+      notify(`Sign-in did not complete: ${params.get('error_description')}`)
+      window.history.replaceState(null, '', window.location.pathname)
+    }
+    supabase.auth.getSession().then(({ data }) => setSession(data.session))
+    const { data } = supabase.auth.onAuthStateChange((_event, next) => setSession(next))
+    return () => data.subscription.unsubscribe()
+  }, [])
+
+  // RLS decides what each list returns: moderators see the full queue, members only their own rows
+  const refresh = () => supabase && Promise.all([
+    api.liveJobs(),
+    uid ? api.myJobs(uid) : [],
+    uid && role === 'moderator' ? api.pendingJobs() : [],
+    uid && role === 'moderator' ? api.reports() : [],
+    uid && role === 'moderator' ? api.posterVouches() : [],
+    uid ? api.myVouch(uid) : null,
+    uid && role === 'church' ? api.vouchRequests() : []
+  ]).then(([live, mine, queue, reports, posters, myVouch, vouchRequests]) => {
+    setJobs(live.map(toJob))
+    setServer({
+      myJobs: mine.map(toJob), queue: queue.map(toJob), reports, myVouch,
+      posterVouches: Object.fromEntries(posters.map(p => [p.user_id, p.status])),
+      vouchRequests: vouchRequests.filter(v => v.user_id !== uid) // admins can't vouch for themselves
+    })
+  }).catch(err => notify(`Could not load from the server: ${err.message}`))
+
+  useEffect(() => { refresh() }, [uid, role])
+
+  useEffect(() => {
+    if (!supabase || !uid) return setProfile({})
+    api.profile(uid).then(setProfile).catch(fail)
+    api.churches().then(setChurches).catch(fail)
+  }, [uid])
+
+  // Leave role-only pages if the view stops being available (e.g. after signing out)
+  useEffect(() => {
+    const owner = { review: 'moderator', reports: 'moderator', vouch: 'church', invite: 'church' }[page]
+    if (owner && owner !== role) setPage('opportunities')
+  }, [role, page])
+
+  // True (and opens sign-in) when a server action needs an account first
+  const needsSignIn = () => {
+    if (!supabase || session) return false
+    setShowSignIn(true)
+    return true
+  }
+
+  const signInWithGoogle = () => supabase.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: window.location.origin } })
+    .then(({ error }) => error && fail(error))
+
+  const signOut = () => supabase.auth.signOut().then(() => notify('Signed out.'))
+
+  // Every send counts against the project's email quota, so block repeat clicks while one is in flight
+  const sendSignInLink = e => {
+    e.preventDefault()
+    if (linkInFlight.current) return // a ref, because rapid clicks land before state re-renders
+    linkInFlight.current = true
+    setSendingLink(true)
+    supabase.auth.signInWithOtp({ email: signInEmail.trim(), options: { emailRedirectTo: window.location.origin } })
+      .then(({ error }) => {
+        linkInFlight.current = false
+        setSendingLink(false)
+        if (error?.status === 429 || /rate limit/i.test(error?.message)) return notify('Too many sign-in emails were requested recently. Please wait a few minutes, then use the newest link in your inbox.')
+        if (error) return fail(error)
+        setShowSignIn(false)
+        notify(`Sign-in link sent to ${signInEmail.trim()}. Open it on this device to continue.`)
+      })
+  }
 
   useEffect(() => { window.localStorage.setItem(demoKey, JSON.stringify(demo)) }, [demo])
   useEffect(() => {
@@ -126,6 +242,7 @@ export default function App() {
       if (e.key === 'Escape') {
         setSelectedJob(null); setShowMobileMore(false); setShowAbout(false);
         setShowReset(false); setShowReport(false); setShowSupportModal(false)
+        setShowSignIn(false); setVerifying(null)
       }
     }
     window.addEventListener('keydown', onKey)
@@ -133,10 +250,10 @@ export default function App() {
   }, [])
 
   useEffect(() => {
-    const modal = selectedJob || showMobileMore || showAbout || showReset || showReport || showSupportModal
+    const modal = selectedJob || showMobileMore || showAbout || showReset || showReport || showSupportModal || showSignIn || verifying
     document.body.classList.toggle('modal-open', Boolean(modal))
     return () => document.body.classList.remove('modal-open')
-  }, [selectedJob, showMobileMore, showAbout, showReset, showReport, showSupportModal])
+  }, [selectedJob, showMobileMore, showAbout, showReset, showReport, showSupportModal, showSignIn, verifying])
 
   const go = id => { setPage(id); setShowMobileMore(false); setBanner(null); window.scrollTo({ top: 0, behavior: 'smooth' }) }
   const setRole = next => {
@@ -146,16 +263,40 @@ export default function App() {
     notify(`Switched to ${NAMES[next]} demo view`)
   }
   const handleVouch = (id, status) => {
-    updateDemo({
-      vouchQueue: demo.vouchQueue.map(m => m.id === id ? { ...m, status } : m)
-    })
-    notify(status.includes('Vouched') ? 'Congregant vouched! Vouch badge granted with zero sensitive data stored.' : 'Vouch request declined.')
+    const done = () => notify(status === 'vouched' ? 'Member vouched. Only a yes/no is stored, never belief or denomination data.' : 'Vouch request declined.')
+    if (supabase) return api.decideVouch(id, status).then(() => { refresh(); done() }).catch(fail)
+    updateDemo({ vouchQueue: demo.vouchQueue.map(m => m.id === id ? { ...m, status } : m) })
+    done()
+  }
+
+  // Job posters ask their partner church to confirm they are known to the community before anything they post can go live
+  const requestVouch = e => {
+    e.preventDefault()
+    const church = churches.find(c => c.id === vouchForm.church)
+    if (!church) return notify('Choose your partner church first.')
+    const note = vouchForm.note.trim()
+    const done = () => { setVouchForm(EMPTY_VOUCH); notify(`Request sent to ${church.name}. Their admin only confirms you are known to the community.`) }
+    if (supabase) {
+      if (needsSignIn()) return
+      return api.requestVouch(server.myVouch, { church_id: church.id, display_name: account.name, note: note || null })
+        .then(() => { refresh(); done() })
+        .catch(fail)
+    }
+    const request = { id: DEMO_ME, name: account.name, requestedDate: 'Just now', church: church.name, status: 'pending', note: `Job poster · ${note || 'No note added.'}` }
+    updateDemo({ vouchQueue: [request, ...demo.vouchQueue.filter(m => m.id !== DEMO_ME)] })
+    done()
   }
 
   const toggleSave = id => {
     const already = demo.saved.includes(id)
     updateDemo({ saved: already ? demo.saved.filter(x => x !== id) : [...demo.saved, id] })
     notify(already ? 'Removed from your saved sample opportunities.' : 'Saved on this device for reference.')
+  }
+
+  const toggleInterest = id => {
+    const already = demo.interested.includes(id)
+    updateDemo({ interested: already ? demo.interested.filter(x => x !== id) : [...demo.interested, id] })
+    notify(already ? 'Removed from roles you’re interested in.' : 'Marked as interested. Apply straight to the employer from the role page; we never pass your details on.')
   }
 
   const toggleTrack = id => {
@@ -170,27 +311,35 @@ export default function App() {
 
   const submitDraft = e => {
     e.preventDefault()
-    if (scamTriggers.length > 0) {
-      return notify(`Auto-block triggered: Remove prohibited terms (${scamTriggers.join(', ')}) before saving.`)
+    if (draftScan.blocked.length > 0) {
+      return notify(`Auto-block triggered: Remove prohibited terms (${draftScan.blocked.join(', ')}) before saving.`)
     }
-    const fields = [draftForm.title, draftForm.company, draftForm.pay, draftForm.description]
-    if (fields.some(v => !v.trim())) return notify('Complete all fields before saving the sample draft.')
-    const item = {
-      ...draftForm,
-      id: `draft-${Date.now()}`,
-      created: new Date().toLocaleDateString(),
-      status: 'Pending moderator company verification',
-      expiresIn: '30 days upon approval',
-      scamAudit: 'Passed auto-block keyword check (0 fee triggers)'
+    const { title, company, emirate, type, pay, email, portal, description } = draftForm
+    if ([title, company, pay, email, description].some(v => !v.trim())) return notify('Complete all required fields before saving the post.')
+    const row = { title: title.trim(), company: company.trim(), emirate, type, salary: pay.trim(), description: description.trim(), direct_email: email.trim(), direct_portal: portal.trim() || null }
+    const done = () => {
+      setDraftForm(EMPTY_DRAFT)
+      go('drafts')
+      notify(myVouch?.status === 'vouched'
+        ? 'Post submitted. A moderator will verify it with the employer’s HR before it goes live.'
+        : 'Post saved. It stays unpublished until your church vouches for you and a moderator verifies it with HR.')
     }
-    updateDemo({ drafts: [item, ...demo.drafts] })
-    setDraftForm({ title: '', company: '', emirate: 'Dubai', type: 'Full-time', pay: '', description: '' })
-    go('drafts')
-    notify('Sample post saved. Awaiting moderator verification with employer HR before publication.')
+    if (supabase) {
+      if (needsSignIn()) return
+      return api.submitJob(row).then(() => { refresh(); done() }).catch(fail)
+    }
+    updateDemo({ drafts: [{ ...row, id: `draft-${Date.now()}`, status: 'pending', created_at: new Date().toISOString() }, ...demo.drafts] })
+    done()
   }
 
   const submitReport = () => {
     if (!selectedJob) return
+    if (supabase) {
+      if (needsSignIn()) return
+      return api.fileReport(selectedJob.id, reportReason)
+        .then(() => { setShowReport(false); notify('Report sent to the Ephworks Safety Team. We follow up on all flags within 24 hours.') })
+        .catch(err => notify(/duplicate/.test(err.message) ? 'You have already reported this role. The Safety Team has it.' : err.message))
+    }
     updateDemo({
       reports: [
         ...demo.reports,
@@ -222,17 +371,58 @@ export default function App() {
     notify(`Volunteer session requested for ${module?.title}! A mentor will contact you for your session.`)
   }
 
-  const reviewDraft = (id, status) => {
-    updateDemo({ reviews: { ...demo.reviews, [id]: status } })
-    notify(`Moderation status changed to ${status}.`)
+  const updateDraft = (id, patch) => updateDemo({ drafts: demo.drafts.map(d => d.id === id ? { ...d, ...patch } : d) })
+
+  // Publishing needs a vouched poster, no blocked terms, every scam flag checked with HR, and a verification note.
+  // The server re-checks the vouch, the terms and the note; in the demo this is the only gate.
+  const canPublish = ({ job, note, flagsChecked }) => {
+    const scan = scanJob(job)
+    return posterVouched(job) && !scan.blocked.length && (flagsChecked || !scan.flags.length) && Boolean(note.trim())
+  }
+
+  const publishJob = e => {
+    e.preventDefault()
+    if (!canPublish(verifying)) return
+    const { job, note } = verifying
+    const done = () => { setVerifying(null); notify('Published. The 30-day expiry timer has started.') }
+    if (supabase) return api.reviewJob(job.id, 'published', note.trim()).then(() => { refresh(); done() }).catch(fail)
+    const now = Date.now()
+    updateDraft(job.id, { status: 'published', verification_note: note.trim(), published_at: new Date(now).toISOString(), expires_at: new Date(now + 30 * 86400000).toISOString() })
+    done()
+  }
+
+  const rejectJob = id => {
+    const done = () => notify('Post rejected and removed from the queue.')
+    if (supabase) return api.reviewJob(id, 'rejected', null).then(() => { refresh(); done() }).catch(fail)
+    updateDraft(id, { status: 'rejected' })
+    done()
+  }
+
+  const removePost = id => {
+    if (!supabase) {
+      updateDemo({ drafts: demo.drafts.filter(x => x.id !== id) })
+      return notify('Post draft removed.')
+    }
+    api.deleteJob(id).then(() => { refresh(); notify('Post removed.') }).catch(fail)
   }
 
   const markReport = id => {
+    if (supabase) return api.resolveReport(id).then(() => { refresh(); notify('Report marked resolved by Safety Team.') }).catch(fail)
     updateDemo({
       reports: demo.reports.map(r => r.id === id ? { ...r, status: 'Resolved by Safety Team' } : r)
     })
     notify('Report marked resolved by Safety Team.')
   }
+
+  // Who the header and menus show: the signed-in account, a guest, or the demo persona without a backend
+  const meta = session?.user.user_metadata || {}
+  const account = !supabase ? { name: 'Jordan Morgan', detail: myVouch?.status === 'vouched' ? `Vouched member · ${myVouch.church}` : `Church vouch: ${VOUCH_STATUS[myVouch?.status]?.toLowerCase() || 'not requested'}` }
+    : session ? { name: meta.full_name || meta.name || session.user.email.split('@')[0], detail: session.user.email, photo: meta.avatar_url || meta.picture }
+    : { name: 'Guest', detail: 'Not signed in', guest: true }
+
+  const reportRows = supabase
+    ? server.reports.map(r => ({ id: r.id, title: r.jobs?.title, reason: r.reason, resolved: r.status === 'resolved', created: new Date(r.created_at).toLocaleString() }))
+    : demo.reports.map(r => ({ ...r, title: SAMPLE_JOBS.find(x => x.id === r.jobId)?.title, resolved: r.status.includes('Resolved') }))
 
   const userMainNav = nav.slice(0, 3)
 
@@ -247,18 +437,18 @@ export default function App() {
             <button key={n.id} type="button" className={`side-link ${page === n.id ? 'active' : ''}`} aria-current={page === n.id ? 'page' : undefined} onClick={() => go(n.id)}>
               <Icon size={18}/>
               <span>{n.label}</span>
-              {n.id === 'interests' && (demo.saved.length + demo.tracked.length) > 0 && (
-                <span className="count">{demo.saved.length + demo.tracked.length}</span>
+              {n.id === 'interests' && (demo.saved.length + demo.tracked.length + demo.interested.length) > 0 && (
+                <span className="count">{demo.saved.length + demo.tracked.length + demo.interested.length}</span>
               )}
             </button>
           )
         })}
       </nav>
       <div className="sidebar-profile">
-        <span className="avatar">JM</span>
+        <Avatar account={account}/>
         <span>
-          <strong>Jordan Morgan</strong>
-          <small>Vouched Member · St. Luke's Dubai</small>
+          <strong>{account.name}</strong>
+          <small>{account.detail}</small>
         </span>
       </div>
     </aside>
@@ -270,17 +460,17 @@ export default function App() {
         <div className="header-actions">
           <div className="role-selector" role="group" aria-label="Preview as role">
             <span className="role-kicker">Demo view</span>
-            {Object.entries(NAMES).map(([key, label]) => (
+            {roleOptions.map(([key, label]) => (
               <button key={key} type="button" onClick={() => setRole(key)} className={role === key ? 'selected' : ''} aria-pressed={role === key}>
                 {label}
               </button>
             ))}
           </div>
           <button className="icon-button help-button" aria-label="About this prototype" title="About this prototype" onClick={() => setShowAbout(true)}><CircleHelp size={19}/></button>
-          <span className="avatar header-avatar">JM</span>
+          <Avatar account={account} className="header-avatar"/>
         </div>
         <button className="mobile-account" aria-label="Open menu" aria-haspopup="dialog" aria-expanded={showMobileMore} onClick={() => setShowMobileMore(true)}>
-          <span className="avatar">JM</span>
+          <Avatar account={account}/>
         </button>
       </header>
 
@@ -290,6 +480,9 @@ export default function App() {
           <span className="pilot-actions">
             <button type="button" onClick={() => setShowAbout(true)}>Legal notes</button>
             <button type="button" onClick={() => setShowReset(true)}>Reset demo</button>
+            {supabase && (session
+              ? <button type="button" onClick={signOut}>Sign out</button>
+              : <button type="button" onClick={() => setShowSignIn(true)}>Sign in</button>)}
           </span>
         </div>
 
@@ -306,7 +499,10 @@ export default function App() {
             <img className="stage-bg" src="/images/community.webp" fetchpriority="high" alt="" width="1200" height="896"/>
             <div className="hero-inner">
               <div className="hero-copy">
-                <p className="glass-chip"><span className="status-dot"/> A private job board for UAE church communities</p>
+                <div className="hero-chips">
+                  <p className="glass-chip"><span className="status-dot"/> A private job board for UAE church communities</p>
+                  <p className="free-chip"><HeartHandshake size={16} aria-hidden="true"/> Free for everyone, always</p>
+                </div>
                 <h1>Find work through people who <em>know you.</em></h1>
                 <p className="hero-lede">Every job here has been checked with the employer. Every member is vouched for by their church. Nobody will ask you for money.</p>
                 <form className="hero-search" role="search" onSubmit={e => { e.preventDefault(); document.getElementById('opp-list')?.scrollIntoView({ behavior: 'smooth' }) }}>
@@ -330,7 +526,7 @@ export default function App() {
                 <div className="glass-card float-card">
                   <span className="float-icon"><ShieldCheck size={22}/></span>
                   <div>
-                    <strong>{SAMPLE_JOBS.length} jobs open</strong>
+                    <strong>{board.length} jobs open</strong>
                     <small>Every one checked with the employer</small>
                   </div>
                 </div>
@@ -344,9 +540,9 @@ export default function App() {
           </section>
 
           <ul className="stat-row" aria-label="At a glance">
-            <li className="stat featured"><b>{SAMPLE_JOBS.length}</b><span>Jobs open right now</span></li>
+            <li className="stat featured"><b>{board.length}</b><span>Jobs open right now</span></li>
             <li className="stat"><b>100%</b><span>Checked with the employer</span></li>
-            <li className="stat"><b>AED 0</b><span>Fees to apply, ever</span></li>
+            <li className="stat"><b>AED 0</b><span>Free for everyone, always</span></li>
             <li className="stat"><b>30 days</b><span>Longest a post can stay up</span></li>
           </ul>
 
@@ -426,6 +622,8 @@ export default function App() {
                   tracked={demo.tracked.includes(job.id)}
                   onSave={() => toggleSave(job.id)}
                   onOpen={() => setSelectedJob(job)}
+                  interested={demo.interested.includes(job.id)}
+                  onInterest={() => toggleInterest(job.id)}
                 />
               )) : <Empty title="No verified roles match" description="Try a different keyword or change your filters." icon={Search}/>}
             </div>
@@ -515,12 +713,31 @@ export default function App() {
           <PageHeading
             eyebrow="Your tracked activity"
             title="My tracked roles & applications"
-            desc="Keep notes of roles you've applied to directly with employers. All tracking is private and stored in your browser only."
+            desc="Roles you're interested in, saved, or applied to directly with employers. All tracking is private and stored in your browser only."
           />
+          <SectionTitle title="Roles you're interested in" subtitle={`${demo.interested.length} ${demo.interested.length === 1 ? 'role' : 'roles'} marked with I'm interested`}/>
+          {demo.interested.length ? (
+            <div className="job-list">
+              {board.filter(j => demo.interested.includes(j.id)).map(job => (
+                <JobCard
+                  key={job.id}
+                  job={job}
+                  saved={demo.saved.includes(job.id)}
+                  tracked={demo.tracked.includes(job.id)}
+                  onSave={() => toggleSave(job.id)}
+                  onOpen={() => setSelectedJob(job)}
+                  interested
+                  onInterest={() => toggleInterest(job.id)}
+                />
+              ))}
+            </div>
+          ) : <Empty title="No roles marked yet" description="Tap I'm interested on any role on the noticeboard to keep it here." icon={Heart}/>}
+
+          <div className="spacer-24"/>
           <SectionTitle title="Roles marked as applied" subtitle={`${demo.tracked.length} roles you applied to directly`}/>
           {demo.tracked.length ? (
             <div className="job-list">
-              {SAMPLE_JOBS.filter(j => demo.tracked.includes(j.id)).map(job => (
+              {board.filter(j => demo.tracked.includes(j.id)).map(job => (
                 <JobCard
                   key={job.id}
                   job={job}
@@ -528,6 +745,8 @@ export default function App() {
                   tracked={true}
                   onSave={() => toggleSave(job.id)}
                   onOpen={() => setSelectedJob(job)}
+                  interested={demo.interested.includes(job.id)}
+                  onInterest={() => toggleInterest(job.id)}
                 />
               ))}
             </div>
@@ -537,7 +756,7 @@ export default function App() {
           <SectionTitle title="Saved opportunities" subtitle={`${demo.saved.length} roles bookmarked`}/>
           {demo.saved.length ? (
             <div className="job-list">
-              {SAMPLE_JOBS.filter(j => demo.saved.includes(j.id)).map(job => (
+              {board.filter(j => demo.saved.includes(j.id)).map(job => (
                 <JobCard
                   key={job.id}
                   job={job}
@@ -545,6 +764,8 @@ export default function App() {
                   tracked={demo.tracked.includes(job.id)}
                   onSave={() => toggleSave(job.id)}
                   onOpen={() => setSelectedJob(job)}
+                  interested={demo.interested.includes(job.id)}
+                  onInterest={() => toggleInterest(job.id)}
                 />
               ))}
             </div>
@@ -642,14 +863,45 @@ export default function App() {
             title="Post a verified opportunity"
             desc="Draft an opportunity for your company. All posts are checked directly with HR and audited by our anti-scam engine."
           />
+          <section className="plain-card vouch-panel" aria-labelledby="vouch-title">
+            <div className="cta-row">
+              <div className="feature-icon"><UsersRound size={22}/></div>
+              <div className="cta-row-body">
+                <h3 id="vouch-title">Church membership verification</h3>
+                <p>
+                  {!myVouch ? 'Before anything you post can go live, your partner church confirms you are known to the community. Only a yes/no is stored, never belief or denomination data.'
+                    : myVouch.status === 'pending' ? `Waiting for ${myVouch.church} to confirm you. You can still write posts; they stay unpublished until then. Picked the wrong church? Send the request again below.`
+                    : myVouch.status === 'vouched' ? `${myVouch.church} has vouched for you. Your posts go straight to moderator HR verification.`
+                    : `${myVouch.church} could not confirm you. Check you chose the right church, add a note, and ask again.`}
+                </p>
+              </div>
+              <span className={`status-chip ${myVouch ? myVouch?.status === 'vouched' ? 'ok' : myVouch?.status === 'declined' ? 'bad' : 'pending' : 'pending'}`}>{myVouch ? VOUCH_STATUS[myVouch.status] : 'Not requested'}</span>
+            </div>
+            {myVouch?.status !== 'vouched' && (
+              <form className="booking-form vouch-form" onSubmit={requestVouch}>
+                <label>
+                  Your partner church
+                  <select required value={vouchForm.church} onChange={e => setVouchForm({ ...vouchForm, church: e.target.value })}>
+                    <option value="">Choose a church</option>
+                    {churches.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  </select>
+                </label>
+                <label>
+                  Note for your church admin (optional)
+                  <input maxLength={300} placeholder="e.g. How the admin knows you and the company you hire for" value={vouchForm.note} onChange={e => setVouchForm({ ...vouchForm, note: e.target.value })}/>
+                </label>
+                <button className="primary-button" type="submit"><Send size={16}/> {myVouch ? 'Send request again' : 'Request church vouch'}</button>
+              </form>
+            )}
+          </section>
           <div className="form-panel">
             {/* Live Auto-Block Scam Engine Banner */}
-            {scamTriggers.length > 0 ? (
+            {draftScan.blocked.length > 0 ? (
               <div className="auto-block-box">
                 <ShieldAlert size={26}/>
                 <div>
                   <strong>Auto-block active: prohibited fee or scam terms detected</strong>
-                  Your post contains prohibited keywords: <u>{scamTriggers.join(', ')}</u>.
+                  Your post contains prohibited keywords: <u>{draftScan.blocked.join(', ')}</u>.
                   <ul>
                     <li>Under UAE Labour Law, employers and recruiters are strictly prohibited from charging candidates any fees, deposits, or visa costs.</li>
                     <li>Ephworks auto-blocks all posts requesting payment, deposits, or visa charges.</li>
@@ -659,8 +911,13 @@ export default function App() {
               </div>
             ) : (
               <div className="auto-block-clean">
-                <CheckCircle2 size={16}/> Auto-block scam scan: 0 fee or deposit triggers detected. Post complies with UAE Labour Law anti-fee rules.
+                <CheckCircle2 size={16}/> Auto-block scam scan: 0 fee or payment triggers detected. Post complies with UAE Labour Law anti-fee rules.
               </div>
+            )}
+            {draftScan.flags.length > 0 && (
+              <Warning tone="strong">
+                A moderator will check these with HR before publishing: {draftScan.flags.join('; ')}.
+              </Warning>
             )}
 
             <form className="post-form" onSubmit={submitDraft}>
@@ -693,10 +950,21 @@ export default function App() {
                 Monthly compensation
                 <input maxLength={95} placeholder="e.g. AED 5,000 – 7,000 (Candidate must never be charged fees)" value={draftForm.pay} onChange={e => setDraftForm({ ...draftForm, pay: e.target.value })} required/>
               </label>
+              <div className="form-two">
+                <label>
+                  Direct application email
+                  <input type="email" maxLength={254} placeholder="careers@company.ae" value={draftForm.email} onChange={e => setDraftForm({ ...draftForm, email: e.target.value })} required/>
+                </label>
+                <label>
+                  Careers page (optional)
+                  <input type="url" pattern="https://.*" maxLength={500} placeholder="https://company.ae/careers" value={draftForm.portal} onChange={e => setDraftForm({ ...draftForm, portal: e.target.value })}/>
+                </label>
+              </div>
               <label>
                 Role description & direct application instructions
                 <textarea
                   rows={5}
+                  minLength={20}
                   maxLength={1600}
                   placeholder="Describe the opportunity. Provide direct employer email or website portal. Note: Auto-block stops any mention of fees, visa charges, or deposits."
                   value={draftForm.description}
@@ -709,7 +977,7 @@ export default function App() {
                 <Clock3 size={15}/> <strong>30-Day Freshness Guarantee:</strong> Approved posts expire automatically after 30 days so seekers never see dead or obsolete vacancies.
               </div>
 
-              <button className="primary-button" type="submit" disabled={scamTriggers.length > 0}>
+              <button className="primary-button" type="submit" disabled={draftScan.blocked.length > 0}>
                 <FilePenLine size={17}/> Save post for moderator HR verification
               </button>
             </form>
@@ -723,23 +991,31 @@ export default function App() {
             desc="Track the moderation and verification status of your company listings."
             action={<button className="primary-button" onClick={() => go('post')}><Plus size={17}/> New post</button>}
           />
-          {demo.drafts.length ? (
+          {supabase && !session ? (
+            <Empty icon={KeyRound} title="Sign in to see your posts" description="Use the Sign in link at the top of the page. Your posts and their verification status appear here."/>
+          ) : myPosts.length ? (
             <div className="job-list">
-              {demo.drafts.map(d => (
+              {myPosts.map(d => (
                 <div className="draft-card" key={d.id}>
                   <div>
-                    <Pill type="subtle">{d.status}</Pill>
-                    <span className="tag-badge expiry">Expires in 30 days</span>
+                    <Pill type="subtle">{JOB_STATUS[d.status] || d.status}</Pill>
+                    <span className="tag-badge expiry">{d.status === 'published' ? `Expires in ${d.daysLeft} days` : 'Expires 30 days after approval'}</span>
                     <h3>{d.title}</h3>
                     <p>{d.company} · {d.emirate} · {d.type}</p>
-                    <small>{d.pay} / month</small>
+                    <small>{d.salary} / month</small>
                     <div className="draft-desc">{d.description}</div>
                     <div className="audit-line">
                       <CheckCircle2 size={14}/>
-                      {d.scamAudit}
+                      Passed fee and payment-scam check
                     </div>
+                    {d.status === 'pending' && (
+                      <div className="audit-line waiting">
+                        <Clock3 size={14}/>
+                        {myVouch?.status === 'vouched' ? 'Waiting for moderator HR verification' : 'Waiting for your church vouch, then moderator HR verification'}
+                      </div>
+                    )}
                   </div>
-                  <button className="secondary-button" onClick={() => { updateDemo({ drafts: demo.drafts.filter(x => x.id !== d.id) }); notify('Post draft removed.') }}>
+                  <button className="secondary-button" onClick={() => removePost(d.id)}>
                     Remove post
                   </button>
                 </div>
@@ -756,29 +1032,32 @@ export default function App() {
           />
           <div className="rp">
             <div className="rp-head"><ShieldCheck size={16}/> Moderator verification protocol</div>
-            <ol className="rp-steps">
-              <li><b>1</b><span>Direct HR contact confirmed</span></li>
-              <li><b>2</b><span>Zero-fee audit passed</span></li>
-              <li><b>3</b><span>30-day expiry timer started</span></li>
+            <ol className="rp-steps rp-four">
+              <li><b>1</b><span>Poster vouched by their church</span></li>
+              <li><b>2</b><span>Fee and scam checks passed</span></li>
+              <li><b>3</b><span>Direct HR contact confirmed</span></li>
+              <li><b>4</b><span>30-day expiry timer started</span></li>
             </ol>
           </div>
 
-          <div className="review-list">
-            {SAMPLE_JOBS.slice(0, 3).map(j => {
-              const status = demo.reviews[j.id] || 'Live on noticeboard'
-              return (
+          {supabase && !session ? <Empty icon={KeyRound} title="Sign in to moderate" description="Sign in with a moderator account to see posts waiting for HR verification."/>
+          : queue.length ? (
+            <div className="review-list">
+              {queue.map(j => (
                 <ReviewCard
                   key={j.id}
                   job={j}
-                  status={status}
-                  tone={status.startsWith('Flagged') ? 'bad' : 'ok'}
+                  vouched={posterVouched(j)}
+                  scan={scanJob(j)}
                   onView={() => setSelectedJob(j)}
-                  onFlag={() => reviewDraft(j.id, 'Flagged for review')}
-                  onConfirm={() => reviewDraft(j.id, 'Confirmed with HR')}
+                  onReject={() => rejectJob(j.id)}
+                  onConfirm={() => setVerifying({ job: j, note: '', flagsChecked: false })}
                 />
-              )
-            })}
-          </div>
+              ))}
+            </div>
+          ) : <Empty icon={ClipboardCheck} title="Queue is clear" description={supabase
+            ? "New employer posts appear here until a moderator verifies them with HR. Only moderator accounts see other employers' posts."
+            : 'Switch to the Employer view and post a sample job; it waits here for church vouching and HR verification.'}/>}
         </>}
 
         {page === 'reports' && <>
@@ -787,16 +1066,15 @@ export default function App() {
             title="Reports & Follow-up queue"
             desc="Unlike unmoderated social media, our safety team actively follows up with reporters and employers on every flag."
           />
-          {demo.reports.length ? (
+          {reportRows.length ? (
             <div className="job-list">
-              {demo.reports.map(r => {
-                const j = SAMPLE_JOBS.find(x => x.id === r.jobId)
-                const resolved = r.status.includes('Resolved')
+              {reportRows.map(r => {
+                const resolved = r.resolved
                 return (
                   <QueueCard
                     key={r.id}
                     avatar={<div className="feature-icon danger"><Flag size={20}/></div>}
-                    title={j?.title || 'Reported role'}
+                    title={r.title || 'Reported role'}
                     status={resolved ? 'Resolved' : 'Open'}
                     tone={resolved ? 'ok' : 'pending'}
                     sub={`Reason: ${r.reason}`}
@@ -864,35 +1142,37 @@ export default function App() {
             }
           />
           <div className="rp">
-            <div className="rp-head"><ShieldCheck size={16}/> Active church admin: St. Luke's Dubai</div>
+            <div className="rp-head"><ShieldCheck size={16}/> Active church admin: {supabase ? adminChurch : SAMPLE_CHURCHES[0].name}</div>
             <ol className="rp-steps rp-two">
               <li><b><ShieldCheck size={13}/></b><span>Zero denomination data stored</span></li>
               <li><b><ShieldCheck size={13}/></b><span>UAE Data Law compliant</span></li>
             </ol>
           </div>
 
-          <div className="review-list">
-            {demo.vouchQueue.map(m => {
-              const vouched = m.status.includes('Vouched'), declined = m.status.includes('Declined')
-              return (
-                <QueueCard
-                  key={m.id}
-                  avatar={<div className="company-icon sage">{m.initials}</div>}
-                  title={m.name}
-                  status={vouched ? 'Vouched' : declined ? 'Declined' : 'Awaiting vouch'}
-                  tone={vouched ? 'ok' : declined ? 'bad' : 'pending'}
-                  sub={`${m.email} · ${m.church} · Requested ${m.requestedDate}`}
-                  note={m.note}
-                  footNote={<><LockKeyhole size={15}/> Stores a yes/no vouch only</>}
-                >
-                  <button className="reject-small" disabled={declined} onClick={() => handleVouch(m.id, 'Declined / Not Known')}><X size={15}/> Decline</button>
-                  <button className="approve-small" disabled={vouched} onClick={() => handleVouch(m.id, 'Vouched member')}>
-                    <Check size={15}/> {vouched ? 'Vouched' : 'Vouch for member'}
-                  </button>
-                </QueueCard>
-              )
-            })}
-          </div>
+          {vouchRows.length ? (
+            <div className="review-list">
+              {vouchRows.map(m => {
+                const vouched = m.status === 'vouched', declined = m.status === 'declined'
+                return (
+                  <QueueCard
+                    key={m.id}
+                    avatar={<div className="company-icon sage">{m.name.split(/\s+/).slice(0, 2).map(w => w[0]?.toUpperCase()).join('')}</div>}
+                    title={m.name}
+                    status={VOUCH_STATUS[m.status]}
+                    tone={vouched ? 'ok' : declined ? 'bad' : 'pending'}
+                    sub={`${m.church} · Requested ${m.requestedDate}`}
+                    note={m.note}
+                    footNote={<><LockKeyhole size={15}/> Stores a yes/no vouch only</>}
+                  >
+                    <button className="reject-small" disabled={declined} onClick={() => handleVouch(m.id, 'declined')}><X size={15}/> Decline</button>
+                    <button className="approve-small" disabled={vouched} onClick={() => handleVouch(m.id, 'vouched')}>
+                      <Check size={15}/> {vouched ? 'Vouched' : 'Vouch for member'}
+                    </button>
+                  </QueueCard>
+                )
+              })}
+            </div>
+          ) : <Empty icon={UsersRound} title="No vouch requests" description="When members of your church ask to be vouched for, they appear here."/>}
         </>}
 
         {page === 'invite' && <>
@@ -1041,16 +1321,18 @@ export default function App() {
           <PageHeading eyebrow="Demo profile" title="Your trusted identity & privacy" desc="Explore how Ephworks protects member identity and minimizes sensitive data."/>
           <div className="profile-card">
             <div className="profile-top">
-              <span className="avatar big">JM</span>
+              <Avatar account={account} className="big"/>
               <div>
-                <h2>Jordan Morgan</h2>
-                <p>Vouched Community Member · St. Luke's Dubai</p>
+                <h2>{account.name}</h2>
+                <p>{account.detail}</p>
               </div>
             </div>
             <div className="profile-grid">
               <div>
                 <span>Community Vouch Status</span>
-                <strong className="good-text"><Check size={15}/> Vouched by church partner</strong>
+                {myVouch?.status === 'vouched'
+                  ? <strong className="good-text"><Check size={15}/> Vouched by {myVouch.church}</strong>
+                  : <strong>{VOUCH_STATUS[myVouch?.status] || 'Not requested yet'}</strong>}
               </div>
               <div>
                 <span>Data Minimization</span>
@@ -1072,7 +1354,7 @@ export default function App() {
         </>}
 
         <footer className="footer">
-          <span>Ephworks · Verified People. Verified Jobs. Real Support.</span>
+          <span>Ephworks · Free for everyone, always · Verified People. Verified Jobs. Real Support.</span>
           <button onClick={() => setShowAbout(true)}>Product architecture & legal context <ArrowRight size={14}/></button>
         </footer>
       </main>
@@ -1099,10 +1381,10 @@ export default function App() {
         <FocusDialog className="more-sheet" label="Menu">
           <div className="sheet-handle" aria-hidden="true"/>
           <div className="sheet-account">
-            <span className="avatar">JM</span>
+            <Avatar account={account}/>
             <div>
-              <strong>Jordan Morgan</strong>
-              <small>Vouched member · St. Luke's Dubai</small>
+              <strong>{account.name}</strong>
+              <small>{account.detail}</small>
             </div>
             <button className="icon-button" onClick={() => setShowMobileMore(false)} aria-label="Close menu"><X size={20}/></button>
           </div>
@@ -1123,7 +1405,7 @@ export default function App() {
 
           <p className="sheet-label">Demo view</p>
           <div className="sheet-roles" role="group" aria-label="Preview as role">
-            {Object.entries(NAMES).map(([key, label]) => (
+            {roleOptions.map(([key, label]) => (
               <button key={key} type="button" className={role === key ? 'selected' : ''} aria-pressed={role === key} onClick={() => setRole(key)}>{label}</button>
             ))}
           </div>
@@ -1131,6 +1413,9 @@ export default function App() {
           <div className="sheet-links">
             <button onClick={() => { setShowMobileMore(false); setShowAbout(true) }}><CircleHelp size={18} aria-hidden="true"/> About Ephworks & legal notes</button>
             <button onClick={() => { setShowMobileMore(false); setShowReset(true) }}><RotateCcw size={18} aria-hidden="true"/> Reset demo</button>
+            {supabase && <button onClick={() => { setShowMobileMore(false); session ? signOut() : setShowSignIn(true) }}>
+              <KeyRound size={18} aria-hidden="true"/> {session ? `Sign out (${session.user.email})` : 'Sign in'}
+            </button>}
           </div>
         </FocusDialog>
       </div>
@@ -1172,11 +1457,15 @@ export default function App() {
             <h3>About the role</h3>
             <p>{selectedJob.description}</p>
 
-            <h3>What you'll do</h3>
-            <ul>{selectedJob.responsibilities.map(v => <li key={v}>{v}</li>)}</ul>
+            {selectedJob.responsibilities.length > 0 && <>
+              <h3>What you'll do</h3>
+              <ul>{selectedJob.responsibilities.map(v => <li key={v}>{v}</li>)}</ul>
+            </>}
 
-            <h3>Skills & Experience</h3>
-            <div className="tags">{selectedJob.requirements.map(x => <Pill key={x} type="subtle">{x}</Pill>)}</div>
+            {selectedJob.requirements.length > 0 && <>
+              <h3>Skills & Experience</h3>
+              <div className="tags">{selectedJob.requirements.map(x => <Pill key={x} type="subtle">{x}</Pill>)}</div>
+            </>}
 
             <div className="authorization">
               <h4><ShieldCheck size={17}/> Work-authorisation & Sponsorship</h4>
@@ -1193,11 +1482,21 @@ export default function App() {
                 <a href={`mailto:${selectedJob.directEmail}?subject=Application: ${selectedJob.title}`} className="apply-button-primary">
                   <Mail size={16}/> Email CV to {selectedJob.directEmail}
                 </a>
-                <a href={selectedJob.directPortal} target="_blank" rel="noopener noreferrer" className="apply-portal-link">
-                  <ExternalLink size={16}/> Official Career Portal
-                </a>
+                {selectedJob.directPortal && (
+                  <a href={selectedJob.directPortal} target="_blank" rel="noopener noreferrer" className="apply-portal-link">
+                    <ExternalLink size={16}/> Official Career Portal
+                  </a>
+                )}
               </div>
               <div className="track-row">
+                <button
+                  type="button"
+                  className={`${demo.interested.includes(selectedJob.id) ? 'secondary-button' : 'primary-button'} full`}
+                  aria-pressed={demo.interested.includes(selectedJob.id)}
+                  onClick={() => toggleInterest(selectedJob.id)}
+                >
+                  <Heart size={16} fill={demo.interested.includes(selectedJob.id) ? 'currentColor' : 'none'}/> {demo.interested.includes(selectedJob.id) ? 'You’re interested' : 'I’m interested'}
+                </button>
                 <button
                   type="button"
                   className="secondary-button full"
@@ -1320,17 +1619,58 @@ export default function App() {
         <label className="form-label">
           Reason for report
           <select value={reportReason} onChange={e => setReportReason(e.target.value)}>
-            <option>Request for payment / fee (Illegal under UAE Labour Law)</option>
-            <option>Suspicious or unverified employer contact</option>
-            <option>Misleading job terms or salary</option>
-            <option>Potential discriminatory language</option>
-            <option>Other trust & safety concern</option>
+            {REPORT_REASONS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
           </select>
         </label>
         <div className="modal-actions">
           <button className="secondary-button" onClick={() => setShowReport(false)}>Cancel</button>
           <button className="primary-button" onClick={submitReport}><Flag size={16}/> Submit to Safety Team</button>
         </div>
+      </Modal>
+    )}
+
+    {showSignIn && (
+      <Modal onClose={() => setShowSignIn(false)} title="Sign in to Ephworks">
+        {googleEnabled && <>
+          <button type="button" className="secondary-button full google-button" onClick={signInWithGoogle}>
+            <GoogleMark/> Continue with Google
+          </button>
+          <p className="sign-in-divider"><span>or</span></p>
+        </>}
+        <form className="booking-form" onSubmit={sendSignInLink}>
+          <p>We'll email you a one-time sign-in link. No password needed.</p>
+          <label>
+            Email address
+            <input type="email" autoComplete="email" required value={signInEmail} onChange={e => setSignInEmail(e.target.value)}/>
+          </label>
+          <div className="modal-actions">
+            <button type="button" className="secondary-button" onClick={() => setShowSignIn(false)}>Cancel</button>
+            <button type="submit" className="primary-button" disabled={sendingLink}><Mail size={16}/> {sendingLink ? 'Sending…' : 'Email me a link'}</button>
+          </div>
+        </form>
+      </Modal>
+    )}
+
+    {verifying && (
+      <Modal onClose={() => setVerifying(null)} title={`Publish: ${verifying.job.title}`}>
+        <form className="booking-form" onSubmit={publishJob}>
+          <PublishChecks vouched={posterVouched(verifying.job)} scan={scanJob(verifying.job)}/>
+          {scanJob(verifying.job).flags.length > 0 && (
+            <label className="check-label">
+              <input type="checkbox" checked={verifying.flagsChecked} onChange={e => setVerifying({ ...verifying, flagsChecked: e.target.checked })}/>
+              <span>I checked each flag above with {verifying.job.company}'s HR and the role is genuine.</span>
+            </label>
+          )}
+          <p>Record how you confirmed this role with {verifying.job.company}'s HR. Seekers see this note on the listing.</p>
+          <label>
+            Verification record
+            <textarea rows={3} required maxLength={400} placeholder="e.g. Confirmed role, salary and zero candidate fees with HR manager by phone on 26 Oct." value={verifying.note} onChange={e => setVerifying({ ...verifying, note: e.target.value })}/>
+          </label>
+          <div className="modal-actions">
+            <button type="button" className="secondary-button" onClick={() => setVerifying(null)}>Cancel</button>
+            <button type="submit" className="primary-button" disabled={!canPublish(verifying)}><ShieldCheck size={16}/> Publish for 30 days</button>
+          </div>
+        </form>
       </Modal>
     )}
   </div>
@@ -1348,7 +1688,7 @@ function Brand({ compact = false }) {
   )
 }
 
-function JobCard({ job, saved, tracked, onSave, onOpen }) {
+function JobCard({ job, saved, tracked, interested, onSave, onOpen, onInterest }) {
   const life = Math.max(4, Math.min(100, Math.round((job.daysLeft / 30) * 100)))
   return (
     <article className="jc">
@@ -1384,46 +1724,58 @@ function JobCard({ job, saved, tracked, onSave, onOpen }) {
             {job.daysLeft} days left
           </li>
         </ul>
-        <button className="jc-open" onClick={onOpen} aria-label={`View and apply: ${job.title}`}>
-          View role <ArrowRight size={16}/>
-        </button>
+        <div className="jc-actions">
+          <button className={`jc-interest ${interested ? 'is-on' : ''}`} aria-pressed={interested} aria-label={`I'm interested in ${job.title}`} onClick={onInterest}>
+            <Heart size={16} fill={interested ? 'currentColor' : 'none'}/> {interested ? 'Interested' : 'I’m interested'}
+          </button>
+          <button className="jc-open" onClick={onOpen} aria-label={`View and apply: ${job.title}`}>
+            View role <ArrowRight size={16}/>
+          </button>
+        </div>
       </div>
     </article>
   )
 }
 
 
-function ReviewCard({ job, status, tone, onView, onFlag, onConfirm }) {
-  const life = Math.max(4, Math.min(100, Math.round((job.daysLeft / 30) * 100)))
+function ReviewCard({ job, vouched, scan, onView, onReject, onConfirm }) {
+  const ready = vouched && !scan.blocked.length
   return (
-    <article className={`rc ${tone}`}>
+    <article className={`rc ${scan.blocked.length ? 'bad' : vouched ? '' : 'pending'}`}>
       <div className="rc-top">
-        <span className="rc-status"><span className="rc-dot" aria-hidden="true"/> {status}</span>
-        <span className="rc-life" title={`${job.daysLeft} of 30 days left`}>
-          <i style={{ '--life': `${life}%` }} aria-hidden="true"/>
-          {job.daysLeft} days left
-        </span>
+        <span className="rc-status"><span className="rc-dot" aria-hidden="true"/> {scan.blocked.length ? 'Blocked by scam check' : vouched ? 'Ready for HR verification' : 'Waiting for church vouch'}</span>
+        <span className="rc-life">Submitted {job.postedAgo}</span>
       </div>
 
       <div className="rc-body">
         <div className="rc-mono" aria-hidden="true">{job.initials}</div>
         <div className="rc-id">
           <h3>{job.title}</h3>
-          <p>{job.company} <span>·</span> {job.emirate}</p>
+          <p>{job.company} <span>·</span> {job.emirate} <span>·</span> {job.salary}</p>
         </div>
       </div>
 
-      <blockquote className="rc-note">{job.verificationNote}</blockquote>
+      <PublishChecks vouched={vouched} scan={scan}/>
 
       <div className="rc-foot">
-        <span className="rc-check"><ShieldCheck size={15}/> Zero-fee check passed</span>
         <div className="rc-actions">
           <button className="rc-btn" onClick={onView}>View details</button>
-          <button className="rc-btn rc-flag" onClick={onFlag}><Flag size={15}/> Flag</button>
-          <button className="rc-btn rc-confirm" onClick={onConfirm}><Check size={15}/> Confirm HR</button>
+          <button className="rc-btn rc-flag" onClick={onReject}><X size={15}/> Reject</button>
+          <button className="rc-btn rc-confirm" disabled={!ready} title={ready ? undefined : 'Needs a church vouch and a clean scam check first'} onClick={onConfirm}><Check size={15}/> Confirm HR</button>
         </div>
       </div>
     </article>
+  )
+}
+
+// What has to be true before a post can go live; shown on the queue card and in the publish dialog
+function PublishChecks({ vouched, scan }) {
+  return (
+    <ul className="pub-checks">
+      <li className={vouched ? 'ok' : 'wait'}>{vouched ? <BadgeCheck size={15}/> : <Clock3 size={15}/>} {vouched ? 'Poster vouched by their church' : 'Poster not vouched by a church yet'}</li>
+      <li className={scan.blocked.length ? 'bad' : 'ok'}>{scan.blocked.length ? <ShieldAlert size={15}/> : <ShieldCheck size={15}/>} {scan.blocked.length ? `Blocked terms: ${scan.blocked.join(', ')}` : 'Fee and payment-scam check passed'}</li>
+      {scan.flags.map(f => <li key={f} className="wait"><AlertTriangle size={15}/> Check with HR: {f}</li>)}
+    </ul>
   )
 }
 
@@ -1455,6 +1807,30 @@ function Feature({ icon: Icon, title, desc, list }) {
       <p>{desc}</p>
       <ul>{list.map(item => <li key={item}><Check size={16}/>{item}</li>)}</ul>
     </article>
+  )
+}
+
+// Google's standard multicolour "G", as its sign-in branding guidelines ask for
+function GoogleMark() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true">
+      <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
+      <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
+      <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
+      <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
+    </svg>
+  )
+}
+
+function Avatar({ account, className = '' }) {
+  const [broken, setBroken] = useState(false)
+  const initials = account.name.split(/[\s._-]+/).filter(Boolean).slice(0, 2).map(w => w[0].toUpperCase()).join('')
+  return (
+    <span className={`avatar ${className}`} aria-hidden="true">
+      {account.photo && !broken
+        ? <img src={account.photo} alt="" referrerPolicy="no-referrer" onError={() => setBroken(true)}/>
+        : account.guest ? <UserRound size={18}/> : initials}
+    </span>
   )
 }
 

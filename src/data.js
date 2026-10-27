@@ -212,36 +212,38 @@ export const TRUST_PILLARS = [
   }
 ]
 
+// Fictional partner churches for the demo; the live list comes from public.churches
+export const SAMPLE_CHURCHES = [
+  { id: 'church-stluke', name: "St. Luke's Dubai (sample)" },
+  { id: 'church-grace', name: 'Grace Fellowship Abu Dhabi (sample)' },
+  { id: 'church-hope', name: 'Hope Community Sharjah (sample)' }
+]
+
+// status: pending | vouched | declined (same values as public.vouches)
 export const SAMPLE_VOUCH_REQUESTS = [
   {
     id: 'vouch-01',
     name: 'Sarah Chen',
-    email: 's.chen@example.ae',
     requestedDate: 'Yesterday',
-    church: "St. Luke's Dubai",
-    status: 'Pending Church Admin Vouch',
-    initials: 'SC',
-    note: 'Known in congregation since 2023. Seeking design & comms opportunities.'
+    church: "St. Luke's Dubai (sample)",
+    status: 'pending',
+    note: 'Job poster · Office manager at a sample design studio, wants to share a vacancy.'
   },
   {
     id: 'vouch-02',
     name: 'David Okafor',
-    email: 'd.okafor@example.ae',
     requestedDate: '2 days ago',
-    church: "St. Luke's Dubai",
-    status: 'Pending Church Admin Vouch',
-    initials: 'DO',
-    note: 'Attends community fellowship. Exploring operations / admin roles.'
+    church: "St. Luke's Dubai (sample)",
+    status: 'pending',
+    note: 'Job seeker · Attends community fellowship. Exploring operations / admin roles.'
   },
   {
     id: 'vouch-03',
     name: 'Priya Nair',
-    email: 'priya.n@example.ae',
     requestedDate: '3 days ago',
-    church: "St. Luke's Dubai",
-    status: 'Vouched Member',
-    initials: 'PN',
-    note: 'Identity and community standing verified. Minimal data payload.'
+    church: "St. Luke's Dubai (sample)",
+    status: 'vouched',
+    note: 'Job poster · Identity and community standing confirmed.'
   }
 ]
 
@@ -257,7 +259,7 @@ export const NAV = {
   employer: [
     { id: 'opportunities', label: 'Noticeboard', icon: 'briefcase' },
     { id: 'post', label: 'Post opportunity', icon: 'plus' },
-    { id: 'drafts', label: 'My sample posts', icon: 'file' },
+    { id: 'drafts', label: 'My posts', icon: 'file' },
     { id: 'guidelines', label: 'Posting & legal standards', icon: 'shield' },
     { id: 'profile', label: 'Profile & privacy', icon: 'users' }
   ],
