@@ -82,5 +82,10 @@ export const api = {
   applications: () => run(supabase.from('role_applications').select('*').order('created_at', { ascending: false })),
   apply: row => run(supabase.from('role_applications').insert(row)),
   decideApplication: (application, approve) => run(supabase.rpc('decide_application', { application, approve })),
+  // Interest is per account; posters only get counts (interest_counts), never names
+  myInterest: uid => run(supabase.from('job_interest').select('job_id').eq('user_id', uid)).then(rows => rows.map(r => r.job_id)),
+  markInterest: job_id => run(supabase.from('job_interest').insert({ job_id })),
+  unmarkInterest: (job_id, uid) => changed(supabase.from('job_interest').delete().eq('job_id', job_id).eq('user_id', uid), 'Could not remove your interest.'),
+  interestCounts: () => run(supabase.rpc('interest_counts')).then(rows => Object.fromEntries(rows.map(r => [r.job_id, Number(r.interested)]))),
   resolveReport: id => changed(supabase.from('reports').update({ status: 'resolved' }).eq('id', id), 'Only moderators can resolve reports.')
 }

@@ -120,7 +120,7 @@ export default function App() {
   const [draftForm, setDraftForm] = useState(EMPTY_DRAFT)
   const [jobs, setJobs] = useState(supabase ? [] : SAMPLE_JOBS)
   const [session, setSession] = useState(null)
-  const [server, setServer] = useState({ myJobs: [], queue: [], reports: [], posterVouches: {}, myVouch: null, vouchRequests: [], members: [], applications: [] })
+  const [server, setServer] = useState({ myJobs: [], queue: [], reports: [], posterVouches: {}, myVouch: null, vouchRequests: [], members: [], applications: [], interested: [], interestCounts: {} })
   const [churches, setChurches] = useState(supabase ? [] : SAMPLE_CHURCHES)
   const [vouchForm, setVouchForm] = useState(EMPTY_VOUCH)
   const [applyForm, setApplyForm] = useState(EMPTY_APPLY)
@@ -152,6 +152,9 @@ export default function App() {
   const demoJobs = demo.drafts.map(toJob)
   const board = supabase ? jobs : [...demoJobs.filter(j => j.status === 'published' && j.daysLeft > 0), ...SAMPLE_JOBS]
   const myPosts = supabase ? server.myJobs : demoJobs
+  // Your own interest; posters only see a count per post
+  const interestedIds = supabase ? server.interested : demo.interested
+  const interestCount = job => supabase ? server.interestCounts[job.id] || 0 : Number(demo.interested.includes(job.id))
   const queue = supabase ? server.queue : demoJobs.filter(j => j.status === 'pending')
 
   // The signed-in member's (or demo persona's) church vouch; null until requested
@@ -216,14 +219,16 @@ export default function App() {
     uid ? api.myVouch(uid) : null,
     uid && role === 'church' ? api.vouchRequests() : [],
     uid && role === 'admin' ? api.members() : [],
-    uid ? api.applications() : []
-  ]).then(([live, mine, queue, reports, posters, myVouch, vouchRequests, members, applications]) => {
+    uid ? api.applications() : [],
+    uid ? api.myInterest(uid) : [],
+    uid ? api.interestCounts() : {}
+  ]).then(([live, mine, queue, reports, posters, myVouch, vouchRequests, members, applications, interested, interestCounts]) => {
     setJobs(live.map(toJob))
     setServer({
       myJobs: mine.map(toJob), queue: queue.map(toJob), reports, myVouch,
       posterVouches: Object.fromEntries(posters.map(p => [p.user_id, p.status])),
       vouchRequests: vouchRequests.filter(v => v.user_id !== uid), // admins can't vouch for themselves
-      members, applications
+      members, applications, interested, interestCounts
     })
   }).catch(err => notify(`Could not load from the server: ${err.message}`))
 
@@ -328,9 +333,16 @@ export default function App() {
   }
 
   const toggleInterest = id => {
-    const already = demo.interested.includes(id)
+    const already = interestedIds.includes(id)
+    const done = () => notify(already ? 'Removed from roles you’re interested in.' : 'Marked as interested. The employer only sees how many people are interested, never who. Apply straight to them from the role page.')
+    if (supabase) {
+      if (needsSignIn()) return
+      return (already ? api.unmarkInterest(id, uid) : api.markInterest(id))
+        .then(() => { setServer(prev => ({ ...prev, interested: already ? prev.interested.filter(x => x !== id) : [...prev.interested, id] })); done() })
+        .catch(fail)
+    }
     updateDemo({ interested: already ? demo.interested.filter(x => x !== id) : [...demo.interested, id] })
-    notify(already ? 'Removed from roles you’re interested in.' : 'Marked as interested. Apply straight to the employer from the role page; we never pass your details on.')
+    done()
   }
 
   const toggleTrack = id => {
@@ -513,8 +525,8 @@ export default function App() {
             <button key={n.id} type="button" className={`side-link ${page === n.id ? 'active' : ''}`} aria-current={page === n.id ? 'page' : undefined} onClick={() => go(n.id)}>
               <Icon size={18}/>
               <span>{n.label}</span>
-              {n.id === 'interests' && (demo.saved.length + demo.tracked.length + demo.interested.length) > 0 && (
-                <span className="count">{demo.saved.length + demo.tracked.length + demo.interested.length}</span>
+              {n.id === 'interests' && (demo.saved.length + demo.tracked.length + interestedIds.length) > 0 && (
+                <span className="count">{demo.saved.length + demo.tracked.length + interestedIds.length}</span>
               )}
               {n.id === 'applications' && pendingApplications > 0 && <span className="count">{pendingApplications}</span>}
             </button>
@@ -703,7 +715,7 @@ export default function App() {
                   tracked={demo.tracked.includes(job.id)}
                   onSave={() => toggleSave(job.id)}
                   onOpen={() => setSelectedJob(job)}
-                  interested={demo.interested.includes(job.id)}
+                  interested={interestedIds.includes(job.id)}
                   onInterest={() => toggleInterest(job.id)}
                 />
               )) : <Empty title="No verified roles match" description="Try a different keyword or change your filters." icon={Search}/>}
@@ -794,12 +806,12 @@ export default function App() {
           <PageHeading
             eyebrow="Your tracked activity"
             title="My tracked roles & applications"
-            desc="Roles you're interested in, saved, or applied to directly with employers. All tracking is private and stored in your browser only."
+            desc="Roles you're interested in, saved, or applied to directly with employers. Saved and applied roles stay in this browser. Interest is kept with your account when you're signed in, and employers only ever see a count."
           />
-          <SectionTitle title="Roles you're interested in" subtitle={`${demo.interested.length} ${demo.interested.length === 1 ? 'role' : 'roles'} marked with I'm interested`}/>
-          {demo.interested.length ? (
+          <SectionTitle title="Roles you're interested in" subtitle={`${interestedIds.length} ${interestedIds.length === 1 ? 'role' : 'roles'} marked with I'm interested`}/>
+          {interestedIds.length ? (
             <div className="job-list">
-              {board.filter(j => demo.interested.includes(j.id)).map(job => (
+              {board.filter(j => interestedIds.includes(j.id)).map(job => (
                 <JobCard
                   key={job.id}
                   job={job}
@@ -826,7 +838,7 @@ export default function App() {
                   tracked={true}
                   onSave={() => toggleSave(job.id)}
                   onOpen={() => setSelectedJob(job)}
-                  interested={demo.interested.includes(job.id)}
+                  interested={interestedIds.includes(job.id)}
                   onInterest={() => toggleInterest(job.id)}
                 />
               ))}
@@ -845,7 +857,7 @@ export default function App() {
                   tracked={demo.tracked.includes(job.id)}
                   onSave={() => toggleSave(job.id)}
                   onOpen={() => setSelectedJob(job)}
-                  interested={demo.interested.includes(job.id)}
+                  interested={interestedIds.includes(job.id)}
                   onInterest={() => toggleInterest(job.id)}
                 />
               ))}
@@ -1090,6 +1102,12 @@ export default function App() {
                       <CheckCircle2 size={14}/>
                       Passed fee and payment-scam check
                     </div>
+                    {d.status === 'published' && (
+                      <div className="audit-line">
+                        <Heart size={14}/>
+                        {interestCount(d)} {interestCount(d) === 1 ? 'person' : 'people'} interested · names are never shared
+                      </div>
+                    )}
                     {d.status === 'pending' && (
                       <div className="audit-line waiting">
                         <Clock3 size={14}/>
@@ -1709,11 +1727,11 @@ export default function App() {
               <div className="track-row">
                 <button
                   type="button"
-                  className={`${demo.interested.includes(selectedJob.id) ? 'secondary-button' : 'primary-button'} full`}
-                  aria-pressed={demo.interested.includes(selectedJob.id)}
+                  className={`${interestedIds.includes(selectedJob.id) ? 'secondary-button' : 'primary-button'} full`}
+                  aria-pressed={interestedIds.includes(selectedJob.id)}
                   onClick={() => toggleInterest(selectedJob.id)}
                 >
-                  <Heart size={16} fill={demo.interested.includes(selectedJob.id) ? 'currentColor' : 'none'}/> {demo.interested.includes(selectedJob.id) ? 'You’re interested' : 'I’m interested'}
+                  <Heart size={16} fill={interestedIds.includes(selectedJob.id) ? 'currentColor' : 'none'}/> {interestedIds.includes(selectedJob.id) ? 'You’re interested' : 'I’m interested'}
                 </button>
                 <button
                   type="button"
