@@ -55,7 +55,7 @@ async function changed(query, refusal) {
 export const api = {
   // Lets the UI hide "Continue with Google" until the provider is switched on in the dashboard
   googleEnabled: () => fetch(`${url}/auth/v1/settings`, { headers: { apikey: key } }).then(r => r.json()).then(s => Boolean(s.external?.google)).catch(() => false),
-  profile: uid => run(supabase.from('profiles').select('role, church_id').eq('id', uid)).then(rows => rows[0] || {}),
+  profile: uid => run(supabase.from('profiles').select('role, church_id, suspended').eq('id', uid)).then(rows => rows[0] || {}),
   churches: () => run(supabase.from('churches').select('id, name').order('name')),
   myVouch: uid => run(supabase.from('vouches').select('*').eq('user_id', uid)).then(rows => rows[0] || null),
   // Members re-request after a decline by editing their row; the server resets it to pending
@@ -74,5 +74,13 @@ export const api = {
   reviewJob: (id, status, verification_note) => changed(supabase.from('jobs').update({ status, verification_note }).eq('id', id), 'This post is no longer in the queue.'),
   reports: () => run(supabase.from('reports').select('*, jobs(title)').order('created_at', { ascending: false })),
   fileReport: (job_id, reason) => run(supabase.from('reports').insert({ job_id, reason })),
+  // People management: the server checks who may change whom (see 20261029 migration)
+  members: () => run(supabase.rpc('admin_members')),
+  setMemberRole: (target, new_role, church = null) => run(supabase.rpc('set_member_role', { target, new_role, church })),
+  setSuspended: (target, suspend) => run(supabase.rpc('set_member_suspended', { target, suspend })),
+  // RLS returns every application to admins and only their own to everyone else
+  applications: () => run(supabase.from('role_applications').select('*').order('created_at', { ascending: false })),
+  apply: row => run(supabase.from('role_applications').insert(row)),
+  decideApplication: (application, approve) => run(supabase.rpc('decide_application', { application, approve })),
   resolveReport: id => changed(supabase.from('reports').update({ status: 'resolved' }).eq('id', id), 'Only moderators can resolve reports.')
 }

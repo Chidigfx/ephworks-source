@@ -10,7 +10,7 @@ const db = new PGlite()
 await db.exec(`
   create role anon; create role authenticated;
   create schema auth;
-  create table auth.users (id uuid primary key);
+  create table auth.users (id uuid primary key, email text, raw_user_meta_data jsonb not null default '{}');
   create function auth.uid() returns uuid language sql stable as
     $$ select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid $$;
   grant usage on schema auth to anon, authenticated;
@@ -117,10 +117,10 @@ r = await as(EMP, `update public.jobs set salary = 'AED 6,000' where id = $1 ret
 check('employer edit sends job back to queue', r.rows?.[0]?.status === 'pending' && r.rows[0].expires_at === null, r)
 
 await as(MOD, `update public.jobs set status = 'published', verification_note = 'Re-checked' where id = $1`, [jobId])
-await db.exec(`update public.jobs set expires_at = now() - interval '1 day' where id = '${jobId}'`)
+await as(MOD, `update public.jobs set expires_at = now() - interval '1 day' where id = $1`, [jobId])
 r = await as(null, `select id from public.jobs`)
 check('expired job hidden from public', r.rows?.length === 0, r)
-await db.exec(`update public.jobs set expires_at = now() + interval '1 day' where id = '${jobId}'`)
+await as(MOD, `update public.jobs set expires_at = now() + interval '1 day' where id = $1`, [jobId])
 
 r = await as(OTHER, `insert into public.reports (job_id, reason, status) values ($1, 'Request for payment / fee', 'resolved') returning status`, [jobId])
 check('member report forced open', r.rows?.[0]?.status === 'open', r)
@@ -135,6 +135,72 @@ check('moderator resolves report', r.rows?.[0]?.resolved_by === MOD, r)
 
 r = await as(OTHER, `update public.profiles set role = 'moderator' where id = $1 returning id`, [OTHER])
 check('member cannot self-promote', Boolean(r.error) || r.rows?.length === 0, r)
+
+// People management ---------------------------------------------------------------
+const SUPER = '00000000-0000-0000-0000-0000000000f1'
+const ADM = '00000000-0000-0000-0000-0000000000f2'
+const APPLICANT = '00000000-0000-0000-0000-0000000000f3'
+await db.exec(`insert into auth.users (id, email, raw_user_meta_data) values
+  ('${SUPER}', 'owner@ephworks.test', '{"full_name":"Site Owner"}'), ('${ADM}', 'admin@ephworks.test', '{}'), ('${APPLICANT}', 'helper@ephworks.test', '{}')`)
+await db.exec(`update public.profiles set role = 'super_admin' where id = '${SUPER}'`)
+r = await db.query(`update public.profiles set role = 'super_admin' where id = '${ADM}'`).catch(e => ({ error: e.message }))
+check('only one super admin', /one_super_admin/.test(r.error || ''), r)
+
+r = await as(ADM, `select public.set_member_role($1, 'moderator')`, [APPLICANT])
+check('member cannot assign roles', /Only admins/.test(r.error || ''), r)
+r = await as(SUPER, `select public.set_member_role($1, 'admin')`, [ADM])
+check('super admin appoints an admin', !r.error, r)
+r = await as(ADM, `select public.set_member_role($1, 'admin')`, [OTHER])
+check('admin cannot appoint admins', /Only the super admin/.test(r.error || ''), r)
+r = await as(ADM, `select public.set_member_role($1, 'member')`, [SUPER])
+check('nobody can change the super admin', /SQL editor/.test(r.error || ''), r)
+r = await as(ADM, `select public.set_member_role($1, 'moderator')`, [ADM])
+check('admin cannot change own role', /your own account/.test(r.error || ''), r)
+r = await as(ADM, `select public.set_member_role($1, 'church_admin')`, [OTHER])
+check('church admin needs a church', /Choose the church/.test(r.error || ''), r)
+
+r = await as(ADM, `select email, name, role, posts from public.admin_members() where id = $1`, [SUPER])
+check('admin sees members with email', r.rows?.[0]?.email === 'owner@ephworks.test' && r.rows[0].name === 'Site Owner', r)
+r = await as(EMP, `select * from public.admin_members()`)
+check('member cannot list members', r.rows?.length === 0, r)
+
+r = await as(APPLICANT, `insert into public.role_applications (role, display_name, note, status) values ('volunteer', 'Helper', 'HR manager, 10 years in recruitment.', 'approved') returning status`)
+check('application forced to pending', r.rows?.[0]?.status === 'pending', r)
+const appId = (await as(APPLICANT, `select id from public.role_applications`)).rows?.[0]?.id
+r = await as(APPLICANT, `insert into public.role_applications (role, display_name, note) values ('volunteer', 'Helper', 'Applying a second time today.')`)
+check('one open application per role', /one_open_application/.test(r.error || ''), r)
+r = await as(APPLICANT, `insert into public.role_applications (role, display_name, note) values ('church_admin', 'Helper', 'Church office volunteer here.')`)
+check('church admin application names a church', /church_admin_names_church/.test(r.error || ''), r)
+r = await as(APPLICANT, `insert into public.role_applications (role, display_name, note) values ('moderator', 'Helper', 'I would like to moderate posts.')`)
+check('moderator is invite-only, not applied for', /role_applications_role_check/.test(r.error || ''), r)
+r = await as(APPLICANT, `update public.role_applications set status = 'approved' returning id`)
+check('applicant cannot approve self', Boolean(r.error) || r.rows?.length === 0, r)
+r = await as(EMP, `select id from public.role_applications`)
+check('other members cannot read applications', r.rows?.length === 0, r)
+r = await as(APPLICANT, `select public.decide_application($1, true)`, [appId])
+check('applicant cannot decide own application', /Only admins/.test(r.error || ''), r)
+r = await as(ADM, `select public.decide_application($1, true)`, [appId])
+r = await as(APPLICANT, `select role from public.profiles where id = $1`, [APPLICANT])
+check('approval grants the role', r.rows?.[0]?.role === 'volunteer', r)
+r = await as(ADM, `select public.decide_application($1, false)`, [appId])
+check('decided application cannot be decided again', /no longer waiting/.test(r.error || ''), r)
+
+r = await as(ADM, `select public.set_member_suspended($1, true)`, [EMP])
+check('admin suspends a member', !r.error, r)
+r = await as(null, `select id from public.jobs`)
+check('suspended poster\'s posts hidden', r.rows?.length === 0, r)
+r = await as(EMP, job())
+check('suspended member cannot post', /suspended/.test(r.error || ''), r)
+r = await as(ADM, `select public.set_member_role($1, 'moderator')`, [APPLICANT])
+check('admin invites a moderator directly', !r.error, r)
+await as(ADM, `select public.set_member_suspended($1, true)`, [APPLICANT])
+r = await as(APPLICANT, `select id from public.jobs where status = 'pending'`)
+check('suspended moderator loses review access', r.rows?.length === 0, r)
+r = await as(ADM, `select public.set_member_suspended($1, false)`, [EMP])
+r = await as(null, `select id from public.jobs`)
+check('restored poster\'s posts return', r.rows?.length === 1, r)
+r = await as(ADM, `select public.set_member_suspended($1, true)`, [SUPER])
+check('super admin cannot be suspended', /SQL editor/.test(r.error || ''), r)
 
 console.log(failed ? `\n${failed} failed` : '\nAll checks passed')
 process.exit(failed ? 1 : 0)

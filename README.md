@@ -15,6 +15,8 @@ This is a **reconstruction** of the October 2026 Ephworks #HACK prototype based 
 - **Scam checks**: fee, deposit and payment-transfer terms are blocked outright; WhatsApp-only contact, guaranteed jobs or visas, "no interview", passport requests, pressure language and personal email addresses are flagged for the moderator to check with HR
 - **Church membership verification for job posters**: a post cannot be published until the poster's partner church has vouched for them (yes/no only)
 - Reports and review controls
+- **Apply to help**: anyone signed in can apply to be a volunteer mentor or church admin; admins approve or decline. Moderators are invite-only (assigned on the People page)
+- **People dashboard** for admins: every account with name, email, role, church and post count; change roles or suspend an account
 - Career support, volunteering, church partners and privacy pages
 - A demo-reset option, visible safeguards and accessibility-minded controls
 
@@ -40,16 +42,15 @@ The `dist/` folder contains the compiled static website after building. To edit 
 
 Without env vars the app runs as the local-only demo. With them, jobs, employer posts, moderation and safety reports use Supabase; saved/tracked roles stay in the browser.
 
-1. Create a Supabase project, then run every file in `supabase/migrations/` in the SQL editor, oldest first (`20261026…`, `20261027…`, `20261028…`). The last one adds partner churches (three fictional *sample* churches; replace them before launch) and poster vouching.
+1. Create a Supabase project, then run every file in `supabase/migrations/` in the SQL editor, oldest first (`20261026…` to `20261029…`). `20261028…` adds partner churches (three fictional *sample* churches; replace them before launch) and poster vouching; `20261029…` adds admin roles, role applications and suspension.
 2. Copy `.env.example` to `.env.local` and fill in the project URL and anon key.
 3. Under Authentication → URL Configuration, add your dev and production URLs as redirect URLs (email sign-in links).
 4. Optional Google sign-in (sends no email, and shows the account photo): create an OAuth client in Google Cloud with redirect URI `https://<project-ref>.supabase.co/auth/v1/callback`, then enable Google under Authentication → Providers. The "Continue with Google" button appears automatically once the provider is on.
-5. Grant moderators in the SQL editor (there is deliberately no UI for this):
-   `update public.profiles set role = 'moderator' where id = (select id from auth.users where email = 'person@example.com');`
-6. Grant a church admin the same way, tied to their church:
-   `update public.profiles set role = 'church_admin', church_id = (select id from public.churches where name = 'St. Luke''s Dubai (sample)') where id = (select id from auth.users where email = 'admin@example.com');`
+5. Sign in to the app once, then make yourself the **super admin** in the SQL editor. This is the only role set by SQL, and there can only be one:
+   `update public.profiles set role = 'super_admin' where id = (select id from auth.users where email = 'you@example.com');`
+6. Everyone else gets a role through the app. Volunteers and church admins apply on the **Apply to help** page, and an admin approves them under **Role applications**. Moderators are invite-only: an admin assigns the role on the **People** page. Only the super admin can appoint or remove admins. Nobody can change their own role, and the super admin can only be changed in the SQL editor.
 
-Rules enforced in the database, not the browser: members can only submit `pending` posts, fee/deposit/visa-charge/payment-transfer terms are rejected, only moderators publish (with a required HR verification note), a post is only published once its poster is vouched for by their church, only that church's admin can vouch (never for themselves), published posts expire after 30 days, and any employer edit sends a post back to the queue. `npm run test:db` checks these against in-memory Postgres.
+Rules enforced in the database, not the browser: members can only submit `pending` posts, fee/deposit/visa-charge/payment-transfer terms are rejected, only moderators publish (with a required HR verification note), a post is only published once its poster is vouched for by their church, only that church's admin can vouch (never for themselves), published posts expire after 30 days, any employer edit sends a post back to the queue, roles only change through the admin functions (with the limits above), and suspended accounts cannot post, vouch, report, review or apply, and their posts are hidden. `npm run test:db` checks these against in-memory Postgres.
 
 ### Publishing workflow
 
@@ -58,7 +59,7 @@ Rules enforced in the database, not the browser: members can only submit `pendin
 3. **Moderator** (Verification queue) sees the vouch status and scam checks on each post. "Confirm HR" stays disabled until the poster is vouched and no blocked terms remain; every warning flag has to be ticked as checked with HR, and a verification note is required.
 4. The post goes live on the noticeboard for 30 days. Seekers can tap **I'm interested** and apply directly to the employer.
 
-Without Supabase the same flow runs on sample data in your browser: switch between the Employer, Church Partner Admin and Moderator demo views.
+Without Supabase the same flow runs on sample data in your browser: switch between the Employer, Church Partner Admin, Moderator and Admin demo views. In the Admin view the demo persona is the super admin.
 
 ## Important differences from the original
 

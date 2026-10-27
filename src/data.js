@@ -253,6 +253,7 @@ export const NAV = {
     { id: 'career', label: 'Real support', icon: 'sparkles' },
     { id: 'interests', label: 'My tracked roles', icon: 'bookmark' },
     { id: 'volunteering', label: 'Volunteering', icon: 'heart' },
+    { id: 'apply', label: 'Apply to help', icon: 'badge' },
     { id: 'churches', label: 'Church vouching & trust', icon: 'users' },
     { id: 'profile', label: 'Profile & privacy', icon: 'shield' }
   ],
@@ -261,6 +262,7 @@ export const NAV = {
     { id: 'post', label: 'Post opportunity', icon: 'plus' },
     { id: 'drafts', label: 'My posts', icon: 'file' },
     { id: 'guidelines', label: 'Posting & legal standards', icon: 'shield' },
+    { id: 'apply', label: 'Apply to help', icon: 'badge' },
     { id: 'profile', label: 'Profile & privacy', icon: 'users' }
   ],
   moderator: [
@@ -270,6 +272,13 @@ export const NAV = {
     { id: 'guidelines', label: 'Trust & safety standards', icon: 'shield' },
     { id: 'profile', label: 'Profile & privacy', icon: 'users' }
   ],
+  admin: [
+    { id: 'people', label: 'People', icon: 'users' },
+    { id: 'applications', label: 'Role applications', icon: 'badge' },
+    { id: 'review', label: 'Verification queue', icon: 'check' },
+    { id: 'reports', label: 'Safety team reports', icon: 'flag' },
+    { id: 'opportunities', label: 'Noticeboard preview', icon: 'briefcase' }
+  ],
   church: [
     { id: 'vouch', label: 'Member vouch queue', icon: 'users' },
     { id: 'invite', label: 'Congregation invite pass', icon: 'sparkles' },
@@ -277,3 +286,21 @@ export const NAV = {
     { id: 'opportunities', label: 'Noticeboard preview', icon: 'briefcase' }
   ]
 }
+
+// Fictional accounts for the Admin demo view; same shape as admin_members() rows
+export const SAMPLE_MEMBERS = [
+  { id: 'demo-me', name: 'Jordan Morgan', email: 'jordan@example.test', role: 'super_admin', church_id: null, suspended: false, joined: '2026-09-01', posts: 0 },
+  { id: 'member-amara', name: 'Amara Nwosu', email: 'amara@example.test', role: 'admin', church_id: null, suspended: false, joined: '2026-09-04', posts: 0 },
+  { id: 'member-sam', name: 'Sam Haddad', email: 'sam@example.test', role: 'moderator', church_id: null, suspended: false, joined: '2026-09-12', posts: 0 },
+  { id: 'member-ruth', name: 'Ruth Mensah', email: 'ruth@example.test', role: 'church_admin', church_id: 'church-stluke', suspended: false, joined: '2026-09-15', posts: 0 },
+  { id: 'member-priya', name: 'Priya Nair', email: 'priya@example.test', role: 'member', church_id: null, suspended: false, joined: '2026-10-02', posts: 2 },
+  { id: 'member-david', name: 'David Okafor', email: 'david@example.test', role: 'member', church_id: null, suspended: false, joined: '2026-10-20', posts: 0 },
+  { id: 'member-lena', name: 'Lena Fischer', email: 'lena@example.test', role: 'volunteer', church_id: null, suspended: false, joined: '2026-10-21', posts: 0 },
+  { id: 'member-quickjobs', name: 'Quick Jobs Agency', email: 'quickjobs@example.test', role: 'member', church_id: null, suspended: true, joined: '2026-10-24', posts: 3 }
+]
+
+// Same shape as role_applications rows
+export const SAMPLE_APPLICATIONS = [
+  { id: 'app-01', user_id: 'member-david', role: 'volunteer', church_id: null, display_name: 'David Okafor', note: 'Operations lead, happy to run mock interviews twice a month.', status: 'pending', created_at: '2026-10-25T09:00:00Z' },
+  { id: 'app-02', user_id: 'member-priya', role: 'church_admin', church_id: 'church-grace', display_name: 'Priya Nair', note: 'Church office coordinator at Grace Fellowship; I know most members by name.', status: 'pending', created_at: '2026-10-26T14:30:00Z' }
+]

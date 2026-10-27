@@ -768,3 +768,25 @@ body{background:radial-gradient(60vw 50vw at 0% 0%,#bae6fd 0,transparent 60%),ra
 @media(max-width:760px){.pub-checks{margin:12px 16px 0}}
 .booking-form .check-label{display:flex;align-items:flex-start;gap:10px;font-weight:500}
 .booking-form .check-label input{width:20px;min-height:20px;height:20px;flex:none;margin-top:1px;accent-color:var(--primary)}
+
+/* People management: apply page, people dashboard */
+.status-chip.neutral{background:var(--subtle);color:var(--fg-2)}
+.apply-roles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;border:0;padding:0;margin:0}
+.apply-roles legend{font-size:14px;font-weight:600;color:var(--fg);margin-bottom:8px}
+.booking-form .apply-role{position:relative;display:grid;gap:4px;align-content:start;padding:16px;border:1px solid var(--border);border-radius:var(--radius-sm);cursor:pointer;transition:border-color var(--ease),background var(--ease)}
+.booking-form .apply-role:hover{border-color:var(--primary-200)}
+.booking-form .apply-role.selected{border-color:var(--primary);background:var(--primary-50)}
+.booking-form .apply-role:has(input:focus-visible){outline:2px solid var(--primary);outline-offset:2px}
+.booking-form .apply-role input{position:absolute;opacity:0;width:1px;min-height:0;height:1px}
+.apply-role span{font-size:13px;font-weight:400;color:var(--fg-2);line-height:1.5}
+.people-stats{list-style:none;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px;margin:0 0 20px;padding:0}
+.people-stats li{padding:16px 18px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius)}
+.people-stats b{display:block;font:700 24px/1.1 var(--heading);color:var(--fg)}
+.people-stats span{display:block;margin-top:4px;font-size:13px;color:var(--fg-2)}
+.member-select{min-height:36px;max-width:100%;padding:0 10px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface);color:var(--fg);font-size:13px;font-weight:600}
+.queue-actions{flex-wrap:wrap;justify-content:flex-end}
+@media (max-width:760px){
+  .apply-roles{grid-template-columns:1fr}
+  .people-stats{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .member-select{flex:1 1 100%;font-size:16px;min-height:44px}
+}

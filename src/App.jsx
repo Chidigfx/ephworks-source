@@ -6,18 +6,18 @@ import {
   LockKeyhole, MapPin, Menu, MoreHorizontal, Plus, Search, ShieldCheck,
   SlidersHorizontal, UsersRound, LifeBuoy, KeyRound, X, RotateCcw, ExternalLink,
   Clock3, Mail, Building2, Eye, Send, Info, AlertTriangle, ShieldAlert,
-  Calendar, CheckCheck, Scale, Lock, UserRound, Heart
+  Calendar, CheckCheck, Scale, Lock, UserRound, Heart, Ban
 } from 'lucide-react'
-import { NAV, SAMPLE_JOBS, SAMPLE_VOLUNTEER, CAREER_SUPPORT_MODULES, TRUST_PILLARS, SAMPLE_VOUCH_REQUESTS, SAMPLE_CHURCHES } from './data'
+import { NAV, SAMPLE_JOBS, SAMPLE_VOLUNTEER, CAREER_SUPPORT_MODULES, TRUST_PILLARS, SAMPLE_VOUCH_REQUESTS, SAMPLE_CHURCHES, SAMPLE_MEMBERS, SAMPLE_APPLICATIONS } from './data'
 import { supabase, api, toJob } from './supabase'
 import { scanPost } from './scam'
 
 const icons = {
   briefcase: BriefcaseBusiness, bookmark: Bookmark, sparkles: LifeBuoy,
   heart: HeartHandshake, users: UsersRound, shield: ShieldCheck,
-  plus: Plus, file: FileText, check: ClipboardCheck, flag: Flag
+  plus: Plus, file: FileText, check: ClipboardCheck, flag: Flag, badge: BadgeCheck
 }
-const NAMES = { seeker: 'Job seeker', employer: 'Employer', moderator: 'Moderator', church: 'Church Partner Admin' }
+const NAMES = { seeker: 'Job seeker', employer: 'Employer', moderator: 'Moderator', church: 'Church Partner Admin', admin: 'Admin' }
 const demoKey = 'ephworks-local-demo-v4'
 const defaultDemo = {
   saved: [],
@@ -27,7 +27,9 @@ const defaultDemo = {
   drafts: [], // jobs rows, same shape as public.jobs, so toJob() renders them
   reports: [],
   supportSessions: [],
-  vouchQueue: SAMPLE_VOUCH_REQUESTS
+  vouchQueue: SAMPLE_VOUCH_REQUESTS,
+  members: SAMPLE_MEMBERS,
+  applications: SAMPLE_APPLICATIONS
 }
 
 // [stored value, label]; values must match the reports.reason check in the migration
@@ -42,6 +44,13 @@ const JOB_STATUS = { pending: 'Pending moderator company verification', publishe
 const VOUCH_STATUS = { pending: 'Awaiting church vouch', vouched: 'Vouched', declined: 'Declined' }
 const DEMO_ME = 'demo-me' // the demo persona's own vouch request id
 const EMPTY_VOUCH = { church: '', note: '' }
+const ROLE_LABELS = { member: 'Member', volunteer: 'Volunteer mentor', moderator: 'Moderator', church_admin: 'Church admin', admin: 'Admin', super_admin: 'Super admin' }
+const APPLY_ROLES = [
+  ['volunteer', 'Volunteer mentor', 'Give free CV reviews, practice interviews or LinkedIn help to job seekers.'],
+  ['church_admin', 'Church admin', 'Confirm which members of your church can post jobs. Only a yes/no is stored.']
+]
+const APP_STATUS = { pending: 'Waiting for review', approved: 'Approved', declined: 'Declined' }
+const EMPTY_APPLY = { role: 'volunteer', church: '', name: '', note: '', agreed: false }
 const EMPTY_DRAFT = { title: '', company: '', emirate: 'Dubai', type: 'Full-time', pay: '', email: '', portal: '', description: '' }
 
 function getSavedDemo() {
@@ -57,7 +66,9 @@ function getSavedDemo() {
       drafts: Array.isArray(value.drafts) ? value.drafts : [],
       reports: Array.isArray(value.reports) ? value.reports : [],
       supportSessions: Array.isArray(value.supportSessions) ? value.supportSessions : [],
-      vouchQueue: Array.isArray(value.vouchQueue) ? value.vouchQueue : SAMPLE_VOUCH_REQUESTS
+      vouchQueue: Array.isArray(value.vouchQueue) ? value.vouchQueue : SAMPLE_VOUCH_REQUESTS,
+      members: Array.isArray(value.members) ? value.members : SAMPLE_MEMBERS,
+      applications: Array.isArray(value.applications) ? value.applications : SAMPLE_APPLICATIONS
     }
   } catch { return defaultDemo }
 }
@@ -109,9 +120,12 @@ export default function App() {
   const [draftForm, setDraftForm] = useState(EMPTY_DRAFT)
   const [jobs, setJobs] = useState(supabase ? [] : SAMPLE_JOBS)
   const [session, setSession] = useState(null)
-  const [server, setServer] = useState({ myJobs: [], queue: [], reports: [], posterVouches: {}, myVouch: null, vouchRequests: [] })
+  const [server, setServer] = useState({ myJobs: [], queue: [], reports: [], posterVouches: {}, myVouch: null, vouchRequests: [], members: [], applications: [] })
   const [churches, setChurches] = useState(supabase ? [] : SAMPLE_CHURCHES)
   const [vouchForm, setVouchForm] = useState(EMPTY_VOUCH)
+  const [applyForm, setApplyForm] = useState(EMPTY_APPLY)
+  const [memberSearch, setMemberSearch] = useState('')
+  const [memberFilter, setMemberFilter] = useState('all')
   const [showSignIn, setShowSignIn] = useState(false)
   const [signInEmail, setSignInEmail] = useState('')
   const [verifying, setVerifying] = useState(null)
@@ -121,9 +135,10 @@ export default function App() {
   const [googleEnabled, setGoogleEnabled] = useState(false)
   const [supportForm, setSupportForm] = useState({ name: 'Jordan Morgan', service: 'cv-review', preferredTime: 'Weekday evening', note: '' })
 
-  // With a backend, the Moderator and Church views are only offered to accounts whose profile says so
-  const serverRoles = { moderator: 'moderator', church: 'church_admin' }
-  const roleOptions = Object.entries(NAMES).filter(([key]) => !supabase || !serverRoles[key] || profile.role === serverRoles[key])
+  // With a backend, the Moderator, Church and Admin views are only offered to accounts whose profile says so.
+  // Admins also moderate; suspended accounts get no extra views (the server refuses them anyway).
+  const serverRoles = { moderator: ['moderator', 'admin', 'super_admin'], church: ['church_admin'], admin: ['admin', 'super_admin'] }
+  const roleOptions = Object.entries(NAMES).filter(([key]) => !supabase || !serverRoles[key] || (!profile.suspended && serverRoles[key].includes(profile.role)))
   const role = roleOptions.some(([key]) => key === demo.role) ? demo.role : 'seeker'
   const nav = NAV[role]
   const currentNav = nav.find(n => n.id === page)
@@ -150,6 +165,21 @@ export default function App() {
     ? server.vouchRequests.map(v => ({ id: v.user_id, name: v.display_name, church: adminChurch, requestedDate: new Date(v.created_at).toLocaleDateString(), status: v.status, note: v.note }))
     : demo.vouchQueue
 
+  // People management. The demo persona runs the site as super admin.
+  const myRole = supabase ? profile.role : 'super_admin'
+  const myId = supabase ? uid : DEMO_ME
+  const members = supabase ? server.members : demo.members
+  const applications = supabase ? server.applications : demo.applications
+  const myApplications = applications.filter(a => a.user_id === myId)
+  const pendingApplications = applications.filter(a => a.status === 'pending').length
+  const churchName = id => churches.find(c => c.id === id)?.name
+  // Mirrors check_can_manage() in the migration, so controls only appear where the server would allow them
+  const canManage = (member, nextRole) => member.id !== myId && member.role !== 'super_admin' && nextRole !== 'super_admin'
+    && (myRole === 'super_admin' || (member.role !== 'admin' && nextRole !== 'admin'))
+  const visibleMembers = members.filter(m =>
+    (memberFilter === 'all' || (memberFilter === 'suspended' ? m.suspended : m.role === memberFilter)) &&
+    `${m.name} ${m.email}`.toLowerCase().includes(memberSearch.trim().toLowerCase()))
+
   const visibleJobs = useMemo(() => board.filter(j =>
     (emirate === 'All emirates' || j.emirate === emirate) &&
     (workType === 'Any work type' || j.type === workType) &&
@@ -175,21 +205,25 @@ export default function App() {
     return () => data.subscription.unsubscribe()
   }, [])
 
+  const moderates = role === 'moderator' || role === 'admin'
   // RLS decides what each list returns: moderators see the full queue, members only their own rows
   const refresh = () => supabase && Promise.all([
     api.liveJobs(),
     uid ? api.myJobs(uid) : [],
-    uid && role === 'moderator' ? api.pendingJobs() : [],
-    uid && role === 'moderator' ? api.reports() : [],
-    uid && role === 'moderator' ? api.posterVouches() : [],
+    uid && moderates ? api.pendingJobs() : [],
+    uid && moderates ? api.reports() : [],
+    uid && moderates ? api.posterVouches() : [],
     uid ? api.myVouch(uid) : null,
-    uid && role === 'church' ? api.vouchRequests() : []
-  ]).then(([live, mine, queue, reports, posters, myVouch, vouchRequests]) => {
+    uid && role === 'church' ? api.vouchRequests() : [],
+    uid && role === 'admin' ? api.members() : [],
+    uid ? api.applications() : []
+  ]).then(([live, mine, queue, reports, posters, myVouch, vouchRequests, members, applications]) => {
     setJobs(live.map(toJob))
     setServer({
       myJobs: mine.map(toJob), queue: queue.map(toJob), reports, myVouch,
       posterVouches: Object.fromEntries(posters.map(p => [p.user_id, p.status])),
-      vouchRequests: vouchRequests.filter(v => v.user_id !== uid) // admins can't vouch for themselves
+      vouchRequests: vouchRequests.filter(v => v.user_id !== uid), // admins can't vouch for themselves
+      members, applications
     })
   }).catch(err => notify(`Could not load from the server: ${err.message}`))
 
@@ -203,8 +237,8 @@ export default function App() {
 
   // Leave role-only pages if the view stops being available (e.g. after signing out)
   useEffect(() => {
-    const owner = { review: 'moderator', reports: 'moderator', vouch: 'church', invite: 'church' }[page]
-    if (owner && owner !== role) setPage('opportunities')
+    const owner = { review: 'moderator', reports: 'moderator', vouch: 'church', invite: 'church', people: 'admin', applications: 'admin' }[page]
+    if (owner && owner !== role && !(owner === 'moderator' && role === 'admin')) setPage('opportunities')
   }, [role, page])
 
   // True (and opens sign-in) when a server action needs an account first
@@ -258,7 +292,7 @@ export default function App() {
   const go = id => { setPage(id); setShowMobileMore(false); setBanner(null); window.scrollTo({ top: 0, behavior: 'smooth' }) }
   const setRole = next => {
     updateDemo({ role: next })
-    setPage(next === 'moderator' ? 'review' : next === 'church' ? 'vouch' : 'opportunities')
+    setPage({ moderator: 'review', church: 'vouch', admin: 'people' }[next] || 'opportunities')
     setShowMobileMore(false)
     notify(`Switched to ${NAMES[next]} demo view`)
   }
@@ -371,6 +405,48 @@ export default function App() {
     notify(`Volunteer session requested for ${module?.title}! A mentor will contact you for your session.`)
   }
 
+  const applyFor = appRole => { setApplyForm({ ...EMPTY_APPLY, role: appRole }); go('apply') }
+
+  const submitApplication = e => {
+    e.preventDefault()
+    if (supabase && needsSignIn()) return
+    const { role: appRole, church, name, note } = applyForm
+    if (appRole === 'church_admin' && !church) return notify('Choose the church you would vouch for.')
+    const row = { role: appRole, church_id: appRole === 'church_admin' ? church : null, display_name: name.trim() || account.name, note: note.trim() }
+    const already = 'You already have an application for this role waiting for review.'
+    const done = () => { setApplyForm(EMPTY_APPLY); notify(`Application sent. An admin will contact you for a short check before approving you as ${ROLE_LABELS[appRole]}.`) }
+    if (supabase) return api.apply(row).then(() => { refresh(); done() }).catch(err => notify(/one_open_application/.test(err.message) ? already : err.message))
+    if (myApplications.some(a => a.role === appRole && a.status === 'pending')) return notify(already)
+    updateDemo({ applications: [{ ...row, id: `app-${Date.now()}`, user_id: DEMO_ME, status: 'pending', created_at: new Date().toISOString() }, ...demo.applications] })
+    done()
+  }
+
+  const decideApplication = (app, approve) => {
+    const done = () => notify(approve ? `Approved. ${app.display_name} is now ${ROLE_LABELS[app.role]}.` : 'Application declined.')
+    if (supabase) return api.decideApplication(app.id, approve).then(() => { refresh(); done() }).catch(fail)
+    updateDemo({
+      applications: demo.applications.map(a => a.id === app.id ? { ...a, status: approve ? 'approved' : 'declined' } : a),
+      members: approve ? demo.members.map(m => m.id === app.user_id ? { ...m, role: app.role, church_id: app.church_id } : m) : demo.members
+    })
+    done()
+  }
+
+  const changeMember = (member, patch, message) => {
+    if (supabase) {
+      const call = 'suspended' in patch ? api.setSuspended(member.id, patch.suspended) : api.setMemberRole(member.id, patch.role, patch.church_id)
+      return call.then(() => { refresh(); notify(message) }).catch(fail)
+    }
+    updateDemo({ members: demo.members.map(m => m.id === member.id ? { ...m, ...patch } : m) })
+    notify(message)
+  }
+  const saveRole = (member, nextRole, church) => {
+    if (nextRole === 'church_admin' && !church) return notify('Choose the church this admin vouches for.')
+    changeMember(member, { role: nextRole, church_id: nextRole === 'church_admin' ? church : null }, `${member.name}'s role is now ${ROLE_LABELS[nextRole]}.`)
+  }
+  const toggleSuspend = member => changeMember(member, { suspended: !member.suspended }, member.suspended
+    ? `${member.name} is restored.`
+    : `${member.name} is suspended. Their posts are hidden and they can't post, vouch, report or review.`)
+
   const updateDraft = (id, patch) => updateDemo({ drafts: demo.drafts.map(d => d.id === id ? { ...d, ...patch } : d) })
 
   // Publishing needs a vouched poster, no blocked terms, every scam flag checked with HR, and a verification note.
@@ -440,6 +516,7 @@ export default function App() {
               {n.id === 'interests' && (demo.saved.length + demo.tracked.length + demo.interested.length) > 0 && (
                 <span className="count">{demo.saved.length + demo.tracked.length + demo.interested.length}</span>
               )}
+              {n.id === 'applications' && pendingApplications > 0 && <span className="count">{pendingApplications}</span>}
             </button>
           )
         })}
@@ -485,6 +562,10 @@ export default function App() {
               : <button type="button" onClick={() => setShowSignIn(true)}>Sign in</button>)}
           </span>
         </div>
+
+        {supabase && profile.suspended && (
+          <Warning tone="strong">Your account is suspended. You can browse the noticeboard, but you can't post, vouch, report or review. Contact the Ephworks team if you think this is a mistake.</Warning>
+        )}
 
         {banner && (
           <div className="toast-banner" role="status">
@@ -698,7 +779,7 @@ export default function App() {
                   Give 1–2 hours a month to review CVs, conduct mock interviews, or advise community job seekers. Help someone take their next confident step.
                 </p>
               </div>
-              <button className="secondary-button" onClick={() => notify('Thank you! Volunteer onboarding will reach out to schedule an orientation.')}>
+              <button className="secondary-button" onClick={() => applyFor('volunteer')}>
                 Volunteer with us <ArrowRight size={14}/>
               </button>
             </div>
@@ -777,6 +858,7 @@ export default function App() {
             eyebrow="Community giving"
             title="Small acts. Real community."
             desc="Give your time to support job seekers, welcome newcomers, or assist with mock interviews."
+            action={<button className="primary-button" onClick={() => applyFor('volunteer')}><HandHeart size={16}/> Apply to volunteer</button>}
           />
           <div className="feature-grid">
             {SAMPLE_VOLUNTEER.map(v => (
@@ -1088,6 +1170,142 @@ export default function App() {
               })}
             </div>
           ) : <Empty icon={Flag} title="No open safety reports" description="When a member flags a job with fees or misleading information, the safety team queue displays it here."/>}
+        </>}
+
+        {page === 'apply' && <>
+          <PageHeading
+            eyebrow="Join the team"
+            title="Apply to help run Ephworks"
+            desc="Every role is free and unpaid. An admin checks each application, usually with a short call, before giving anyone extra access. Moderators are invited by the Ephworks team."
+          />
+          <form className="form-panel booking-form apply-form" onSubmit={submitApplication}>
+            <fieldset className="apply-roles">
+              <legend>Which role would you like?</legend>
+              {APPLY_ROLES.map(([key, label, desc]) => (
+                <label key={key} className={`apply-role ${applyForm.role === key ? 'selected' : ''}`}>
+                  <input type="radio" name="apply-role" value={key} checked={applyForm.role === key} onChange={() => setApplyForm({ ...applyForm, role: key })}/>
+                  <strong>{label}</strong>
+                  <span>{desc}</span>
+                </label>
+              ))}
+            </fieldset>
+            {applyForm.role === 'church_admin' && (
+              <label>
+                Your church
+                <select required value={applyForm.church} onChange={e => setApplyForm({ ...applyForm, church: e.target.value })}>
+                  <option value="">Choose a church</option>
+                  {churches.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+              </label>
+            )}
+            <label>
+              Your name
+              <input maxLength={80} placeholder={account.guest ? 'Full name' : account.name} value={applyForm.name} onChange={e => setApplyForm({ ...applyForm, name: e.target.value })}/>
+            </label>
+            <label>
+              About you
+              <textarea required rows={4} minLength={10} maxLength={600} placeholder="Your job or experience, and how people in the community know you." value={applyForm.note} onChange={e => setApplyForm({ ...applyForm, note: e.target.value })}/>
+            </label>
+            <label className="check-label">
+              <input type="checkbox" required checked={applyForm.agreed} onChange={e => setApplyForm({ ...applyForm, agreed: e.target.checked })}/>
+              <span>I agree to a short check before I'm approved, and I will never ask job seekers for money.</span>
+            </label>
+            <button className="primary-button" type="submit"><Send size={16}/> Send application</button>
+          </form>
+          {myApplications.length > 0 && <>
+            <div className="spacer-24"/>
+            <SectionTitle title="Your applications"/>
+            <div className="review-list">
+              {myApplications.map(a => (
+                <QueueCard
+                  key={a.id}
+                  avatar={<div className="feature-icon"><BadgeCheck size={20}/></div>}
+                  title={ROLE_LABELS[a.role]}
+                  status={APP_STATUS[a.status]}
+                  tone={a.status === 'approved' ? 'ok' : a.status === 'declined' ? 'bad' : 'pending'}
+                  sub={[churchName(a.church_id), `Sent ${new Date(a.created_at).toLocaleDateString()}`].filter(Boolean).join(' · ')}
+                  note={a.note}
+                />
+              ))}
+            </div>
+          </>}
+        </>}
+
+        {page === 'people' && <>
+          <PageHeading
+            eyebrow="Admin"
+            title="People"
+            desc="Everyone with an Ephworks account. Change roles, or suspend an account that breaks the rules. Only the super admin can appoint admins."
+          />
+          <ul className="people-stats">
+            {[
+              ['Accounts', members.length],
+              ['Moderators', members.filter(m => m.role === 'moderator').length],
+              ['Church admins', members.filter(m => m.role === 'church_admin').length],
+              ['Volunteers', members.filter(m => m.role === 'volunteer').length],
+              ['Suspended', members.filter(m => m.suspended).length]
+            ].map(([label, n]) => <li key={label}><b>{n}</b><span>{label}</span></li>)}
+          </ul>
+          <div className="filters">
+            <label className="search-box">
+              <Search size={19}/>
+              <input value={memberSearch} onChange={e => setMemberSearch(e.target.value)} placeholder="Search by name or email" aria-label="Search people"/>
+            </label>
+            <label className="select-box">
+              <span>Show</span>
+              <select value={memberFilter} onChange={e => setMemberFilter(e.target.value)}>
+                <option value="all">Everyone</option>
+                {Object.entries(ROLE_LABELS).map(([key, label]) => <option key={key} value={key}>{label}</option>)}
+                <option value="suspended">Suspended</option>
+              </select>
+            </label>
+          </div>
+          {supabase && !session ? <Empty icon={KeyRound} title="Sign in as an admin" description="Sign in with an admin account to manage people."/>
+          : visibleMembers.length ? (
+            <div className="review-list">
+              {visibleMembers.map(m => (
+                <MemberCard key={m.id} member={m} you={m.id === myId} churches={churches} canManage={canManage} onSave={saveRole} onSuspend={toggleSuspend}/>
+              ))}
+            </div>
+          ) : <Empty icon={UsersRound} title="No one matches" description="Try a different name, email or role."/>}
+        </>}
+
+        {page === 'applications' && <>
+          <PageHeading
+            eyebrow="Admin"
+            title="Role applications"
+            desc="People offering to help. Check each one, ideally with a short call, before approving: approval gives them the role straight away."
+          />
+          {supabase && !session ? <Empty icon={KeyRound} title="Sign in as an admin" description="Sign in with an admin account to review applications."/>
+          : applications.length ? (
+            <div className="review-list">
+              {[...applications].sort((a, b) => (b.status === 'pending') - (a.status === 'pending')).map(a => {
+                const applicant = members.find(m => m.id === a.user_id)
+                const pending = a.status === 'pending'
+                const blocked = !applicant ? 'Account no longer exists'
+                  : applicant.id === myId ? 'You can’t decide your own application'
+                  : applicant.suspended ? 'Restore this account before deciding'
+                  : !canManage(applicant, a.role) ? 'Only the super admin can decide this one' : null
+                return (
+                  <QueueCard
+                    key={a.id}
+                    avatar={<div className="company-icon blue">{a.display_name.split(/\s+/).slice(0, 2).map(w => w[0]?.toUpperCase()).join('')}</div>}
+                    title={a.display_name}
+                    status={APP_STATUS[a.status]}
+                    tone={a.status === 'approved' ? 'ok' : a.status === 'declined' ? 'bad' : 'pending'}
+                    sub={[`Wants to be ${ROLE_LABELS[a.role]}`, churchName(a.church_id), applicant?.email, new Date(a.created_at).toLocaleDateString()].filter(Boolean).join(' · ')}
+                    note={a.note}
+                    footNote={pending && blocked && <><LockKeyhole size={15}/> {blocked}</>}
+                  >
+                    {pending && !blocked && <>
+                      <button className="reject-small" onClick={() => decideApplication(a, false)}><X size={15}/> Decline</button>
+                      <button className="approve-small" onClick={() => decideApplication(a, true)}><Check size={15}/> Approve</button>
+                    </>}
+                  </QueueCard>
+                )
+              })}
+            </div>
+          ) : <Empty icon={BadgeCheck} title="No applications yet" description="When someone applies to volunteer or to be their church's admin, it appears here."/>}
         </>}
 
         {page === 'guidelines' && <>
@@ -1796,6 +2014,45 @@ function QueueCard({ avatar, title, status, tone, sub, note, footNote, children 
         <div className="queue-actions">{children}</div>
       </footer>
     </article>
+  )
+}
+
+// One account on the People page; role changes wait for Save, suspension is one click and reversible
+function MemberCard({ member, you, churches, canManage, onSave, onSuspend }) {
+  const [nextRole, setNextRole] = useState(member.role)
+  const [church, setChurch] = useState(member.church_id || '')
+  useEffect(() => { setNextRole(member.role); setChurch(member.church_id || '') }, [member.role, member.church_id])
+  const manageable = canManage(member, member.role)
+  const options = Object.keys(ROLE_LABELS).filter(r => r === member.role || canManage(member, r))
+  const changed = nextRole !== member.role || (nextRole === 'church_admin' && church !== (member.church_id || ''))
+  const locked = you ? 'You can’t change your own account'
+    : member.role === 'super_admin' ? 'The super admin is changed in the SQL editor'
+    : 'Only the super admin can change admins'
+  return (
+    <QueueCard
+      avatar={<div className={`company-icon ${member.suspended ? 'rose' : 'sage'}`}>{member.name.split(/\s+/).slice(0, 2).map(w => w[0]?.toUpperCase()).join('')}</div>}
+      title={you ? `${member.name} (you)` : member.name}
+      status={member.suspended ? 'Suspended' : ROLE_LABELS[member.role]}
+      tone={member.suspended ? 'bad' : member.role === 'member' ? 'neutral' : 'ok'}
+      sub={[member.email, churches.find(c => c.id === member.church_id)?.name, `Joined ${new Date(member.joined).toLocaleDateString()}`, `${member.posts} ${Number(member.posts) === 1 ? 'post' : 'posts'}`].filter(Boolean).join(' · ')}
+      footNote={!manageable && <><LockKeyhole size={15}/> {locked}</>}
+    >
+      {manageable && <>
+        <select className="member-select" aria-label={`Role for ${member.name}`} value={nextRole} onChange={e => setNextRole(e.target.value)}>
+          {options.map(r => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
+        </select>
+        {nextRole === 'church_admin' && (
+          <select className="member-select" aria-label={`Church for ${member.name}`} value={church} onChange={e => setChurch(e.target.value)}>
+            <option value="">Choose church</option>
+            {churches.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
+        )}
+        <button className="approve-small" disabled={!changed} onClick={() => onSave(member, nextRole, church)}><Check size={15}/> Save</button>
+        <button className="reject-small" onClick={() => onSuspend(member)}>
+          {member.suspended ? <><RotateCcw size={15}/> Restore</> : <><Ban size={15}/> Suspend</>}
+        </button>
+      </>}
+    </QueueCard>
   )
 }
 
