@@ -113,6 +113,7 @@ export default function App() {
   const [banner, setBanner] = useState(null)
   const [showAbout, setShowAbout] = useState(false)
   const [showReset, setShowReset] = useState(false)
+  const [removing, setRemoving] = useState(null) // post waiting for a remove confirmation
   const [showReport, setShowReport] = useState(false)
   const [showSupportModal, setShowSupportModal] = useState(false)
   const [selectedSupportService, setSelectedSupportService] = useState('cv-review')
@@ -150,7 +151,7 @@ export default function App() {
 
   // Without a backend, posts live in demo.drafts and join the sample jobs once a moderator publishes them
   const demoJobs = demo.drafts.map(toJob)
-  const board = supabase ? jobs : [...demoJobs.filter(j => j.status === 'published' && j.daysLeft > 0), ...SAMPLE_JOBS]
+  const board = supabase ? jobs.filter(j => !server.members.some(m => m.suspended && m.id === j.employerId)) : [...demoJobs.filter(j => j.status === 'published' && j.daysLeft > 0), ...SAMPLE_JOBS]
   const myPosts = supabase ? server.myJobs : demoJobs
   // Your own interest; posters only see a count per post
   const interestedIds = supabase ? server.interested : demo.interested
@@ -218,7 +219,7 @@ export default function App() {
     uid && moderates ? api.posterVouches() : [],
     uid ? api.myVouch(uid) : null,
     uid && role === 'church' ? api.vouchRequests() : [],
-    uid && role === 'admin' ? api.members() : [],
+    uid && serverRoles.admin.includes(profile.role) ? api.members() : [],
     uid ? api.applications() : [],
     uid ? api.myInterest(uid) : [],
     uid ? api.interestCounts() : {}
@@ -232,12 +233,21 @@ export default function App() {
     })
   }).catch(err => notify(`Could not load from the server: ${err.message}`))
 
-  useEffect(() => { refresh() }, [uid, role])
+  useEffect(() => { refresh() }, [uid, role, profile.role])
 
   useEffect(() => {
     if (!supabase || !uid) return setProfile({})
     api.profile(uid).then(setProfile).catch(fail)
     api.churches().then(setChurches).catch(fail)
+  }, [uid])
+
+  // Roles granted while someone is signed in (e.g. an approved application) show up when they return to the tab
+  useEffect(() => {
+    if (!supabase || !uid) return
+    const recheck = () => document.visibilityState === 'visible' && api.profile(uid).then(setProfile).catch(() => {})
+    document.addEventListener('visibilitychange', recheck)
+    window.addEventListener('focus', recheck)
+    return () => { document.removeEventListener('visibilitychange', recheck); window.removeEventListener('focus', recheck) }
   }, [uid])
 
   // Leave role-only pages if the view stops being available (e.g. after signing out)
@@ -280,7 +290,7 @@ export default function App() {
     const onKey = e => {
       if (e.key === 'Escape') {
         setSelectedJob(null); setShowMobileMore(false); setShowAbout(false);
-        setShowReset(false); setShowReport(false); setShowSupportModal(false)
+        setShowReset(false); setShowReport(false); setShowSupportModal(false); setRemoving(null)
         setShowSignIn(false); setVerifying(null)
       }
     }
@@ -289,10 +299,10 @@ export default function App() {
   }, [])
 
   useEffect(() => {
-    const modal = selectedJob || showMobileMore || showAbout || showReset || showReport || showSupportModal || showSignIn || verifying
+    const modal = selectedJob || showMobileMore || showAbout || showReset || removing || showReport || showSupportModal || showSignIn || verifying
     document.body.classList.toggle('modal-open', Boolean(modal))
     return () => document.body.classList.remove('modal-open')
-  }, [selectedJob, showMobileMore, showAbout, showReset, showReport, showSupportModal, showSignIn, verifying])
+  }, [selectedJob, showMobileMore, showAbout, showReset, removing, showReport, showSupportModal, showSignIn, verifying])
 
   const go = id => { setPage(id); setShowMobileMore(false); setBanner(null); window.scrollTo({ top: 0, behavior: 'smooth' }) }
   const setRole = next => {
@@ -434,7 +444,7 @@ export default function App() {
   }
 
   const decideApplication = (app, approve) => {
-    const done = () => notify(approve ? `Approved. ${app.display_name} is now ${ROLE_LABELS[app.role]}.` : 'Application declined.')
+    const done = () => notify(approve ? `Approved. ${app.display_name} is now ${ROLE_LABELS[app.role]}; their new view appears next time they open Ephworks.` : 'Application declined.')
     if (supabase) return api.decideApplication(app.id, approve).then(() => { refresh(); done() }).catch(fail)
     updateDemo({
       applications: demo.applications.map(a => a.id === app.id ? { ...a, status: approve ? 'approved' : 'declined' } : a),
@@ -487,6 +497,7 @@ export default function App() {
   }
 
   const removePost = id => {
+    setRemoving(null)
     if (!supabase) {
       updateDemo({ drafts: demo.drafts.filter(x => x.id !== id) })
       return notify('Post draft removed.')
@@ -957,6 +968,7 @@ export default function App() {
             title="Post a verified opportunity"
             desc="Draft an opportunity for your company. All posts are checked directly with HR and audited by our anti-scam engine."
           />
+          {supabase && profile.suspended ? <Empty icon={Ban} title="Paused on your account" description="This is switched off while your account is suspended."/> : <>
           <section className="plain-card vouch-panel" aria-labelledby="vouch-title">
             <div className="cta-row">
               <div className="feature-icon"><UsersRound size={22}/></div>
@@ -1076,6 +1088,7 @@ export default function App() {
               </button>
             </form>
           </div>
+          </>}
         </>}
 
         {page === 'drafts' && <>
@@ -1115,7 +1128,7 @@ export default function App() {
                       </div>
                     )}
                   </div>
-                  <button className="secondary-button" onClick={() => removePost(d.id)}>
+                  <button className="secondary-button" onClick={() => setRemoving(d)}>
                     Remove post
                   </button>
                 </div>
@@ -1196,6 +1209,7 @@ export default function App() {
             title="Apply to help run Ephworks"
             desc="Every role is free and unpaid. An admin checks each application, usually with a short call, before giving anyone extra access. Moderators are invited by the Ephworks team."
           />
+          {supabase && profile.suspended ? <Empty icon={Ban} title="Paused on your account" description="This is switched off while your account is suspended."/> : (
           <form className="form-panel booking-form apply-form" onSubmit={submitApplication}>
             <fieldset className="apply-roles">
               <legend>Which role would you like?</legend>
@@ -1230,6 +1244,7 @@ export default function App() {
             </label>
             <button className="primary-button" type="submit"><Send size={16}/> Send application</button>
           </form>
+          )}
           {myApplications.length > 0 && <>
             <div className="spacer-24"/>
             <SectionTitle title="Your applications"/>
@@ -1844,6 +1859,19 @@ export default function App() {
         <div className="modal-actions">
           <button className="secondary-button" onClick={() => setShowReset(false)}>Cancel</button>
           <button className="danger-button" onClick={reset}><RotateCcw size={16}/> Reset demo</button>
+        </div>
+      </Modal>
+    )}
+
+    {removing && (
+      <Modal onClose={() => setRemoving(null)} title="Remove this post?">
+        <p>
+          “{removing.title}” {removing.status === 'published' ? 'comes off the noticeboard straight away' : 'leaves the moderation queue'}
+          {interestCount(removing) > 0 && `, and its count of ${interestCount(removing)} interested ${interestCount(removing) === 1 ? 'person' : 'people'} is deleted`}. This can’t be undone.
+        </p>
+        <div className="modal-actions">
+          <button className="secondary-button" onClick={() => setRemoving(null)}>Keep post</button>
+          <button className="danger-button" onClick={() => removePost(removing.id)}><X size={16}/> Remove post</button>
         </div>
       </Modal>
     )}
