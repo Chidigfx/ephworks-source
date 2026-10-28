@@ -12,7 +12,8 @@ This is a **reconstruction** of the October 2026 Ephworks #HACK prototype based 
 - **Home and Jobs**: Home is the welcome page with the full job feed under the headline and search, then why Ephworks and free support; Jobs is the same feed on its own (search, filters, results). On phones, Home shrinks to the promise, headline and search, and longer intros are hidden
 - Demo views (Member, Moderator, Church admin, Admin) only when no backend is connected
 - Five fictional sample UAE opportunities with search and filters
-- **Post a Job** end to end with sample data: employer posts, church vouch, moderator HR check, then the post appears on the noticeboard for 30 days
+- **Post a Job** as a short step-by-step wizard (church → the job → pay → description → how to apply → preview), with structured AED pay, live scam checks, a draft saved on the device, and a preview before submitting
+- **Post status tracker** on My posts: church vouch → HR check → live for 30 days
 - **I'm interested** on every role, saved to your account when signed in. Employers only see a count on their post, never who is interested (passing candidate details on could count as recruitment). Save and "mark as applied" stay in your browser
 - **Scam checks**: fee, deposit and payment-transfer terms are blocked outright; WhatsApp-only contact, guaranteed jobs or visas, "no interview", passport requests, pressure language and personal email addresses are flagged for the moderator to check with HR
 - **Church membership verification for job posters**: a post cannot be published until the poster's partner church has vouched for them (yes/no only)

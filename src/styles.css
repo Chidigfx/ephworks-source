@@ -829,8 +829,8 @@ body{background:radial-gradient(60vw 50vw at 0% 0%,#bae6fd 0,transparent 60%),ra
 .queue-note .link-button{margin-left:8px}
 .church-name-edit{min-width:0;flex:1 1 180px;font-weight:500}
 
-/* Form pages (post, apply, profile) sit centred at reading width */
-.page-narrow{width:100%;max-width:800px;margin:0 auto}
+/* Form pages (post, apply, profile) use the same left edge and width as every other page */
+.page-narrow{width:100%}
 .page-narrow .profile-card{max-width:none}
 .saved-section+.saved-section{margin-top:32px}
 .work-tabs{scroll-padding-inline:16px}
@@ -840,4 +840,55 @@ body{background:radial-gradient(60vw 50vw at 0% 0%,#bae6fd 0,transparent 60%),ra
   .work-tabs .tab-count{margin-left:4px;padding:0 6px}
   /* the row scrolls sideways; the faded edge says there is more, and the padding lets the last tab clear the fade */
   .work-tabs{padding-right:32px;-webkit-mask-image:linear-gradient(90deg,#000 calc(100% - 32px),transparent);mask-image:linear-gradient(90deg,#000 calc(100% - 32px),transparent)}
+}
+
+/* ---------- Post-a-job wizard ---------- */
+.wizard{display:grid;gap:16px}
+.wizard-progress{height:6px;border-radius:var(--radius-pill);background:var(--subtle);overflow:hidden}
+.wizard-progress span{display:block;height:100%;border-radius:inherit;background:var(--primary);transition:width var(--ease)}
+.wizard-steps{list-style:none;display:flex;flex-wrap:wrap;gap:6px 18px;margin:0;padding:0}
+.wizard-steps button{display:inline-flex;align-items:center;gap:8px;min-height:36px;font-size:14px;font-weight:600;color:var(--muted)}
+.wizard-steps button:disabled{cursor:default}
+.wizard-steps b{display:grid;place-items:center;width:24px;height:24px;border-radius:50%;background:var(--subtle);font-size:12px;color:var(--fg-2)}
+.wizard-steps .current button{color:var(--primary)}
+.wizard-steps .current b{background:var(--primary);color:#fff}
+.wizard-steps .done button{color:var(--fg-2)}
+.wizard-steps .done b{background:var(--success-50);color:var(--success)}
+.wizard-count{display:none;margin:0;font-size:14px;font-weight:600;color:var(--fg-2)}
+.wizard-title{font-size:22px;margin:0}
+.wizard-hint{margin:0;font-size:14px;font-weight:400;color:var(--muted)}
+.wizard-error{margin:0;padding:10px 12px;border-radius:var(--radius-sm);background:var(--danger-50);color:var(--danger-text);font-size:14px;font-weight:600}
+.wizard-nav{display:flex;justify-content:flex-end;gap:10px}
+.wizard-nav .secondary-button{margin-right:auto}
+.wizard-saved{font-size:12px;color:var(--muted);text-align:right}
+.wizard .law-notice{margin-top:0}
+.wizard .vouch-panel{margin-bottom:0}
+.wizard-preview{pointer-events:none}
+.wizard-summary{display:grid;gap:0;margin:0;border:1px solid var(--border);border-radius:var(--radius-sm)}
+.wizard-summary>div{display:grid;grid-template-columns:110px minmax(0,1fr) auto;gap:12px;align-items:start;padding:12px 14px}
+.wizard-summary>div+div{border-top:1px solid var(--border)}
+.wizard-summary dt{font-size:13px;font-weight:600;color:var(--muted)}
+.wizard-summary dd{margin:0;font-size:14px;color:var(--fg);white-space:pre-line;overflow-wrap:anywhere;display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden}
+
+/* Post status: church vouch -> HR check -> live */
+.post-tracker{list-style:none;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:14px 0 0;padding:0}
+.post-tracker li{position:relative;display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border-radius:var(--radius-sm);background:var(--surface-2);border:1px solid var(--border)}
+.post-tracker b{flex-shrink:0;display:grid;place-items:center;width:22px;height:22px;border-radius:50%;background:var(--subtle);font-size:12px;color:var(--fg-2)}
+.post-tracker strong{display:block;font-size:13px;color:var(--fg)}
+.post-tracker small{display:block;font-size:12px;color:var(--muted)}
+.post-tracker .done{background:var(--success-50);border-color:transparent}
+.post-tracker .done b{background:var(--success);color:#fff}
+.post-tracker .current{background:var(--warn-50);border-color:transparent}
+.post-tracker .current b{background:var(--warn-text);color:#fff}
+.post-tracker .bad{background:var(--danger-50);border-color:transparent}
+.post-tracker .bad b{background:var(--danger);color:#fff}
+
+@media(max-width:760px){
+  .wizard-steps{display:none}
+  .wizard-count{display:block}
+  .wizard-summary>div{grid-template-columns:1fr auto}
+  .wizard-summary dd{grid-column:1/-1;grid-row:2}
+  .post-tracker{gap:6px}
+  .post-tracker li{flex-direction:column;gap:6px;padding:8px}
+  .wizard-nav .primary-button{flex:1}
 }

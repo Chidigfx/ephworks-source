@@ -59,7 +59,23 @@ const EMPTY_APPLY = { role: 'volunteer', church: NO_CHURCH, name: '', note: '', 
 const EMIRATES = ['Abu Dhabi', 'Dubai', 'Sharjah', 'Ajman', 'Umm Al Quwain', 'Ras Al Khaimah', 'Fujairah']
 const WORK_TYPES = ['Full-time', 'Part-time']
 const WORK_SETTINGS = ['On-site', 'Hybrid', 'Remote']
-const EMPTY_DRAFT = { title: '', company: '', emirate: 'Dubai', type: 'Full-time', mode: 'On-site', pay: '', email: '', portal: '', description: '' }
+const EMPTY_DRAFT = { title: '', company: '', emirate: 'Dubai', type: 'Full-time', mode: 'On-site', payFrom: '', payTo: '', email: '', portal: '', description: '' }
+const DRAFT_KEY = 'ephworks-post-draft' // unfinished post, kept on this device between visits
+// Post a job, one short step at a time. The church step only shows until the poster is vouched.
+const POST_STEPS = [
+  { key: 'church', label: 'Church' },
+  { key: 'job', label: 'The job' },
+  { key: 'pay', label: 'Pay' },
+  { key: 'description', label: 'Description' },
+  { key: 'apply', label: 'How to apply' },
+  { key: 'preview', label: 'Preview' }
+]
+const aed = n => `AED ${Number(n).toLocaleString('en-US')}`
+const salaryText = ({ payFrom, payTo }) => payFrom ? (payTo && Number(payTo) !== Number(payFrom) ? `${aed(payFrom)} – ${Number(payTo).toLocaleString('en-US')}` : aed(payFrom)) : ''
+
+function getSavedDraft() {
+  try { return { ...EMPTY_DRAFT, ...JSON.parse(window.localStorage.getItem(DRAFT_KEY)) } } catch { return EMPTY_DRAFT }
+}
 
 function getSavedDemo() {
   try {
@@ -128,7 +144,9 @@ export default function App() {
   const [showSupportModal, setShowSupportModal] = useState(false)
   const [selectedSupportService, setSelectedSupportService] = useState('cv-review')
   const [reportReason, setReportReason] = useState(REPORT_REASONS[0][0])
-  const [draftForm, setDraftForm] = useState(EMPTY_DRAFT)
+  const [draftForm, setDraftForm] = useState(getSavedDraft)
+  const [postStep, setPostStep] = useState(null) // key of the wizard step; null = first step that applies
+  const [stepTried, setStepTried] = useState(false) // show a step's problems only after Next was pressed
   const [jobs, setJobs] = useState(supabase ? [] : SAMPLE_JOBS)
   const [session, setSession] = useState(null)
   const [server, setServer] = useState({ myJobs: [], queue: [], reports: [], posterVouches: {}, myVouch: null, vouchRequests: [], members: [], applications: [], interested: [], interestCounts: {}, churchSuggestions: [] })
@@ -156,8 +174,9 @@ export default function App() {
   const staffNav = isAdmin ? [NAV.moderator[0], ...NAV.admin, NAV.moderator[1]] : canModerate ? NAV.moderator : isChurchAdmin ? NAV.church : []
 
   // Real-time scam detection for the employer post form
-  const draftScan = useMemo(() => scanPost(`${draftForm.title} ${draftForm.pay} ${draftForm.description}`, draftForm.email),
-    [draftForm.title, draftForm.pay, draftForm.description, draftForm.email])
+  const draftSalary = salaryText(draftForm)
+  const draftScan = useMemo(() => scanPost(`${draftForm.title} ${draftSalary} ${draftForm.description}`, draftForm.email),
+    [draftForm.title, draftSalary, draftForm.description, draftForm.email])
 
   // Without a backend, posts live in demo.drafts and join the sample jobs once a moderator publishes them
   const demoJobs = demo.drafts.map(toJob)
@@ -311,6 +330,7 @@ export default function App() {
   }
 
   useEffect(() => { window.localStorage.setItem(demoKey, JSON.stringify(demo)) }, [demo])
+  useEffect(() => { try { window.localStorage.setItem(DRAFT_KEY, JSON.stringify(draftForm)) } catch {} }, [draftForm])
   useEffect(() => {
     const onKey = e => {
       if (e.key === 'Escape') {
@@ -429,11 +449,14 @@ export default function App() {
     if (draftScan.blocked.length > 0) {
       return notify(`Auto-block triggered: Remove prohibited terms (${draftScan.blocked.join(', ')}) before saving.`)
     }
-    const { title, company, emirate, type, mode, pay, email, portal, description } = draftForm
-    if ([title, company, pay, email, description].some(v => !v.trim())) return notify('Complete all required fields before saving the post.')
-    const row = { title: title.trim(), company: company.trim(), emirate, type, mode, salary: pay.trim(), description: description.trim(), direct_email: email.trim(), direct_portal: portal.trim() || null }
+    const firstProblem = wizardSteps.find(st => stepProblem(st.key))
+    if (firstProblem) { setPostStep(firstProblem.key); setStepTried(true); return }
+    const { title, company, emirate, type, mode, email, portal, description } = draftForm
+    const row = { title: title.trim(), company: company.trim(), emirate, type, mode, salary: draftSalary, description: description.trim(), direct_email: email.trim(), direct_portal: portal.trim() || null }
     const done = () => {
       setDraftForm(EMPTY_DRAFT)
+      setPostStep(null)
+      setStepTried(false)
       go('drafts')
       notify(myVouch?.status === 'vouched'
         ? 'Post submitted. A moderator will verify it with the employer’s HR before it goes live.'
@@ -600,6 +623,27 @@ export default function App() {
   const workCount = staffNav.reduce((sum, n) => sum + navCount(n.id), 0)
   // Account menu: whatever the phone bottom bar leaves out (top-bar duplicates are hidden on desktop by CSS)
   const menuItems = [...NAV.member.filter(n => !userMainNav.includes(n)), ...NAV.menu]
+
+  // Post-a-job wizard
+  const wizardSteps = POST_STEPS.filter(st => st.key !== 'church' || myVouch?.status !== 'vouched')
+  const stepIndex = Math.max(0, wizardSteps.findIndex(st => st.key === postStep))
+  const step = wizardSteps[stepIndex]
+  const stepProblem = key => {
+    const f = draftForm
+    if (key === 'job') return f.title.trim().length < 3 ? 'Add a job title (at least 3 letters).' : f.company.trim().length < 2 ? 'Add the company name.' : ''
+    if (key === 'pay') return !(Number(f.payFrom) > 0) ? 'Add the monthly pay in AED.' : f.payTo && Number(f.payTo) < Number(f.payFrom) ? 'The top of the range must be at least the starting pay.' : ''
+    if (key === 'description') return f.description.trim().length < 20 ? 'Describe the job in at least 20 characters.' : draftScan.blocked.length ? `Remove fee wording: ${draftScan.blocked.join(', ')}.` : ''
+    if (key === 'apply') return !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(f.email.trim()) ? 'Add an email where candidates can apply.' : f.portal && !/^https:\/\//.test(f.portal.trim()) ? 'The careers page must start with https://' : ''
+    return ''
+  }
+  const goStep = i => { setPostStep(wizardSteps[i].key); setStepTried(false); window.scrollTo({ top: 0, behavior: 'smooth' }) }
+  const nextStep = () => { if (stepProblem(step.key)) return setStepTried(true); goStep(stepIndex + 1) }
+  const setDraft = patch => setDraftForm(prev => ({ ...prev, ...patch }))
+  const previewJob = toJob({
+    id: 'preview', status: 'pending', employer_id: uid, title: draftForm.title || 'Job title', company: draftForm.company || 'Company',
+    emirate: draftForm.emirate, type: draftForm.type, mode: draftForm.mode, salary: draftSalary || 'AED —',
+    description: draftForm.description, direct_email: draftForm.email, direct_portal: draftForm.portal || null, created_at: new Date().toISOString()
+  })
 
   const savedLists = [
     { title: 'Interested', note: 'The employer only sees a count, never your name', jobs: board.filter(j => interestedIds.includes(j.id)) },
@@ -1019,131 +1063,178 @@ export default function App() {
             desc="Every post is checked with the employer before it goes live. Posting is free, always."
           />
           {supabase && profile.suspended ? <Empty icon={Ban} title="Paused on your account" description="This is switched off while your account is suspended."/> : <>
-          <section className="plain-card vouch-panel" aria-labelledby="vouch-title">
-            <div className="cta-row">
-              <div className="feature-icon"><UsersRound size={22}/></div>
-              <div className="cta-row-body">
-                <h3 id="vouch-title">Church membership verification</h3>
-                <p>
-                  {!myVouch ? 'Before anything you post can go live, your partner church confirms you are known to the community. Only a yes/no is stored, never belief or denomination data.'
-                    : myVouch.status === 'pending' ? `Waiting for ${myVouch.church} to confirm you. You can still write posts; they stay unpublished until then. Picked the wrong church? Send the request again below.`
-                    : myVouch.status === 'vouched' ? `${myVouch.church} has vouched for you. Your posts go straight to moderator HR verification.`
-                    : `${myVouch.church} could not confirm you. Check you chose the right church, add a note, and ask again.`}
-                </p>
-              </div>
-              <span className={`status-chip ${myVouch ? myVouch?.status === 'vouched' ? 'ok' : myVouch?.status === 'declined' ? 'bad' : 'pending' : 'pending'}`}>{myVouch ? VOUCH_STATUS[myVouch.status] : 'Not requested'}</span>
-            </div>
-            {myVouch?.status !== 'vouched' && (
-              <form className="booking-form vouch-form" onSubmit={requestVouch}>
-                <ChurchPicker label="Your church" churches={churches} value={vouchForm.church} onChange={church => setVouchForm({ ...vouchForm, church })}/>
-                <label>
-                  Note for your church admin (optional)
-                  <input maxLength={300} placeholder="e.g. How the admin knows you and the company you hire for" value={vouchForm.note} onChange={e => setVouchForm({ ...vouchForm, note: e.target.value })}/>
-                </label>
-                {mySuggestions.map(c => <p key={c.id} className="audit-line waiting"><Clock3 size={14}/> We're checking {c.name} ({c.emirate}). You can ask them to vouch once it's added.</p>)}
-                <button className="primary-button" type="submit"><Send size={16}/> {vouchForm.church.id || !vouchForm.church.name.trim() ? (myVouch ? 'Send request again' : 'Request church vouch') : 'Suggest this church'}</button>
+          <div className="wizard">
+            <div className="wizard-progress" aria-hidden="true"><span style={{ width: `${(stepIndex + 1) / wizardSteps.length * 100}%` }}/></div>
+            <ol className="wizard-steps">
+              {wizardSteps.map((st, i) => (
+                <li key={st.key} className={i === stepIndex ? 'current' : i < stepIndex ? 'done' : ''} aria-current={i === stepIndex ? 'step' : undefined}>
+                  <button type="button" disabled={i > stepIndex} onClick={() => goStep(i)}>
+                    <b>{i < stepIndex ? <Check size={13}/> : i + 1}</b>{st.label}
+                  </button>
+                </li>
+              ))}
+            </ol>
+            <p className="wizard-count">Step {stepIndex + 1} of {wizardSteps.length} · {step.label}</p>
+
+            {step.key === 'church' && <>
+              <section className="plain-card vouch-panel" aria-labelledby="vouch-title">
+                <div className="cta-row">
+                  <div className="feature-icon"><UsersRound size={22}/></div>
+                  <div className="cta-row-body">
+                    <h3 id="vouch-title">Church membership verification</h3>
+                    <p>
+                      {!myVouch ? 'Before anything you post can go live, your partner church confirms you are known to the community. Only a yes/no is stored, never belief or denomination data.'
+                        : myVouch.status === 'pending' ? `Waiting for ${myVouch.church} to confirm you. You can still write posts; they stay unpublished until then. Picked the wrong church? Send the request again below.`
+                        : myVouch.status === 'vouched' ? `${myVouch.church} has vouched for you. Your posts go straight to moderator HR verification.`
+                        : `${myVouch.church} could not confirm you. Check you chose the right church, add a note, and ask again.`}
+                    </p>
+                  </div>
+                  <span className={`status-chip ${myVouch ? myVouch?.status === 'vouched' ? 'ok' : myVouch?.status === 'declined' ? 'bad' : 'pending' : 'pending'}`}>{myVouch ? VOUCH_STATUS[myVouch.status] : 'Not requested'}</span>
+                </div>
+                {myVouch?.status !== 'vouched' && (
+                  <form className="booking-form vouch-form" onSubmit={requestVouch}>
+                    <ChurchPicker label="Your church" churches={churches} value={vouchForm.church} onChange={church => setVouchForm({ ...vouchForm, church })}/>
+                    <label>
+                      Note for your church admin (optional)
+                      <input maxLength={300} placeholder="e.g. How the admin knows you and the company you hire for" value={vouchForm.note} onChange={e => setVouchForm({ ...vouchForm, note: e.target.value })}/>
+                    </label>
+                    {mySuggestions.map(c => <p key={c.id} className="audit-line waiting"><Clock3 size={14}/> We're checking {c.name} ({c.emirate}). You can ask them to vouch once it's added.</p>)}
+                    <button className="primary-button" type="submit"><Send size={16}/> {vouchForm.church.id || !vouchForm.church.name.trim() ? (myVouch ? 'Send request again' : 'Request church vouch') : 'Suggest this church'}</button>
+                  </form>
+                )}
+              </section>
+              <p className="wizard-hint">You can keep writing while you wait. Your post stays unpublished until your church vouches for you.</p>
+            </>}
+
+            {step.key !== 'church' && (
+              <form className="form-panel post-form" onSubmit={e => { e.preventDefault(); step.key === 'preview' ? submitDraft(e) : nextStep() }} noValidate>
+                {step.key === 'job' && <>
+                  <h2 className="wizard-title">What's the job?</h2>
+                  <label>
+                    Job title
+                    <input maxLength={95} placeholder="e.g. Office Coordinator" value={draftForm.title} onChange={e => setDraft({ title: e.target.value })}/>
+                  </label>
+                  <label>
+                    Company name
+                    <input maxLength={95} placeholder="e.g. Cedar Lane Services" value={draftForm.company} onChange={e => setDraft({ company: e.target.value })}/>
+                  </label>
+                  <div className="form-two form-three">
+                    <label>
+                      Emirate
+                      <select value={draftForm.emirate} onChange={e => setDraft({ emirate: e.target.value })}>
+                        {EMIRATES.map(x => <option key={x}>{x}</option>)}
+                      </select>
+                    </label>
+                    <label>
+                      Work type
+                      <select value={draftForm.type} onChange={e => setDraft({ type: e.target.value })}>
+                        {WORK_TYPES.map(x => <option key={x}>{x}</option>)}
+                      </select>
+                    </label>
+                    <label>
+                      Work setting
+                      <select value={draftForm.mode} onChange={e => setDraft({ mode: e.target.value })}>
+                        {WORK_SETTINGS.map(x => <option key={x}>{x}</option>)}
+                      </select>
+                    </label>
+                  </div>
+                </>}
+
+                {step.key === 'pay' && <>
+                  <h2 className="wizard-title">What does it pay?</h2>
+                  <div className="form-two">
+                    <label>
+                      Monthly pay from (AED)
+                      <input type="number" inputMode="numeric" min={1} max={999999} placeholder="5000" value={draftForm.payFrom} onChange={e => setDraft({ payFrom: e.target.value })}/>
+                    </label>
+                    <label>
+                      Up to (AED, optional)
+                      <input type="number" inputMode="numeric" min={1} max={999999} placeholder="7000" value={draftForm.payTo} onChange={e => setDraft({ payTo: e.target.value })}/>
+                    </label>
+                  </div>
+                  {draftSalary && <p className="wizard-hint">Shown as <strong>{draftSalary} per month</strong>.</p>}
+                  <p className="law-notice"><ShieldCheck size={15}/> Candidates are never charged anything: no fees, deposits or visa costs. It's the law in the UAE.</p>
+                </>}
+
+                {step.key === 'description' && <>
+                  <h2 className="wizard-title">Describe the job</h2>
+                  <label>
+                    What the job involves
+                    <textarea rows={7} maxLength={1600} placeholder="Day-to-day tasks, who they'd work with, hours, and what you're looking for." value={draftForm.description} onChange={e => setDraft({ description: e.target.value })}/>
+                  </label>
+                  <small className="wizard-hint">{draftForm.description.length} / 1600</small>
+                  {draftScan.blocked.length > 0 && (
+                    <div className="auto-block-box">
+                      <ShieldAlert size={22}/>
+                      <div><strong>Remove fee wording: {draftScan.blocked.join(', ')}</strong>Charging candidates any fee, deposit or visa cost is illegal in the UAE, so posts that mention it are blocked.</div>
+                    </div>
+                  )}
+                  {draftScan.flags.length > 0 && <Warning tone="strong">A moderator will check these with the employer before publishing: {draftScan.flags.join('; ')}.</Warning>}
+                </>}
+
+                {step.key === 'apply' && <>
+                  <h2 className="wizard-title">How do people apply?</h2>
+                  <p className="wizard-hint">Candidates apply to you directly. Ephworks never sees or stores their CVs.</p>
+                  <label>
+                    Application email
+                    <input type="email" maxLength={254} placeholder="careers@company.ae" value={draftForm.email} onChange={e => setDraft({ email: e.target.value })}/>
+                  </label>
+                  <label>
+                    Careers page (optional)
+                    <input type="url" maxLength={500} placeholder="https://company.ae/careers" value={draftForm.portal} onChange={e => setDraft({ portal: e.target.value })}/>
+                  </label>
+                </>}
+
+                {step.key === 'preview' && <>
+                  <h2 className="wizard-title">Check your post</h2>
+                  <p className="wizard-hint">This is how job seekers will see it.</p>
+                  <div className="wizard-preview">
+                    <JobCard job={previewJob} saved={false} tracked={false} interested={false} onSave={() => {}} onOpen={() => {}} onInterest={() => {}}/>
+                  </div>
+                  <dl className="wizard-summary">
+                    {[
+                      ['The job', `${draftForm.title} · ${draftForm.company} · ${draftForm.emirate} · ${draftForm.type} · ${draftForm.mode}`, 'job'],
+                      ['Pay', `${draftSalary} per month`, 'pay'],
+                      ['Description', draftForm.description, 'description'],
+                      ['Apply via', [draftForm.email, draftForm.portal].filter(Boolean).join(' · '), 'apply']
+                    ].map(([label, value, key]) => (
+                      <div key={key}>
+                        <dt>{label}</dt>
+                        <dd>{value}</dd>
+                        <button type="button" className="link-button" onClick={() => goStep(wizardSteps.findIndex(st => st.key === key))}>Edit</button>
+                      </div>
+                    ))}
+                  </dl>
+                  {draftScan.flags.length > 0 && <Warning tone="strong">A moderator will check these with the employer before publishing: {draftScan.flags.join('; ')}.</Warning>}
+                  <PostTracker vouch={myVouch?.status} status="draft"/>
+                </>}
+
+                {stepTried && stepProblem(step.key) && <p className="wizard-error" role="alert">{stepProblem(step.key)}</p>}
+
+                <div className="wizard-nav">
+                  {stepIndex > 0 && <button type="button" className="secondary-button" onClick={() => goStep(stepIndex - 1)}><ArrowLeft size={16}/> Back</button>}
+                  <button type="submit" className="primary-button" disabled={step.key === 'preview' && draftScan.blocked.length > 0}>
+                    {step.key === 'preview' ? <><Send size={16}/> Submit for checking</> : <>Next <ArrowRight size={16}/></>}
+                  </button>
+                </div>
+                <small className="wizard-saved">Your draft is saved on this device as you go.</small>
               </form>
             )}
-          </section>
-          <div className="form-panel">
-            {/* Live Auto-Block Scam Engine Banner */}
-            {draftScan.blocked.length > 0 ? (
-              <div className="auto-block-box">
-                <ShieldAlert size={26}/>
-                <div>
-                  <strong>Auto-block active: prohibited fee or scam terms detected</strong>
-                  Your post contains prohibited keywords: <u>{draftScan.blocked.join(', ')}</u>.
-                  <ul>
-                    <li>Under UAE Labour Law, employers and recruiters are strictly prohibited from charging candidates any fees, deposits, or visa costs.</li>
-                    <li>Ephworks auto-blocks all posts requesting payment, deposits, or visa charges.</li>
-                    <li>Please remove all mention of candidate fees to enable submission.</li>
-                  </ul>
-                </div>
-              </div>
-            ) : (draftForm.title || draftForm.pay || draftForm.description) && (
-              <div className="auto-block-clean">
-                <CheckCircle2 size={16}/> No fee or payment requests found. Candidates must never be charged.
+
+            {step.key === 'church' && (
+              <div className="wizard-nav">
+                <button type="button" className="primary-button" onClick={() => goStep(1)}>Continue to the job <ArrowRight size={16}/></button>
               </div>
             )}
-            {draftScan.flags.length > 0 && (
-              <Warning tone="strong">
-                A moderator will check these with HR before publishing: {draftScan.flags.join('; ')}.
-              </Warning>
-            )}
-
-            <form className="post-form" onSubmit={submitDraft}>
-              <label>
-                Job title
-                <input maxLength={95} placeholder="e.g. Office Coordinator" value={draftForm.title} onChange={e => setDraftForm({ ...draftForm, title: e.target.value })} required/>
-              </label>
-              <label>
-                Company name
-                <input maxLength={95} placeholder="e.g. Cedar Lane Services" value={draftForm.company} onChange={e => setDraftForm({ ...draftForm, company: e.target.value })} required/>
-              </label>
-              <div className="form-two form-three">
-                <label>
-                  Emirate
-                  <select value={draftForm.emirate} onChange={e => setDraftForm({ ...draftForm, emirate: e.target.value })}>
-                    {EMIRATES.map(x => <option key={x}>{x}</option>)}
-                  </select>
-                </label>
-                <label>
-                  Work type
-                  <select value={draftForm.type} onChange={e => setDraftForm({ ...draftForm, type: e.target.value })}>
-                    {WORK_TYPES.map(x => <option key={x}>{x}</option>)}
-                  </select>
-                </label>
-                <label>
-                  Work setting
-                  <select value={draftForm.mode} onChange={e => setDraftForm({ ...draftForm, mode: e.target.value })}>
-                    {WORK_SETTINGS.map(x => <option key={x}>{x}</option>)}
-                  </select>
-                </label>
-              </div>
-              <label>
-                Monthly compensation
-                <input maxLength={95} placeholder="e.g. AED 5,000 – 7,000 (Candidate must never be charged fees)" value={draftForm.pay} onChange={e => setDraftForm({ ...draftForm, pay: e.target.value })} required/>
-              </label>
-              <div className="form-two">
-                <label>
-                  Direct application email
-                  <input type="email" maxLength={254} placeholder="careers@company.ae" value={draftForm.email} onChange={e => setDraftForm({ ...draftForm, email: e.target.value })} required/>
-                </label>
-                <label>
-                  Careers page (optional)
-                  <input type="url" pattern="https://.*" maxLength={500} placeholder="https://company.ae/careers" value={draftForm.portal} onChange={e => setDraftForm({ ...draftForm, portal: e.target.value })}/>
-                </label>
-              </div>
-              <label>
-                Role description & direct application instructions
-                <textarea
-                  rows={5}
-                  minLength={20}
-                  maxLength={1600}
-                  placeholder="Describe the opportunity. Provide direct employer email or website portal. Note: Auto-block stops any mention of fees, visa charges, or deposits."
-                  value={draftForm.description}
-                  onChange={e => setDraftForm({ ...draftForm, description: e.target.value })}
-                  required
-                />
-              </label>
-
-              <div className="law-notice">
-                <Clock3 size={15}/> <strong>30-Day Freshness Guarantee:</strong> Approved posts expire automatically after 30 days so seekers never see dead or obsolete vacancies.
-              </div>
-
-              <button className="primary-button" type="submit" disabled={draftScan.blocked.length > 0}>
-                <FilePenLine size={17}/> Save post for moderator HR verification
-              </button>
-            </form>
           </div>
           </>}
         </div>}
 
         {page === 'drafts' && <>
           <PageHeading
-            eyebrow="Employer workspace"
-            title="My posted opportunities"
-            desc="Track the moderation and verification status of your company listings."
+            eyebrow="For employers"
+            title="My posts"
+            desc="Each post goes live once your church has vouched for you and a moderator has checked it with the employer."
             action={<button className="primary-button" onClick={() => go('post')}><Plus size={17}/> New post</button>}
           />
           {supabase && !session ? (
@@ -1153,28 +1244,17 @@ export default function App() {
               {myPosts.map(d => (
                 <div className="draft-card" key={d.id}>
                   <div>
-                    <Pill type="subtle">{JOB_STATUS[d.status] || d.status}</Pill>
-                    <span className="tag-badge expiry">{d.status === 'published' ? `Expires in ${d.daysLeft} days` : 'Expires 30 days after approval'}</span>
                     <h3>{d.title}</h3>
                     <p>{d.company} · {d.emirate} · {d.type} · {d.mode}</p>
                     <small>{d.salary} / month</small>
                     <div className="draft-desc">{d.description}</div>
-                    <div className="audit-line">
-                      <CheckCircle2 size={14}/>
-                      Passed fee and payment-scam check
-                    </div>
                     {d.status === 'published' && (
                       <div className="audit-line">
                         <Heart size={14}/>
                         {interestCount(d)} {interestCount(d) === 1 ? 'person' : 'people'} interested · names are never shared
                       </div>
                     )}
-                    {d.status === 'pending' && (
-                      <div className="audit-line waiting">
-                        <Clock3 size={14}/>
-                        {myVouch?.status === 'vouched' ? 'Waiting for moderator HR verification' : 'Waiting for your church vouch, then moderator HR verification'}
-                      </div>
-                    )}
+                    <PostTracker vouch={myVouch?.status} status={d.status} daysLeft={d.daysLeft}/>
                   </div>
                   <button className="secondary-button" onClick={() => setRemoving(d)}>
                     Remove post
@@ -1182,7 +1262,7 @@ export default function App() {
                 </div>
               ))}
             </div>
-          ) : <Empty icon={FileText} title="No posts yet" description="Post an opportunity to see how employer verification and the 30-day lifecycle works."/>}
+          ) : <Empty icon={FileText} title="No posts yet" description="Post a job in a few short steps. It's free, always." action={<button type="button" className="primary-button" onClick={() => go('post')}><Plus size={16}/> Post a job</button>}/>}
         </>}
 
         {page === 'review' && <>
@@ -2149,6 +2229,26 @@ function QueueCard({ avatar, title, status, tone, sub, note, footNote, children 
         <div className="queue-actions">{children}</div>
       </footer>
     </article>
+  )
+}
+
+// Where a post is on its way to going live: church vouch, then the HR check, then 30 days on the board
+function PostTracker({ vouch, status, daysLeft }) {
+  const live = status === 'published' && daysLeft > 0
+  const steps = [
+    { label: 'Church vouch', state: vouch === 'vouched' ? 'done' : vouch === 'declined' ? 'bad' : 'current', note: vouch === 'vouched' ? 'Confirmed' : vouch === 'declined' ? 'Declined, ask again' : vouch === 'pending' ? 'Waiting for your church' : 'Not requested yet' },
+    { label: 'HR check', state: status === 'published' ? 'done' : status === 'rejected' ? 'bad' : vouch === 'vouched' && status === 'pending' ? 'current' : '', note: status === 'published' ? 'Checked with the employer' : status === 'rejected' ? 'Not approved' : status === 'draft' ? 'After you submit' : 'A moderator calls the employer' },
+    { label: 'Live', state: live ? 'done' : status === 'published' ? 'bad' : '', note: live ? `${daysLeft} days left` : status === 'published' ? 'Ended after 30 days' : 'For 30 days' }
+  ]
+  return (
+    <ol className="post-tracker" aria-label="Post progress">
+      {steps.map((st, i) => (
+        <li key={st.label} className={st.state}>
+          <b>{st.state === 'done' ? <Check size={13}/> : st.state === 'bad' ? <X size={13}/> : i + 1}</b>
+          <span><strong>{st.label}</strong><small>{st.note}</small></span>
+        </li>
+      ))}
+    </ol>
   )
 }
 
