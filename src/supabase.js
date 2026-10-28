@@ -1,10 +1,15 @@
 import { createClient } from '@supabase/supabase-js'
 
-const url = import.meta.env.VITE_SUPABASE_URL
-const key = import.meta.env.VITE_SUPABASE_ANON_KEY
+// Tolerate a value pasted as a whole .env line (NAME=value), or wrapped in quotes or spaces
+const clean = value => (value || '').trim().replace(/^[A-Z0-9_]+=/, '').replace(/^(["'])(.*)\1$/, '$2').trim()
+const url = clean(import.meta.env.VITE_SUPABASE_URL)
+const key = clean(import.meta.env.VITE_SUPABASE_ANON_KEY)
+
+// Set but unusable settings are a deployment problem: show it plainly instead of a blank page or the demo
+export const configError = url && key && !/^https?:\/\/[^\s/]+\/?$/.test(url) ? 'VITE_SUPABASE_URL is not a valid web address' : null
 
 // Without env vars the app runs as the local-only demo (sample data + localStorage)
-export const supabase = url && key ? createClient(url, key) : null
+export const supabase = url && key && !configError ? createClient(url, key) : null
 
 const DAY = 86400000
 const HUES = ['sage', 'sand', 'blue', 'rose']
