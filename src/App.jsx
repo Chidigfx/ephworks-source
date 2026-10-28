@@ -1040,7 +1040,6 @@ export default function App() {
                     interested={interestedIds.includes(job.id)}
                     onInterest={() => toggleInterest(job.id)}
                     onLearn={() => go('jobReview')}
-                  onLearn={() => go('jobReview')}
                   />
                 ))}
               </div>
