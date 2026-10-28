@@ -8,14 +8,15 @@ import {
   Clock3, Mail, Building2, Eye, Send, Info, AlertTriangle, ShieldAlert,
   Calendar, CheckCheck, Scale, Lock, UserRound, Heart, Ban
 } from 'lucide-react'
-import { NAV, SAMPLE_JOBS, SAMPLE_VOLUNTEER, CAREER_SUPPORT_MODULES, TRUST_PILLARS, SAMPLE_VOUCH_REQUESTS, SAMPLE_CHURCHES, SAMPLE_MEMBERS, SAMPLE_APPLICATIONS, SAMPLE_CHURCH_SUGGESTIONS } from './data'
+import { NAV, SAMPLE_JOBS, SAMPLE_VOLUNTEER, CAREER_SUPPORT_MODULES, TRUST_PILLARS, SAMPLE_VOUCH_REQUESTS, SAMPLE_CHURCHES, SAMPLE_MEMBERS, SAMPLE_APPLICATIONS, SAMPLE_CHURCH_SUGGESTIONS, SITE_NAME, CONTACT_EMAIL } from './data'
+import { INFO_PAGES, INFO_GROUPS, FOOTER } from './content'
 import { supabase, api, toJob } from './supabase'
 import { scanPost } from './scam'
 
 const icons = {
   briefcase: BriefcaseBusiness, bookmark: Bookmark, sparkles: LifeBuoy,
   heart: HeartHandshake, users: UsersRound, shield: ShieldCheck,
-  plus: Plus, file: FileText, check: ClipboardCheck, flag: Flag, badge: BadgeCheck, home: Home
+  plus: Plus, file: FileText, check: ClipboardCheck, flag: Flag, badge: BadgeCheck, home: Home, help: CircleHelp
 }
 // Demo-only persona switcher (no backend). With Supabase the menu comes from the signed-in account's role.
 const PERSONAS = { member: 'Member', moderator: 'Moderator', church_admin: 'Church admin', super_admin: 'Admin' }
@@ -73,6 +74,15 @@ const POST_STEPS = [
 const aed = n => `AED ${Number(n).toLocaleString('en-US')}`
 const salaryText = ({ payFrom, payTo }) => payFrom ? (payTo && Number(payTo) !== Number(payFrom) ? `${aed(payFrom)} – ${Number(payTo).toLocaleString('en-US')}` : aed(payFrom)) : ''
 
+// Every page has its own address, so links can be shared and the back button works
+const PATHS = {
+  home: '/', opportunities: '/jobs', interests: '/saved', post: '/post', drafts: '/my-posts', career: '/career-support',
+  apply: '/get-involved', profile: '/profile', review: '/work/review', reports: '/work/reports', applications: '/work/applications',
+  people: '/work/people', churchRequests: '/work/churches', vouch: '/work/vouches', invite: '/work/invite', privacyAudit: '/work/privacy',
+  ...Object.fromEntries(INFO_PAGES.map(p => [p.id, p.path]))
+}
+const pageFor = path => Object.keys(PATHS).find(id => PATHS[id] === (path.replace(/\/+$/, '') || '/')) || 'home'
+
 function getSavedDraft() {
   try { return { ...EMPTY_DRAFT, ...JSON.parse(window.localStorage.getItem(DRAFT_KEY)) } } catch { return EMPTY_DRAFT }
 }
@@ -129,7 +139,8 @@ function Warning({ children, tone = '' }) { return <div className={`notice ${ton
 
 export default function App() {
   const [demo, setDemo] = useState(getSavedDemo)
-  const [page, setPage] = useState('home')
+  const [page, setPage] = useState(() => pageFor(window.location.pathname))
+  const replaceUrl = useRef(false) // automatic redirects replace the address instead of adding a back-button step
   const [selectedJob, setSelectedJob] = useState(null)
   const [showMobileMore, setShowMobileMore] = useState(false)
   const [search, setSearch] = useState('')
@@ -137,8 +148,8 @@ export default function App() {
   const [workType, setWorkType] = useState('Any work type')
   const [tab, setTab] = useState('all')
   const [banner, setBanner] = useState(null)
-  const [showAbout, setShowAbout] = useState(false)
   const [showReset, setShowReset] = useState(false)
+  const [footerOpen, setFooterOpen] = useState(null) // which footer column is expanded on phones
   const [removing, setRemoving] = useState(null) // post waiting for a remove confirmation
   const [showReport, setShowReport] = useState(false)
   const [showSupportModal, setShowSupportModal] = useState(false)
@@ -289,15 +300,30 @@ export default function App() {
   useEffect(() => {
     if (!supabase || !uid || !waitingFor || landed.current === uid) return
     landed.current = uid
-    if (page === 'home') setPage(waitingFor)
+    if (page === 'home') { replaceUrl.current = true; setPage(waitingFor) }
   }, [uid, waitingFor])
 
   useEffect(() => { document.querySelector('.work-tabs .active')?.scrollIntoView({ block: 'nearest', inline: 'center' }) }, [page])
 
+  // Keep the address bar and tab title in step with the page; back and forward move between pages
+  const infoPage = INFO_PAGES.find(p => p.id === page)
+  useEffect(() => {
+    const path = PATHS[page] || '/'
+    if (window.location.pathname !== path) window.history[replaceUrl.current ? 'replaceState' : 'pushState'](null, '', path)
+    replaceUrl.current = false
+    const label = infoPage?.title || [...NAV.member, ...NAV.menu, ...NAV.moderator, ...NAV.church, ...NAV.admin].find(n => n.id === page)?.label
+    document.title = page === 'home' || !label ? `${SITE_NAME} · Find work through people who know you` : `${label} · ${SITE_NAME}`
+  }, [page])
+  useEffect(() => {
+    const onPop = () => setPage(pageFor(window.location.pathname))
+    window.addEventListener('popstate', onPop)
+    return () => window.removeEventListener('popstate', onPop)
+  }, [])
+
   // Leave staff pages if the account loses access (e.g. after signing out)
   useEffect(() => {
     const allowed = { review: canModerate, reports: canModerate, vouch: isChurchAdmin, invite: isChurchAdmin, privacyAudit: isChurchAdmin, people: isAdmin, applications: isAdmin, churchRequests: isAdmin }[page]
-    if (allowed === false) setPage('home')
+    if (allowed === false) { replaceUrl.current = true; setPage('home') }
   }, [accountRole, page])
 
   // True (and opens sign-in) when a server action needs an account first
@@ -334,7 +360,7 @@ export default function App() {
   useEffect(() => {
     const onKey = e => {
       if (e.key === 'Escape') {
-        setSelectedJob(null); setShowMobileMore(false); setShowAbout(false);
+        setSelectedJob(null); setShowMobileMore(false);
         setShowReset(false); setShowReport(false); setShowSupportModal(false); setRemoving(null)
         setShowSignIn(false); setVerifying(null)
       }
@@ -344,10 +370,10 @@ export default function App() {
   }, [])
 
   useEffect(() => {
-    const modal = selectedJob || showMobileMore || showAbout || showReset || removing || showReport || showSupportModal || showSignIn || verifying
+    const modal = selectedJob || showMobileMore || showReset || removing || showReport || showSupportModal || showSignIn || verifying
     document.body.classList.toggle('modal-open', Boolean(modal))
     return () => document.body.classList.remove('modal-open')
-  }, [selectedJob, showMobileMore, showAbout, showReset, removing, showReport, showSupportModal, showSignIn, verifying])
+  }, [selectedJob, showMobileMore, showReset, removing, showReport, showSupportModal, showSignIn, verifying])
 
   const go = id => { setPage(id); setShowMobileMore(false); setBanner(null); window.scrollTo({ top: 0, behavior: 'smooth' }) }
   const setRole = next => {
@@ -687,6 +713,7 @@ export default function App() {
             onOpen={() => setSelectedJob(job)}
             interested={interestedIds.includes(job.id)}
             onInterest={() => toggleInterest(job.id)}
+            onLearn={() => go('jobReview')}
           />
         )) : board.length
           ? <Empty title="No verified roles match" description="Try a different keyword or change your filters." icon={Search}/>
@@ -725,9 +752,10 @@ export default function App() {
               {workCount > 0 && <span className="count">{workCount}</span>}
             </button>
           )}
-          {supabase && !session
-            ? <button type="button" className="primary-button" onClick={() => setShowSignIn(true)}>Sign in</button>
-            : null}
+          {supabase && !session && <>
+            <button type="button" className={`about-link ${infoPage?.group === 'about' ? 'active' : ''}`} onClick={() => go('about')}>About</button>
+            <button type="button" className="primary-button" onClick={() => setShowSignIn(true)}>Sign in</button>
+          </>}
           <button type="button" className="account-button" aria-label="Open menu" aria-haspopup="dialog" aria-expanded={showMobileMore} onClick={() => setShowMobileMore(true)}>
             <Avatar account={account}/><ChevronDown size={16} aria-hidden="true"/>
           </button>
@@ -741,7 +769,7 @@ export default function App() {
         <div className="pilot-strip">
           <span className="pilot-text"><b>Pilot.</b> You apply straight to the employer. We never store your CV.</span>
           <span className="pilot-actions">
-            <button type="button" onClick={() => setShowAbout(true)}>Legal notes</button>
+            <button type="button" onClick={() => go('privacy')}>Privacy</button>
             {!supabase && <button type="button" onClick={() => setShowReset(true)}>Reset demo</button>}
             {supabase && (session
               ? <button type="button" onClick={signOut}>Sign out</button>
@@ -960,6 +988,8 @@ export default function App() {
                     onOpen={() => setSelectedJob(job)}
                     interested={interestedIds.includes(job.id)}
                     onInterest={() => toggleInterest(job.id)}
+                    onLearn={() => go('jobReview')}
+                  onLearn={() => go('jobReview')}
                   />
                 ))}
               </div>
@@ -968,92 +998,6 @@ export default function App() {
             <Empty icon={Heart} title="Nothing saved yet" description="Tap I'm interested or the bookmark on any job and it shows up here."
               action={<button type="button" className="primary-button" onClick={() => go('opportunities')}>Browse jobs <ArrowRight size={16}/></button>}/>
           )}
-        </>}
-
-        {page === 'volunteering' && <>
-          <PageHeading
-            eyebrow="Community giving"
-            title="Small acts. Real community."
-            desc="Give your time to support job seekers, welcome newcomers, or assist with mock interviews."
-            action={<button className="primary-button" onClick={() => applyFor('volunteer')}><HandHeart size={16}/> Apply to volunteer</button>}
-          />
-          <div className="feature-grid">
-            {SAMPLE_VOLUNTEER.map(v => (
-              <div className="feature-card" key={v.title}>
-                <div className="feature-icon"><HandHeart size={22}/></div>
-                <h3>{v.title}</h3>
-                <p>{v.summary}</p>
-                <div className="volunteer-meta"><MapPin size={15}/>{v.location}</div>
-                <div className="volunteer-meta"><Clock3 size={15}/>{v.commitment}</div>
-                <Pill type="subtle">Community volunteer role</Pill>
-              </div>
-            ))}
-          </div>
-          <Warning>
-            Volunteer participation is community-run and non-profit. All volunteers complete orientation and safety checks.
-          </Warning>
-        </>}
-
-        {page === 'churches' && <>
-          <PageHeading
-            eyebrow="Pillar 1 · Verified people"
-            title="Church vouching, peer trust & UAE legal compliance"
-            desc="How our decentralized vouching circle creates trust without discrimination or sensitive data exposure."
-            action={
-              <button className="primary-button" onClick={() => supabase ? applyFor('church_admin') : setRole('church_admin')}>
-                <UsersRound size={16}/> {supabase ? 'Become a church admin' : 'Preview the church admin view'}
-              </button>
-            }
-          />
-          <div className="feature-grid">
-            <Feature
-              icon={UsersRound}
-              title="Verified People, Not Fake Agents"
-              desc="Every member is vouched by a recognized partner church, keeping predatory recruitment agents, ghost posters, and scammers out of our community circle."
-              list={[
-                'Peer trust replaces impersonal social media chaos',
-                'Zero scraper access: directory is fully private',
-                'Scammers and fee-charging middlemen are blocked'
-              ]}
-            />
-            <Feature
-              icon={Scale}
-              title="UAE Anti-Discrimination Law"
-              desc="Church vouching is used strictly to verify individual identity and honest character — NOT as a faith-based criterion for who can browse or work."
-              list={[
-                'No religious requirements in any job post',
-                'Open, non-discriminatory community noticeboard',
-                'In full accordance with Federal Decree-Law No. 2 of 2015'
-              ]}
-            />
-            <Feature
-              icon={Lock}
-              title="Data Minimization under UAE Data Law"
-              desc="Church affiliation is sensitive personal data under UAE Data Protection Law (Federal Decree-Law No. 45/2021). We collect minimal data."
-              list={[
-                'Only a binary vouch verification confirmation is stored',
-                'No denominational or religious tracking recorded',
-                'Zero member profiling or external data sharing'
-              ]}
-            />
-          </div>
-
-          <div className="plain-card">
-            <h3>How Church Vouching Works in Practice</h3>
-            <p className="card-lede">
-              When a new member registers, their local congregation administrator simply confirms: <em>"Yes, Jordan Morgan is known to our community."</em>
-              This simple human touchpoint completely eliminates the fake profiles, automated bots, and scam brokers that plague Facebook job groups.
-            </p>
-            <div className="card-actions">
-              <button className="secondary-button" onClick={() => supabase ? applyFor('church_admin') : setRole('church_admin')}>
-                <UsersRound size={15}/> {supabase ? 'Apply as your church’s admin' : 'Preview the church admin view'} <ArrowRight size={14}/>
-              </button>
-            </div>
-          </div>
-          <div className="spacer-24"/>
-          <Warning tone="strong">
-            Phase 1 Pilot notice: Ephworks is a community noticeboard. No recruitment matching or CV forwarding is performed. All real-world deployment requires ongoing UAE counsel review.
-          </Warning>
         </>}
 
         {page === 'post' && <div className="page-narrow">
@@ -1207,6 +1151,7 @@ export default function App() {
                   </dl>
                   {draftScan.flags.length > 0 && <Warning tone="strong">A moderator will check these with the employer before publishing: {draftScan.flags.join('; ')}.</Warning>}
                   <PostTracker vouch={myVouch?.status} status="draft"/>
+                  <p className="wizard-hint">By submitting, you agree to our <button type="button" className="link-button" onClick={() => go('standards')}>community standards</button>.</p>
                 </>}
 
                 {stepTried && stepProblem(step.key) && <p className="wizard-error" role="alert">{stepProblem(step.key)}</p>}
@@ -1330,6 +1275,15 @@ export default function App() {
             </div>
           ) : <Empty icon={Flag} title="No open safety reports" description="When a member flags a job with fees or misleading information, the safety team queue displays it here."/>}
         </>}
+
+        {infoPage && (
+          <InfoPage
+            page={infoPage}
+            onGo={go}
+            onAction={action => action === 'mail' ? window.location.assign(`mailto:${CONTACT_EMAIL}`) : action.startsWith('apply:') ? applyFor(action.slice(6)) : go(action)}
+            roles={SAMPLE_VOLUNTEER}
+          />
+        )}
 
         {page === 'apply' && <div className="page-narrow">
           <PageHeading
@@ -1479,46 +1433,6 @@ export default function App() {
               })}
             </div>
           ) : <Empty icon={BadgeCheck} title="No applications yet" description="When someone applies to volunteer or to be their church's admin, it appears here."/>}
-        </>}
-
-        {page === 'guidelines' && <>
-          <PageHeading
-            eyebrow="Legal & safety standards"
-            title="Ephworks Community & Legal Standards"
-            desc="Our policies ensure full adherence to UAE MOHRE recruitment laws, Anti-Discrimination statutes, and Data Protection standards."
-          />
-          <div className="feature-grid">
-            <Feature
-              icon={CheckCircle2}
-              title="Noticeboard vs Recruitment Agency"
-              desc="Even if free, forwarding CVs, shortlisting, or matching can be classified as recruitment under UAE MOHRE regulations. Ephworks is strictly a direct noticeboard in Phase 1."
-              list={[
-                'Job seekers apply direct to the employer',
-                'No candidate CVs stored or screened on platform',
-                'Matching deferred until MOHRE licensed partnership'
-              ]}
-            />
-            <Feature
-              icon={ShieldAlert}
-              title="Zero-Fee & Anti-Scam Rules"
-              desc="Charging job seekers any fee, visa cost, deposit, or application charge is illegal under UAE Labour Law. Automatic keyword filters enforce this."
-              list={[
-                'Instant auto-blocking of fee-related terms',
-                'Moderators verify legitimate employer payroll',
-                'Immediate blacklisting of fee-charging agents'
-              ]}
-            />
-            <Feature
-              icon={Clock3}
-              title="30-Day Freshness Guarantee"
-              desc="Dead postings and zombie ads waste job seekers' emotional energy. All opportunities auto-purge after 30 days."
-              list={[
-                '30-day maximum listing lifespan',
-                'Employers must re-verify if position reopens',
-                'Noticeboard stays 100% active and relevant'
-              ]}
-            />
-          </div>
         </>}
 
         {page === 'vouch' && <>
@@ -1758,7 +1672,7 @@ export default function App() {
 
               <p className="profile-privacy">
                 <LockKeyhole size={16} aria-hidden="true"/>
-                <span>We keep your name, email and a yes/no church vouch. Never your CV or your beliefs. <button type="button" onClick={() => go('churches')}>How trust works</button></span>
+                <span>We keep your name, email and a yes/no church vouch. Never your CV or your beliefs. <button type="button" onClick={() => go('privacySafety')}>Privacy & data</button></span>
               </p>
 
               {supabase
@@ -1768,12 +1682,20 @@ export default function App() {
           )}
         </div>}
 
-        <footer className="footer">
-          <span>Ephworks · Free for everyone, always · Verified People. Verified Jobs. Real Support.</span>
-          <nav className="footer-links" aria-label="About Ephworks">
-            {NAV.footer.map(n => <button key={n.id} type="button" onClick={() => go(n.id)}>{n.label}</button>)}
-            <button type="button" onClick={() => setShowAbout(true)}>Legal notes</button>
-          </nav>
+        <footer className="footer site-footer">
+          <div className="footer-cols">
+            {FOOTER.map(col => (
+              <div key={col.title} className={`footer-col ${footerOpen === col.title ? 'open' : ''}`}>
+                <button type="button" className="footer-head" aria-expanded={footerOpen === col.title} onClick={() => setFooterOpen(footerOpen === col.title ? null : col.title)}>
+                  {col.title}<ChevronDown size={16} aria-hidden="true"/>
+                </button>
+                <ul>
+                  {col.ids.map(id => <li key={id}><button type="button" onClick={() => go(id)}>{INFO_PAGES.find(p => p.id === id).tab}</button></li>)}
+                </ul>
+              </div>
+            ))}
+          </div>
+          <p className="footer-bottom">© 2026 {SITE_NAME} · Free for everyone, always</p>
         </footer>
       </main>
     </div>
@@ -1831,7 +1753,7 @@ export default function App() {
           )}
 
           <div className="sheet-links">
-            <button onClick={() => { setShowMobileMore(false); setShowAbout(true) }}><CircleHelp size={18} aria-hidden="true"/> About Ephworks & legal notes</button>
+            <button onClick={() => go('about')}><Info size={18} aria-hidden="true"/> About {SITE_NAME}</button>
             <button onClick={() => { setShowMobileMore(false); setShowReset(true) }}><RotateCcw size={18} aria-hidden="true"/> Reset demo</button>
             {supabase && <button onClick={() => { setShowMobileMore(false); session ? signOut() : setShowSignIn(true) }}>
               <KeyRound size={18} aria-hidden="true"/> {session ? `Sign out (${session.user.email})` : 'Sign in'}
@@ -1935,6 +1857,7 @@ export default function App() {
                 <Bookmark size={16} fill={demo.saved.includes(selectedJob.id) ? 'currentColor' : 'none'}/>
                 {demo.saved.includes(selectedJob.id) ? 'Saved' : 'Save role'}
               </button>
+              <button className="link-button" onClick={() => { setSelectedJob(null); go('jobScams') }}>How to spot a job scam</button>
               <button className="danger-link" onClick={() => setShowReport(true)}>
                 <Flag size={16}/> Report to Safety Team
               </button>
@@ -1993,33 +1916,6 @@ export default function App() {
     )}
 
     {/* About / Architecture & Roadmap Modal */}
-    {showAbout && (
-      <Modal onClose={() => setShowAbout(false)} title="About Ephworks & Team Direction">
-        <div className="about-mark"><img src="/logo.svg" alt="Ephworks logo"/><span>Ephworks</span></div>
-        <p><strong>The Trusted Circle vs. Social Media Job Groups:</strong></p>
-        <p>
-          Unlike unmoderated Facebook groups where fake recruiting agents prey on vulnerable job seekers, Ephworks is built around 3 core pillars:
-        </p>
-        <ol className="about-list">
-          <li><strong>Verified People:</strong> Every member is vouched by their local church community, keeping fake agents and scrapers out. Church vouching verifies identity, not religion (strictly compliant with UAE Anti-Discrimination & Data Protection laws).</li>
-          <li><strong>Verified Jobs:</strong> Moderators verify directly with employer HR before going live. Instant auto-block removes posts asking for fees, deposits, or visa charges. 30-day auto-purge keeps listings fresh.</li>
-          <li><strong>Real Support:</strong> Volunteer CV review, mock interviews, and LinkedIn assistance ensure people are actually job-ready.</li>
-        </ol>
-
-        <div className="authorization warn">
-          <h4><Scale size={16}/> Legal Strategy: Phase 1 Noticeboard vs. Phase 2 Matching</h4>
-          <p>
-            Even if an app is free, connecting job seekers to employers (storing CVs, shortlisting, recruitment matching) can be classified as recruitment activity under UAE MOHRE regulations.
-            Therefore, <strong>Phase 1 is strictly a verified direct noticeboard</strong> (candidates apply direct to employer, no CVs stored).
-            Phase 2 CV sharing and matching will be added once formal legal counsel review is completed or in partnership with a MOHRE-licensed agency.
-          </p>
-        </div>
-
-        <button className="primary-button full" onClick={() => setShowAbout(false)}>
-          Understood
-        </button>
-      </Modal>
-    )}
 
     {/* Reset Demo Modal */}
     {showReset && (
@@ -2114,19 +2010,21 @@ function Brand({ compact = false }) {
     <div className={`brand ${compact ? 'compact' : ''}`}>
       <img src="/logo.svg" alt=""/>
       <div>
-        <strong>Ephworks</strong>
+        <strong>{SITE_NAME}</strong>
         {!compact && <span>VERIFIED PEOPLE · VERIFIED JOBS · REAL SUPPORT</span>}
       </div>
     </div>
   )
 }
 
-function JobCard({ job, saved, tracked, interested, onSave, onOpen, onInterest }) {
+function JobCard({ job, saved, tracked, interested, onSave, onOpen, onInterest, onLearn }) {
   const life = Math.max(4, Math.min(100, Math.round((job.daysLeft / 30) * 100)))
   return (
     <article className="jc">
       <div className="jc-top">
-        <span className="jc-check"><BadgeCheck size={15}/> Checked with employer</span>
+        {onLearn
+          ? <button type="button" className="jc-check" title="How we review jobs" onClick={onLearn}><BadgeCheck size={15}/> Checked with employer</button>
+          : <span className="jc-check"><BadgeCheck size={15}/> Checked with employer</span>}
         {tracked && <span className="jc-applied"><CheckCheck size={13}/> Applied</span>}
         <button
           className={`jc-save ${saved ? 'is-saved' : ''}`}
@@ -2229,6 +2127,35 @@ function QueueCard({ avatar, title, status, tone, sub, note, footNote, children 
         <div className="queue-actions">{children}</div>
       </footer>
     </article>
+  )
+}
+
+// About, Safety & Trust, Help and Legal pages, drawn from content.js. Pages in a group share a tab row.
+function InfoPage({ page, onGo, onAction, roles }) {
+  const siblings = INFO_PAGES.filter(p => p.group === page.group)
+  return (
+    <div className="info-page">
+      <PageHeading eyebrow={INFO_GROUPS[page.group]} title={page.title} desc={page.lede}/>
+      {siblings.length > 1 && (
+        <nav className="tab-list work-tabs info-tabs" aria-label={INFO_GROUPS[page.group]}>
+          {siblings.map(p => <button key={p.id} type="button" className={p.id === page.id ? 'active' : ''} aria-current={p.id === page.id ? 'page' : undefined} onClick={() => onGo(p.id)}>{p.tab}</button>)}
+        </nav>
+      )}
+      <div className="info-body">
+        {page.blocks.map((b, i) => (
+          b.p ? <p key={i}>{b.p}</p>
+          : b.h ? <h2 key={i}>{b.h}</h2>
+          : b.note ? <Warning key={i} tone={b.tone || ''}>{b.note}</Warning>
+          : b.list ? <ul key={i} className={`info-list ${b.tone || ''}`}>{b.list.map(x => <li key={x}>{b.tone === 'warn' ? <AlertTriangle size={16} aria-hidden="true"/> : <Check size={16} aria-hidden="true"/>}{x}</li>)}</ul>
+          : b.steps ? <ol key={i} className="info-steps">{b.steps.map(([t, d], n) => <li key={t}><b>{n + 1}</b><div><strong>{t}</strong><p>{d}</p></div></li>)}</ol>
+          : b.cards ? <div key={i} className="info-cards">{b.cards.map(([t, d]) => <div key={t} className="plain-card"><h3>{t}</h3><p>{d}</p></div>)}</div>
+          : b.faq ? <div key={i} className="info-faq">{b.faq.map(([q, a]) => <details key={q}><summary>{q}<ChevronDown size={18} aria-hidden="true"/></summary><p>{a}</p></details>)}</div>
+          : b.roles ? <div key={i} className="info-cards">{roles.map(v => <div key={v.title} className="plain-card"><h3>{v.title}</h3><p>{v.summary}</p><small><MapPin size={14}/> {v.location} · <Clock3 size={14}/> {v.commitment}</small></div>)}</div>
+          : b.cta ? <div key={i} className="info-cta">{b.cta.map(([label, action], n) => <button key={label} type="button" className={n === 0 ? 'primary-button' : 'secondary-button'} onClick={() => onAction(action)}>{label}{n === 0 && <ArrowRight size={16}/>}</button>)}</div>
+          : null
+        ))}
+      </div>
+    </div>
   )
 }
 

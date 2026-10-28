@@ -1,3 +1,7 @@
+// One place for the name and contact address, so they are easy to change once confirmed
+export const SITE_NAME = 'Ephworks'
+export const CONTACT_EMAIL = 'hello@ephworks.example' // placeholder: replace with the real inbox before launch
+
 // Every company, person, job, and remuneration figure below is fictional demo data.
 export const SAMPLE_JOBS = [
   {
@@ -259,15 +263,10 @@ export const NAV = {
   // Account menu (opens from the avatar)
   menu: [
     { id: 'drafts', label: 'My posts', icon: 'file' },
-    { id: 'career', label: 'Get help', icon: 'sparkles' },
+    { id: 'career', label: 'Career support', icon: 'sparkles' },
     { id: 'apply', label: 'Get involved', icon: 'heart' },
-    { id: 'profile', label: 'Profile & privacy', icon: 'shield' }
-  ],
-  // Reference pages, linked from the footer
-  footer: [
-    { id: 'churches', label: 'How trust works' },
-    { id: 'guidelines', label: 'Posting rules' },
-    { id: 'volunteering', label: 'Volunteer roles' }
+    { id: 'profile', label: 'Profile & privacy', icon: 'shield' },
+    { id: 'faq', label: 'Help & FAQs', icon: 'help' }
   ],
   moderator: [
     { id: 'review', label: 'Review', icon: 'check' },

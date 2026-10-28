@@ -8,6 +8,9 @@ This is a **reconstruction** of the October 2026 Ephworks #HACK prototype based 
 
 - React 18 + Vite frontend, with all editable source in `src/`
 - Responsive top bar on desktop, bottom navigation with a menu sheet on phones
+- **About, Safety & Trust, Help and Legal pages** (`src/content.js`): our story, mission, how it works, community, partners; how we review jobs, recognising scams, reporting, privacy, community standards; FAQs and contact; pilot privacy policy and terms (to be legally reviewed before launch). Linked from a four-column footer and from where they help (job badge, job details, post preview, profile)
+- **Every page has its own address** (e.g. `/jobs`, `/about/mission`, `/safety/job-scams`); back and forward work. `vercel.json` sends all paths to the app so direct links work once deployed
+- The site name and contact email live in one place (`SITE_NAME`, `CONTACT_EMAIL` in `src/data.js`); the email is a placeholder to replace before launch
 - **Simple navigation**: a slim top bar with Jobs, Saved and Post a job; everything else (My posts, Get help, Get involved, Profile) sits in the avatar menu, and reference pages are in the footer. Staff get one **Your work** button with a count, and tabs across their queues. Staff open on the queue that needs them
 - **Home and Jobs**: Home is the welcome page with the full job feed under the headline and search, then why Ephworks and free support; Jobs is the same feed on its own (search, filters, results). On phones, Home shrinks to the promise, headline and search, and longer intros are hidden
 - Demo views (Member, Moderator, Church admin, Admin) only when no backend is connected
