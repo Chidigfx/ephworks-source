@@ -11,7 +11,10 @@ This is a **reconstruction** of the October 2026 Ephworks #HACK prototype based 
 - **About, Safety & Trust, Help and Legal pages** (`src/content.js`): our story, mission, how it works, community, partners; how we review jobs, recognising scams, reporting, privacy, community standards; FAQs and contact; pilot privacy policy and terms (to be legally reviewed before launch). Linked from a four-column footer and from where they help (job badge, job details, post preview, profile)
 - **Every page has its own address** (e.g. `/jobs`, `/about/mission`, `/safety/job-scams`); back and forward work. `vercel.json` sends all paths to the app so direct links work once deployed
 - The site name and contact email live in one place (`SITE_NAME`, `CONTACT_EMAIL` in `src/data.js`); the email is a placeholder to replace before launch
-- **Simple navigation**: a slim top bar with Jobs, Saved and Post a job; everything else (My posts, Get help, Get involved, Profile) sits in the avatar menu, and reference pages are in the footer. Staff get one **Your work** button with a count, and tabs across their queues. Staff open on the queue that needs them
+- **Employer dashboard** once your church has vouched for you: live posts, posts waiting for the HR check, people interested and posts ending this week
+- **Volunteer mentors**: members request a CV review, practice interview or LinkedIn help (agreeing a mentor may email them); mentors take a request from their **Volunteer** area, and only the mentor who took it sees the member's email
+- **Admins manage partner churches** (Admin → Churches): add, rename, and remove a church only while no one depends on it
+- **Simple navigation**: a slim top bar with Jobs, Saved and Post a job; everything else (My posts, Get help, Get involved, Profile) sits in the avatar menu, and reference pages are in the footer. Staff get a role-named button (**Admin**, **Moderation** or **Church admin**) with a count, opening a dashboard at `/work` that shows every queue waiting for them, with tabs across their queues. Staff open on the queue that needs them
 - **Home and Jobs**: Home is the welcome page with the full job feed under the headline and search, then why Ephworks and free support; Jobs is the same feed on its own (search, filters, results). On phones, Home shrinks to the promise, headline and search, and longer intros are hidden
 - Demo views (Member, Moderator, Church admin, Admin) only when no backend is connected
 - Five fictional sample UAE opportunities with search and filters
@@ -24,7 +27,7 @@ This is a **reconstruction** of the October 2026 Ephworks #HACK prototype based 
 - All seven emirates, and On-site / Hybrid / Remote alongside Full-time / Part-time
 - Reports and review controls
 - **Apply to help**: anyone signed in can apply to be a volunteer mentor or church admin; admins approve or decline. Moderators are invite-only (assigned on the People page)
-- **People dashboard** for admins: every account with name, email, role, church and post count; change roles or suspend an account
+- **People dashboard** for admins: every account with name, email, role, church and post count; change roles or suspend an account. The super admin is hidden from other admins
 - Career support, volunteering, church partners and privacy pages
 - A demo-reset option, visible safeguards and accessibility-minded controls
 
@@ -50,10 +53,10 @@ The `dist/` folder contains the compiled static website after building. To edit 
 
 Without env vars the app runs as the local-only demo. With them, jobs, employer posts, moderation and safety reports use Supabase; saved/tracked roles stay in the browser.
 
-1. Create a Supabase project, then run every file in `supabase/migrations/` in the SQL editor, oldest first (`20261026…` to `20261031…`). `20261028…` adds partner churches (three fictional *sample* churches; replace them before launch) and poster vouching; `20261029…` adds admin roles, role applications and suspension; `20261030…` adds I'm interested; `20261031…` adds church suggestions.
+1. Create a Supabase project, then run every file in `supabase/migrations/` in the SQL editor, oldest first (`20261026…` to `20261101…`). `20261028…` adds partner churches (three fictional *sample* churches; replace them before launch) and poster vouching; `20261029…` adds admin roles, role applications and suspension; `20261030…` adds I'm interested; `20261031…` adds church suggestions; `20261101…` adds career support requests for volunteer mentors and church management for admins.
 2. Copy `.env.example` to `.env.local` and fill in the project URL and anon key.
-3. Under Authentication → URL Configuration, add your dev and production URLs as redirect URLs (email sign-in links).
-4. Optional Google sign-in (sends no email, and shows the account photo): create an OAuth client in Google Cloud with redirect URI `https://<project-ref>.supabase.co/auth/v1/callback`, then enable Google under Authentication → Providers. The "Continue with Google" button appears automatically once the provider is on.
+3. Under Authentication → URL Configuration, set the Site URL to your live address and add your dev and production URLs as redirect URLs.
+4. Sign-in is Google only (no sign-in emails, so no email quota to run out). Create an OAuth client in Google Cloud with redirect URI `https://<project-ref>.supabase.co/auth/v1/callback`, then enable Google under Authentication → Providers. Also switch **off** the Email provider there, so nobody can request sign-in emails directly.
 5. Sign in to the app once, then make yourself the **super admin** in the SQL editor. This is the only role set by SQL, and there can only be one:
    `update public.profiles set role = 'super_admin' where id = (select id from auth.users where email = 'you@example.com');`
 6. Everyone else gets a role through the app. Volunteers and church admins apply on the **Apply to help** page, and an admin approves them under **Role applications**. Moderators are invite-only: an admin assigns the role on the **People** page. Only the super admin can appoint or remove admins. Nobody can change their own role, and the super admin can only be changed in the SQL editor.

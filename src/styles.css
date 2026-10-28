@@ -340,10 +340,6 @@ button:active:not(:disabled){transform:translateY(1px)}
 .audit-line{display:flex;align-items:center;gap:6px;margin-top:10px;font-size:13px;color:var(--success)}
 
 /* church */
-.passcode-container{margin:20px 0;padding:24px;text-align:center;background:var(--primary-50);border:1px dashed var(--primary-200);border-radius:var(--radius)}
-.passcode-label{display:block;font-size:13px;font-weight:600;color:var(--muted)}
-.passcode-code{display:inline-block;margin:12px 0;padding:12px 18px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);font:700 22px/1.2 ui-monospace,SFMono-Regular,Consolas,monospace;letter-spacing:2px;color:var(--fg)}
-.passcode-actions{display:flex;gap:10px;justify-content:center;margin-top:8px}
 .info-pair{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:20px}
 .info-tile{padding:16px;background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius-sm)}
 .info-tile strong{display:flex;align-items:center;gap:6px;font-size:14px;color:var(--fg)}
@@ -628,8 +624,6 @@ body{background:radial-gradient(60vw 50vw at 0% 0%,#bae6fd 0,transparent 60%),ra
 .avatar{overflow:hidden}
 .avatar img{width:100%;height:100%;object-fit:cover}
 .google-button{gap:10px}
-.sign-in-divider{display:flex;align-items:center;gap:12px;margin:16px 0 4px;color:var(--fg-2);font-size:13px}
-.sign-in-divider::before,.sign-in-divider::after{content:"";flex:1;height:1px;background:var(--border)}
 
 /* Free promise in the hero */
 .hero-chips{display:flex;flex-wrap:wrap;gap:10px}
@@ -1004,3 +998,39 @@ button.jc-check{cursor:pointer;text-decoration:underline dotted;text-underline-o
   .info-doc{padding:20px}
   .footer-gap{flex-basis:40px}
 }
+
+/* Staff area: a role-named button and an overview of every queue */
+.work-button{background:linear-gradient(135deg,var(--primary),#0c4a6e);border-color:transparent;color:#fff}
+.work-button:hover,.work-button.active{border-color:transparent;color:#fff;box-shadow:0 8px 20px -10px rgba(3,105,161,.7)}
+.work-button .count{background:#fff;color:var(--primary)}
+.sheet-account .status-chip{margin-top:6px}
+.dash-tile{display:flex;flex-direction:column;align-items:flex-start;gap:4px;text-align:left;cursor:pointer;transition:transform var(--ease),border-color var(--ease)}
+.dash-tile:hover{transform:translateY(-2px);border-color:var(--primary-200)}
+.dash-tile .feature-icon{margin:0 0 10px}
+.dash-tile b{font:700 34px/1 var(--heading);color:var(--fg)}
+.dash-tile strong{font-size:16px;color:var(--fg)}
+.dash-tile small{font-size:13px;color:var(--muted)}
+.dash-tile.waiting{border-color:var(--warn-200);background:linear-gradient(180deg,var(--warn-50),var(--surface) 60%)}
+.dash-tile.waiting b{color:var(--warn-text)}
+.dash-open{display:inline-flex;align-items:center;gap:6px;margin-top:12px;font-size:14px;font-weight:600;color:var(--primary)}
+@media(max-width:760px){
+  .dash-tiles.info-cards{grid-template-columns:1fr 1fr;gap:10px}
+  .dash-tile{padding:14px}
+  .dash-tile .feature-icon{width:36px;height:36px;margin-bottom:6px}
+  .dash-tile b{font-size:26px}
+  .dash-tile strong{font-size:14px;line-height:1.3}
+  .dash-tile small{font-size:12px}
+  .dash-open{margin-top:8px;font-size:13px}
+}
+
+/* Employer button sits beside the staff one, outlined so the two read differently */
+.employer-button{background:var(--surface);border:1px solid var(--primary-200);color:var(--primary)}
+.employer-button:hover,.employer-button.active{background:var(--primary-50);color:var(--primary);box-shadow:none}
+.dash-tile.static{cursor:default}
+.dash-tile.static:hover{transform:none}
+/* Admin church management */
+.add-church{display:grid;grid-template-columns:minmax(0,1fr) 200px auto;gap:10px;align-items:center;margin-bottom:12px;padding:14px}
+.add-church input,.add-church select{min-height:44px;padding:0 12px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface);font-size:15px;color:var(--fg)}
+@media(max-width:760px){.add-church{grid-template-columns:1fr}}
+.dash-tiles{margin-bottom:28px}
+.sign-in-note{margin:14px 0 0;font-size:13px;color:var(--muted)}

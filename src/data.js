@@ -268,14 +268,17 @@ export const NAV = {
     { id: 'profile', label: 'Profile & privacy', icon: 'shield' },
     { id: 'faq', label: 'Help & FAQs', icon: 'help' }
   ],
+  // First tab for every staff role: the overview of everything waiting
+  dashboard: { id: 'dashboard', label: 'Overview', icon: 'grid' },
   moderator: [
     { id: 'review', label: 'Review', icon: 'check' },
     { id: 'reports', label: 'Reports', icon: 'flag' }
   ],
   church: [
-    { id: 'vouch', label: 'Vouches', icon: 'users' },
-    { id: 'invite', label: 'Invite pass', icon: 'sparkles' },
-    { id: 'privacyAudit', label: 'Privacy', icon: 'shield' }
+    { id: 'vouch', label: 'Vouches', icon: 'users' }
+  ],
+  volunteer: [
+    { id: 'mentoring', label: 'Session requests', icon: 'hand' }
   ],
   admin: [
     { id: 'applications', label: 'Applications', icon: 'badge' },
@@ -305,4 +308,10 @@ export const SAMPLE_APPLICATIONS = [
 // Same shape as church_suggestions rows
 export const SAMPLE_CHURCH_SUGGESTIONS = [
   { id: 'sug-01', suggested_by: 'member-david', name: 'Bethel Fellowship Fujairah', emirate: 'Fujairah', status: 'pending', church_id: null, created_at: '2026-10-26T10:00:00Z' }
+]
+
+// Same shape as support_requests rows; other members' requests for the Volunteer demo view
+export const SAMPLE_SUPPORT_REQUESTS = [
+  { id: 'support-01', member_id: 'member-priya', service: 'cv-review', display_name: 'Priya Nair', preferred_time: 'Weekday evening (after 6 pm)', note: 'Moving from retail into office administration.', may_email: true, status: 'open', volunteer_id: null, created_at: '2026-10-26T18:00:00Z' },
+  { id: 'support-02', member_id: 'member-david', service: 'mock-interview', display_name: 'David Okafor', preferred_time: 'Saturday morning', note: 'Interview for an operations role next week.', may_email: true, status: 'open', volunteer_id: null, created_at: '2026-10-27T09:30:00Z' }
 ]

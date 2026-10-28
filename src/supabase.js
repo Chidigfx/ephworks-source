@@ -91,5 +91,17 @@ export const api = {
   markInterest: job_id => run(supabase.from('job_interest').insert({ job_id })),
   unmarkInterest: (job_id, uid) => changed(supabase.from('job_interest').delete().eq('job_id', job_id).eq('user_id', uid), 'Could not remove your interest.'),
   interestCounts: () => run(supabase.rpc('interest_counts')).then(rows => Object.fromEntries(rows.map(r => [r.job_id, Number(r.interested)]))),
+  // Career support: members ask, volunteer mentors take requests (email shown only to the mentor who took it)
+  supportRequests: () => run(supabase.from('support_requests').select('*').order('created_at', { ascending: false })),
+  requestSupport: row => run(supabase.from('support_requests').insert(row)),
+  cancelSupport: request => run(supabase.rpc('cancel_support_request', { request })),
+  volunteerRequests: () => run(supabase.rpc('volunteer_requests')),
+  takeSupport: request => run(supabase.rpc('take_support_request', { request })),
+  finishSupport: (request, done) => run(supabase.rpc('finish_support_request', { request, done })),
+  // Church management (admins); the server refuses to remove a church anyone depends on
+  churchOverview: () => run(supabase.rpc('church_overview')),
+  addChurch: (church_name, church_emirate) => run(supabase.rpc('add_church', { church_name, church_emirate })),
+  updateChurch: (church, church_name, church_emirate) => run(supabase.rpc('update_church', { church, church_name, church_emirate })),
+  removeChurch: church => run(supabase.rpc('remove_church', { church })),
   resolveReport: id => changed(supabase.from('reports').update({ status: 'resolved' }).eq('id', id), 'Only moderators can resolve reports.')
 }
