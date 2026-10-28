@@ -1486,7 +1486,7 @@ export default function App() {
             title="Congregation Invite Passcode"
             desc="Provide a secure pass to church members. Keeps the trusted circle private and immune to web scrapers."
           />
-          <div className="plain-card narrow-card">
+          <div className="plain-card">
             <div className="cta-row">
               <div className="feature-icon"><KeyRound size={22}/></div>
               <div>
@@ -1682,6 +1682,7 @@ export default function App() {
           )}
         </div>}
 
+        <div className="footer-gap" aria-hidden="true"/>
         <footer className="footer site-footer">
           <div className="footer-cols">
             {FOOTER.map(col => (
@@ -2130,31 +2131,90 @@ function QueueCard({ avatar, title, status, tone, sub, note, footNote, children 
   )
 }
 
+// Icon names used in content.js
+const INFO_ICONS = {
+  heart: Heart, users: UsersRound, badge: BadgeCheck, support: LifeBuoy, lock: Lock, scale: Scale, search: Search,
+  briefcase: BriefcaseBusiness, church: HeartHandshake, hand: HandHeart, building: Building2, ban: Ban, alert: AlertTriangle,
+  clock: Clock3, flag: Flag, shield: ShieldCheck, mail: Mail, file: FileText, eye: Eye
+}
+
 // About, Safety & Trust, Help and Legal pages, drawn from content.js. Pages in a group share a tab row.
 function InfoPage({ page, onGo, onAction, roles }) {
   const siblings = INFO_PAGES.filter(p => p.group === page.group)
+  const icon = name => { const Icon = INFO_ICONS[name] || Info; return <span className="feature-icon"><Icon size={22} aria-hidden="true"/></span> }
+  const list = (items, tone) => <ul className={`info-list ${tone || ''}`}>{items.map(x => <li key={x}>{tone === 'warn' ? <AlertTriangle size={16} aria-hidden="true"/> : <Check size={16} aria-hidden="true"/>}{x}</li>)}</ul>
+  const steps = items => <ol className="info-steps">{items.map(([t, d], n) => <li key={t}><b>{n + 1}</b><div><strong>{t}</strong><p>{d}</p></div></li>)}</ol>
+  const block = (b, i) =>
+    b.p ? <p key={i} className="info-text">{b.p}</p>
+    : b.h ? <h2 key={i} className="info-h">{b.h}</h2>
+    : b.note ? <Warning key={i} tone={b.tone || ''}>{b.note}</Warning>
+    : b.list ? <div key={i}>{list(b.list, b.tone)}</div>
+    : b.steps ? <div key={i}>{steps(b.steps)}</div>
+    : b.cards ? (
+      <div key={i} className="info-cards" style={{ '--cols': Math.min(b.cards.length, 3) }}>
+        {b.cards.map(([t, d, ic, action]) => (
+          <div key={t} className="plain-card info-card">
+            {ic && icon(ic)}
+            <h3>{t}</h3>
+            <p>{d}</p>
+            {action && <button type="button" className="secondary-button" onClick={() => onAction(action[1])}>{action[0]} <ArrowRight size={15}/></button>}
+          </div>
+        ))}
+      </div>
+    )
+    : b.roles ? (
+      <div key={i} className="info-cards" style={{ '--cols': Math.min(roles.length, 3) }}>
+        {roles.map(v => (
+          <div key={v.title} className="plain-card info-card">
+            {icon('hand')}
+            <h3>{v.title}</h3>
+            <p>{v.summary}</p>
+            <small><MapPin size={14}/> {v.location} · <Clock3 size={14}/> {v.commitment}</small>
+          </div>
+        ))}
+      </div>
+    )
+    : b.stats ? <ul key={i} className="info-stats">{b.stats.map(([v, l]) => <li key={l}><b>{v}</b><span>{l}</span></li>)}</ul>
+    : b.split ? (
+      <div key={i} className="info-split">
+        <div className="info-split-text">
+          {b.split.paragraphs.map(t => <p key={t}>{t}</p>)}
+          {b.split.aside && <p className="info-aside"><Info size={16} aria-hidden="true"/>{b.split.aside}</p>}
+        </div>
+        <img src={b.split.image} alt={b.split.alt} loading="lazy" decoding="async"/>
+      </div>
+    )
+    : b.columns ? (
+      <div key={i} className="info-columns">
+        {b.columns.map(c => (
+          <section key={c.title} className={`plain-card info-column ${c.tone || ''}`}>
+            <header>{icon(c.icon)}<h2>{c.title}</h2></header>
+            {c.steps ? steps(c.steps) : list(c.list, c.tone)}
+          </section>
+        ))}
+      </div>
+    )
+    : b.faq ? <div key={i} className="info-faq">{b.faq.map(([q, a]) => <details key={q}><summary>{q}<ChevronDown size={18} aria-hidden="true"/></summary><p>{a}</p></details>)}</div>
+    : b.cta ? <div key={i} className="info-cta">{b.cta.map(([label, action], n) => <button key={label} type="button" className={n === 0 ? 'primary-button' : 'secondary-button'} onClick={() => onAction(action)}>{label}{n === 0 && <ArrowRight size={16}/>}</button>)}</div>
+    : null
   return (
     <div className="info-page">
-      <PageHeading eyebrow={INFO_GROUPS[page.group]} title={page.title} desc={page.lede}/>
+      {page.hero ? (
+        <section className={`info-hero ${page.hero === 'plain' ? 'plain' : ''}`}>
+          {page.hero !== 'plain' && <img className="stage-bg" src={page.hero} alt="" decoding="async"/>}
+          <p className="glass-chip">{page.group === 'safety' && <ShieldCheck size={15} aria-hidden="true"/>}{INFO_GROUPS[page.group]}</p>
+          <h1>{page.title}</h1>
+          {page.lede && <p className="info-hero-lede">{page.lede}</p>}
+        </section>
+      ) : <PageHeading eyebrow={INFO_GROUPS[page.group]} title={page.title} desc={page.lede}/>}
       {siblings.length > 1 && (
         <nav className="tab-list work-tabs info-tabs" aria-label={INFO_GROUPS[page.group]}>
           {siblings.map(p => <button key={p.id} type="button" className={p.id === page.id ? 'active' : ''} aria-current={p.id === page.id ? 'page' : undefined} onClick={() => onGo(p.id)}>{p.tab}</button>)}
         </nav>
       )}
-      <div className="info-body">
-        {page.blocks.map((b, i) => (
-          b.p ? <p key={i}>{b.p}</p>
-          : b.h ? <h2 key={i}>{b.h}</h2>
-          : b.note ? <Warning key={i} tone={b.tone || ''}>{b.note}</Warning>
-          : b.list ? <ul key={i} className={`info-list ${b.tone || ''}`}>{b.list.map(x => <li key={x}>{b.tone === 'warn' ? <AlertTriangle size={16} aria-hidden="true"/> : <Check size={16} aria-hidden="true"/>}{x}</li>)}</ul>
-          : b.steps ? <ol key={i} className="info-steps">{b.steps.map(([t, d], n) => <li key={t}><b>{n + 1}</b><div><strong>{t}</strong><p>{d}</p></div></li>)}</ol>
-          : b.cards ? <div key={i} className="info-cards">{b.cards.map(([t, d]) => <div key={t} className="plain-card"><h3>{t}</h3><p>{d}</p></div>)}</div>
-          : b.faq ? <div key={i} className="info-faq">{b.faq.map(([q, a]) => <details key={q}><summary>{q}<ChevronDown size={18} aria-hidden="true"/></summary><p>{a}</p></details>)}</div>
-          : b.roles ? <div key={i} className="info-cards">{roles.map(v => <div key={v.title} className="plain-card"><h3>{v.title}</h3><p>{v.summary}</p><small><MapPin size={14}/> {v.location} · <Clock3 size={14}/> {v.commitment}</small></div>)}</div>
-          : b.cta ? <div key={i} className="info-cta">{b.cta.map(([label, action], n) => <button key={label} type="button" className={n === 0 ? 'primary-button' : 'secondary-button'} onClick={() => onAction(action)}>{label}{n === 0 && <ArrowRight size={16}/>}</button>)}</div>
-          : null
-        ))}
-      </div>
+      {page.doc
+        ? <article className="plain-card info-doc">{page.blocks.map(block)}</article>
+        : <div className="info-body">{page.blocks.map(block)}</div>}
     </div>
   )
 }
