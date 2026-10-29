@@ -1,8 +1,8 @@
-# Ephworks — Community opportunities prototype (recreated source)
+# Ephworks: a free job noticeboard for UAE church communities
 
 > **Free for everyone, always.** Job seekers never pay to browse, apply or get support, and employers never pay to post. Any post asking candidates for money is blocked.
 
-This is a **reconstruction** of the October 2026 Ephworks #HACK prototype based on the published app's visible content and recorded requirements. **It is not an export of the original project's editable source**, which was not available in the conversation.
+Built by team **Provision** for #HACK2026 Dubai. Ephworks is the app's working name. Every job is checked with the employer, every poster is vouched for by their church, and nobody is ever asked to pay. Live pilot: https://ephworks-source.vercel.app
 
 ## What is included
 

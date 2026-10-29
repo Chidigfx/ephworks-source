@@ -44,7 +44,6 @@ const REPORT_REASONS = [
   ['Potential discriminatory language', 'Potential discriminatory language'],
   ['Other trust & safety concern', 'Other trust & safety concern']
 ]
-const JOB_STATUS = { pending: 'Pending moderator company verification', published: 'Live · verified with HR', rejected: 'Not approved by moderator' }
 const VOUCH_STATUS = { pending: 'Awaiting church vouch', vouched: 'Vouched', declined: 'Declined' }
 const DEMO_ME = 'demo-me' // the demo persona's own vouch request id
 const NO_CHURCH = { id: '', name: '', emirate: '' } // a picked partner church (id) or a typed one to suggest (name + emirate)
@@ -493,8 +492,8 @@ export default function App() {
       setStepTried(false)
       go('drafts')
       notify(myVouch?.status === 'vouched'
-        ? 'Post submitted. A moderator will verify it with the employer’s HR before it goes live.'
-        : 'Post saved. It stays unpublished until your church vouches for you and a moderator verifies it with HR.')
+        ? 'Post submitted. A moderator will check it with the employer before it goes live.'
+        : 'Post saved. It goes live once your church vouches for you and a moderator has checked it with the employer.')
     }
     if (supabase) {
       if (needsSignIn()) return
@@ -627,7 +626,7 @@ export default function App() {
 
   const updateDraft = (id, patch) => updateDemo({ drafts: demo.drafts.map(d => d.id === id ? { ...d, ...patch } : d) })
 
-  // Publishing needs a vouched poster, no blocked terms, every scam flag checked with HR, and a verification note.
+  // Publishing needs a vouched poster, no blocked terms, every warning checked with the employer, and a verification note.
   // The server re-checks the vouch, the terms and the note; in the demo this is the only gate.
   const canPublish = ({ job, note, flagsChecked }) => {
     const scan = scanJob(job)
@@ -1079,7 +1078,7 @@ export default function App() {
                     <p>
                       {!myVouch ? 'Before anything you post can go live, your partner church confirms you are known to the community. Only a yes/no is stored, never belief or denomination data.'
                         : myVouch.status === 'pending' ? `Waiting for ${myVouch.church} to confirm you. You can still write posts; they stay unpublished until then. Picked the wrong church? Send the request again below.`
-                        : myVouch.status === 'vouched' ? `${myVouch.church} has vouched for you. Your posts go straight to moderator HR verification.`
+                        : myVouch.status === 'vouched' ? `${myVouch.church} has vouched for you. Your posts now go straight to a moderator, who checks them with the employer.`
                         : `${myVouch.church} could not confirm you. Check you chose the right church, add a note, and ask again.`}
                     </p>
                   </div>
@@ -1236,7 +1235,7 @@ export default function App() {
             <div className="info-cards dash-tiles" style={{ '--cols': 4 }}>
               {[
                 [CheckCircle2, 'Live posts', myPosts.filter(p => p.status === 'published' && p.daysLeft > 0).length, 'On the board now'],
-                [Clock3, 'Waiting for HR check', myPosts.filter(p => p.status === 'pending').length, 'A moderator calls you'],
+                [Clock3, 'Waiting for a check', myPosts.filter(p => p.status === 'pending').length, 'A moderator contacts you'],
                 [Heart, 'People interested', myPosts.reduce((sum, p) => sum + interestCount(p), 0), 'Counts only, never names'],
                 [AlertTriangle, 'Ending this week', myPosts.filter(p => p.status === 'published' && p.daysLeft > 0 && p.daysLeft <= 7).length, 'Post again if still open']
               ].map(([Icon, label, n, sub]) => (
@@ -1330,21 +1329,21 @@ export default function App() {
 
         {page === 'review' && <>
           <PageHeading
-            eyebrow="Moderator workspace"
-            title="Job verification queue"
-            desc="Moderators check every role directly with the hiring company before it goes live. Zero scam or fee posts permitted."
+            eyebrow="Moderation"
+            title="Review posts"
+            desc="Check each post with the employer before it goes live. Posts asking candidates for money are blocked before they reach you."
           />
           <div className="rp">
-            <div className="rp-head"><ShieldCheck size={16}/> Moderator verification protocol</div>
+            <div className="rp-head"><ShieldCheck size={16}/> Before a post goes live</div>
             <ol className="rp-steps rp-four">
               <li><b>1</b><span>Poster vouched by their church</span></li>
               <li><b>2</b><span>Fee and scam checks passed</span></li>
-              <li><b>3</b><span>Direct HR contact confirmed</span></li>
-              <li><b>4</b><span>30-day expiry timer started</span></li>
+              <li><b>3</b><span>Checked with the employer</span></li>
+              <li><b>4</b><span>Live for 30 days</span></li>
             </ol>
           </div>
 
-          {supabase && !session ? <Empty icon={KeyRound} title="Sign in to moderate" description="Sign in with a moderator account to see posts waiting for HR verification."/>
+          {supabase && !session ? <Empty icon={KeyRound} title="Sign in to moderate" description="Sign in with a moderator account to see posts waiting for review."/>
           : queue.length ? (
             <div className="review-list">
               {queue.map(j => (
@@ -1360,15 +1359,15 @@ export default function App() {
               ))}
             </div>
           ) : <Empty icon={ClipboardCheck} title="Queue is clear" description={supabase
-            ? "New employer posts appear here until a moderator verifies them with HR. Only moderator accounts see other employers' posts."
-            : 'Switch to the Employer view and post a sample job; it waits here for church vouching and HR verification.'}/>}
+            ? 'New posts appear here until a moderator has checked them with the employer.'
+            : 'Post a sample job as a Member; it waits here after the church vouch.'}/>}
         </>}
 
         {page === 'reports' && <>
           <PageHeading
-            eyebrow="Safety team"
-            title="Reports & Follow-up queue"
-            desc="Unlike unmoderated social media, our safety team actively follows up with reporters and employers on every flag."
+            eyebrow="Moderation"
+            title="Safety reports"
+            desc="Jobs members have reported. Follow up within 24 hours, then mark each one resolved."
           />
           {reportRows.length ? (
             <div className="job-list">
@@ -1391,7 +1390,7 @@ export default function App() {
                 )
               })}
             </div>
-          ) : <Empty icon={Flag} title="No open safety reports" description="When a member flags a job with fees or misleading information, the safety team queue displays it here."/>}
+          ) : <Empty icon={Flag} title="No open safety reports" description="When a member reports a job, it appears here."/>}
         </>}
 
         {infoPage && (
@@ -1406,8 +1405,8 @@ export default function App() {
         {page === 'apply' && <div className="page-narrow">
           <PageHeading
             eyebrow="Join the team"
-            title="Apply to help run Ephworks"
-            desc="Every role is free and unpaid. An admin checks each application, usually with a short call, before giving anyone extra access. Moderators are invited by the Ephworks team."
+            title={`Apply to help run ${SITE_NAME}`}
+            desc="Every role is free and unpaid. An admin checks each application, usually with a short call. Moderators are invited by the team."
           />
           {supabase && profile.suspended ? <Empty icon={Ban} title="Paused on your account" description="This is switched off while your account is suspended."/> : (
           <form className="form-panel booking-form apply-form" onSubmit={submitApplication}>
@@ -1462,7 +1461,7 @@ export default function App() {
           <PageHeading
             eyebrow="Admin"
             title="People"
-            desc="Everyone with an Ephworks account. Change roles, or suspend an account that breaks the rules. Only the super admin can appoint admins."
+            desc={`Everyone with an ${SITE_NAME} account. Change roles, or suspend an account that breaks the rules. Only the super admin can appoint admins.`}
           />
           <ul className="people-stats">
             {[
@@ -1562,15 +1561,15 @@ export default function App() {
 
         {page === 'vouch' && <>
           <PageHeading
-            eyebrow="Pillar 1 · Verified people"
-            title="Congregation Member Vouch Queue"
-            desc="Review and vouch for members from your local church community. Keeps out fake recruiter agents and scammers while ensuring data privacy."
+            eyebrow="Church admin"
+            title="Vouch requests"
+            desc="Members of your church asking you to confirm they are known to the community. Only vouch for people you know."
           />
           <div className="rp">
-            <div className="rp-head"><ShieldCheck size={16}/> Active church admin: {supabase ? adminChurch : SAMPLE_CHURCHES[0].name}</div>
+            <div className="rp-head"><ShieldCheck size={16}/> Your church: {supabase ? adminChurch : SAMPLE_CHURCHES[0].name}</div>
             <ol className="rp-steps rp-two">
-              <li><b><ShieldCheck size={13}/></b><span>Zero denomination data stored</span></li>
-              <li><b><ShieldCheck size={13}/></b><span>UAE Data Law compliant</span></li>
+              <li><b><ShieldCheck size={13}/></b><span>Only a yes or no is stored</span></li>
+              <li><b><ShieldCheck size={13}/></b><span>Never faith or denomination</span></li>
             </ol>
           </div>
 
@@ -1754,7 +1753,7 @@ export default function App() {
 
           <div className="drawer-body">
             <div className="badge-row">
-              <span className="tag-badge verified"><ShieldCheck size={13}/> Verified with Company HR</span>
+              <span className="tag-badge verified"><ShieldCheck size={13}/> Checked with the employer</span>
               <span className="tag-badge expiry"><Clock3 size={13}/> Expires in {selectedJob.daysLeft} days (30d purge)</span>
               <span className="tag-badge secure"><Scale size={13}/> Zero candidate fees guaranteed</span>
             </div>
@@ -1767,7 +1766,7 @@ export default function App() {
               <div><span>Monthly salary</span><strong>{selectedJob.salary}</strong></div>
               <div><span>Employment type</span><strong>{selectedJob.type} · {selectedJob.mode}</strong></div>
               <div><span>Working hours</span><strong>{selectedJob.hours}</strong></div>
-              <div><span>Verification status</span><strong>Confirmed with HR</strong></div>
+              <div><span>Verification status</span><strong>Checked with the employer</strong></div>
             </div>
 
             {/* Verification Proof Box */}
@@ -1960,13 +1959,13 @@ export default function App() {
           {scanJob(verifying.job).flags.length > 0 && (
             <label className="check-label">
               <input type="checkbox" checked={verifying.flagsChecked} onChange={e => setVerifying({ ...verifying, flagsChecked: e.target.checked })}/>
-              <span>I checked each flag above with {verifying.job.company}'s HR and the role is genuine.</span>
+              <span>I checked each warning above with {verifying.job.company} and the job is genuine.</span>
             </label>
           )}
-          <p>Record how you confirmed this role with {verifying.job.company}'s HR. Seekers see this note on the listing.</p>
+          <p>How did you confirm this job with {verifying.job.company}? Job seekers see this note on the listing.</p>
           <label>
             Verification record
-            <textarea rows={3} required maxLength={400} placeholder="e.g. Confirmed role, salary and zero candidate fees with HR manager by phone on 26 Oct." value={verifying.note} onChange={e => setVerifying({ ...verifying, note: e.target.value })}/>
+            <textarea rows={3} required maxLength={400} placeholder="e.g. Called their HR manager on 26 Oct: role, salary and no candidate fees confirmed." value={verifying.note} onChange={e => setVerifying({ ...verifying, note: e.target.value })}/>
           </label>
           <div className="modal-actions">
             <button type="button" className="secondary-button" onClick={() => setVerifying(null)}>Cancel</button>
@@ -2047,7 +2046,7 @@ function ReviewCard({ job, vouched, scan, onView, onReject, onConfirm }) {
   return (
     <article className={`rc ${scan.blocked.length ? 'bad' : vouched ? '' : 'pending'}`}>
       <div className="rc-top">
-        <span className="rc-status"><span className="rc-dot" aria-hidden="true"/> {scan.blocked.length ? 'Blocked by scam check' : vouched ? 'Ready for HR verification' : 'Waiting for church vouch'}</span>
+        <span className="rc-status"><span className="rc-dot" aria-hidden="true"/> {scan.blocked.length ? 'Blocked by scam check' : vouched ? 'Ready to check with the employer' : 'Waiting for church vouch'}</span>
         <span className="rc-life">Submitted {job.postedAgo}</span>
       </div>
 
@@ -2065,7 +2064,7 @@ function ReviewCard({ job, vouched, scan, onView, onReject, onConfirm }) {
         <div className="rc-actions">
           <button className="rc-btn" onClick={onView}>View details</button>
           <button className="rc-btn rc-flag" onClick={onReject}><X size={15}/> Reject</button>
-          <button className="rc-btn rc-confirm" disabled={!ready} title={ready ? undefined : 'Needs a church vouch and a clean scam check first'} onClick={onConfirm}><Check size={15}/> Confirm HR</button>
+          <button className="rc-btn rc-confirm" disabled={!ready} title={ready ? undefined : 'Needs a church vouch and a clean scam check first'} onClick={onConfirm}><Check size={15}/> Check & publish</button>
         </div>
       </div>
     </article>
@@ -2078,7 +2077,7 @@ function PublishChecks({ vouched, scan }) {
     <ul className="pub-checks">
       <li className={vouched ? 'ok' : 'wait'}>{vouched ? <BadgeCheck size={15}/> : <Clock3 size={15}/>} {vouched ? 'Poster vouched by their church' : 'Poster not vouched by a church yet'}</li>
       <li className={scan.blocked.length ? 'bad' : 'ok'}>{scan.blocked.length ? <ShieldAlert size={15}/> : <ShieldCheck size={15}/>} {scan.blocked.length ? `Blocked terms: ${scan.blocked.join(', ')}` : 'Fee and payment-scam check passed'}</li>
-      {scan.flags.map(f => <li key={f} className="wait"><AlertTriangle size={15}/> Check with HR: {f}</li>)}
+      {scan.flags.map(f => <li key={f} className="wait"><AlertTriangle size={15}/> Check with the employer: {f}</li>)}
     </ul>
   )
 }
@@ -2191,12 +2190,12 @@ function InfoPage({ page, onGo, onAction, roles }) {
   )
 }
 
-// Where a post is on its way to going live: church vouch, then the HR check, then 30 days on the board
+// Where a post is on its way to going live: church vouch, then the employer check, then 30 days on the board
 function PostTracker({ vouch, status, daysLeft }) {
   const live = status === 'published' && daysLeft > 0
   const steps = [
     { label: 'Church vouch', state: vouch === 'vouched' ? 'done' : vouch === 'declined' ? 'bad' : 'current', note: vouch === 'vouched' ? 'Confirmed' : vouch === 'declined' ? 'Declined, ask again' : vouch === 'pending' ? 'Waiting for your church' : 'Not requested yet' },
-    { label: 'HR check', state: status === 'published' ? 'done' : status === 'rejected' ? 'bad' : vouch === 'vouched' && status === 'pending' ? 'current' : '', note: status === 'published' ? 'Checked with the employer' : status === 'rejected' ? 'Not approved' : status === 'draft' ? 'After you submit' : 'A moderator calls the employer' },
+    { label: 'Employer check', state: status === 'published' ? 'done' : status === 'rejected' ? 'bad' : vouch === 'vouched' && status === 'pending' ? 'current' : '', note: status === 'published' ? 'Checked with the employer' : status === 'rejected' ? 'Not approved' : status === 'draft' ? 'After you submit' : 'A moderator calls the employer' },
     { label: 'Live', state: live ? 'done' : status === 'published' ? 'bad' : '', note: live ? `${daysLeft} days left` : status === 'published' ? 'Ended after 30 days' : 'For 30 days' }
   ]
   return (
