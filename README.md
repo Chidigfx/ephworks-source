@@ -11,7 +11,7 @@ Built by team **Provision** for #HACK2026 Dubai. Ephworks is the app's working n
 - **About, Safety & Trust, Help and Legal pages** (`src/content.js`): our story, mission, how it works, community, partners; how we review jobs, recognising scams, reporting, privacy, community standards; FAQs and contact; pilot privacy policy and terms (to be legally reviewed before launch). Linked from a four-column footer and from where they help (job badge, job details, post preview, profile)
 - **Every page has its own address** (e.g. `/jobs`, `/about/mission`, `/safety/job-scams`); back and forward work. `vercel.json` sends all paths to the app so direct links work once deployed
 - The site name and contact email live in one place (`SITE_NAME`, `CONTACT_EMAIL` in `src/data.js`); the email is a placeholder to replace before launch
-- **Employer dashboard** once your church has vouched for you: live posts, posts waiting for the HR check, people interested and posts ending this week
+- **Employer dashboard** once your church has vouched for you: live posts, posts waiting for the employer check, people interested and posts ending this week
 - **Volunteer mentors**: members request a CV review, practice interview or LinkedIn help (agreeing a mentor may email them); mentors take a request from their **Volunteer** area, and only the mentor who took it sees the member's email
 - **Admins manage partner churches** (Admin → Churches): add, rename, and remove a church only while no one depends on it
 - **Simple navigation**: a slim top bar with Jobs, Saved and Post a job; everything else (My posts, Get help, Get involved, Profile) sits in the avatar menu, and reference pages are in the footer. Staff get a role-named button (**Admin**, **Moderation** or **Church admin**) with a count, opening a dashboard at `/work` that shows every queue waiting for them, with tabs across their queues. Staff open on the queue that needs them
@@ -19,9 +19,9 @@ Built by team **Provision** for #HACK2026 Dubai. Ephworks is the app's working n
 - Demo views (Member, Moderator, Church admin, Admin) only when no backend is connected
 - Five fictional sample UAE opportunities with search and filters
 - **Post a Job** as a short step-by-step wizard (church → the job → pay → description → how to apply → preview), with structured AED pay, live scam checks, a draft saved on the device, and a preview before submitting
-- **Post status tracker** on My posts: church vouch → HR check → live for 30 days
+- **Post status tracker** on My posts: church vouch → employer check → live for 30 days
 - **I'm interested** on every role, saved to your account when signed in. Employers only see a count on their post, never who is interested (passing candidate details on could count as recruitment). Save and "mark as applied" stay in your browser
-- **Scam checks**: fee, deposit and payment-transfer terms are blocked outright; WhatsApp-only contact, guaranteed jobs or visas, "no interview", passport requests, pressure language and personal email addresses are flagged for the moderator to check with HR
+- **Scam checks**: fee, deposit and payment-transfer terms are blocked outright; WhatsApp-only contact, guaranteed jobs or visas, "no interview", passport requests, pressure language and personal email addresses are flagged for the moderator to check with the employer
 - **Church membership verification for job posters**: a post cannot be published until the poster's partner church has vouched for them (yes/no only)
 - **Type to find your church**: posters and church-admin applicants search the partner list; a church that isn't listed can be suggested with its emirate, and an admin checks it, fixes the spelling or matches it to an existing church, then adds it (**Your work → Churches**)
 - All seven emirates, and On-site / Hybrid / Remote alongside Full-time / Part-time
@@ -61,13 +61,13 @@ Without env vars the app runs as the local-only demo. With them, jobs, employer 
    `update public.profiles set role = 'super_admin' where id = (select id from auth.users where email = 'you@example.com');`
 6. Everyone else gets a role through the app. Volunteers and church admins apply on the **Apply to help** page, and an admin approves them under **Role applications**. Moderators are invite-only: an admin assigns the role on the **People** page. Only the super admin can appoint or remove admins. Nobody can change their own role, and the super admin can only be changed in the SQL editor.
 
-Rules enforced in the database, not the browser: members can only submit `pending` posts, fee/deposit/visa-charge/payment-transfer terms are rejected, only moderators publish (with a required HR verification note), a post is only published once its poster is vouched for by their church, only that church's admin can vouch (never for themselves), published posts expire after 30 days, any employer edit sends a post back to the queue, roles only change through the admin functions (with the limits above), and suspended accounts cannot post, vouch, report, review or apply, and their posts are hidden, and interest can only be marked on live posts, with posters seeing a count but never names. `npm run test:db` checks these against in-memory Postgres.
+Rules enforced in the database, not the browser: members can only submit `pending` posts, fee/deposit/visa-charge/payment-transfer terms are rejected, only moderators publish (with a required verification note on how they checked with the employer), a post is only published once its poster is vouched for by their church, only that church's admin can vouch (never for themselves), published posts expire after 30 days, any employer edit sends a post back to the queue, roles only change through the admin functions (with the limits above), and suspended accounts cannot post, vouch, report, review or apply, and their posts are hidden, and interest can only be marked on live posts, with posters seeing a count but never names. `npm run test:db` checks these against in-memory Postgres.
 
 ### Publishing workflow
 
 1. **Poster** (Post a job page) asks their partner church for a vouch, then writes the post. Blocked scam terms stop the form; softer warning signs are shown to the poster and the moderator.
 2. **Church admin** (Church vouches) vouches for or declines the poster. Only a yes/no is stored.
-3. **Moderator** (Review posts) sees the vouch status and scam checks on each post. "Confirm HR" stays disabled until the poster is vouched and no blocked terms remain; every warning flag has to be ticked as checked with HR, and a verification note is required.
+3. **Moderator** (Review posts) sees the vouch status and scam checks on each post. "Check & publish" stays disabled until the poster is vouched and no blocked terms remain; every warning flag has to be ticked as checked with the employer, and a verification note is required.
 4. The post goes live on the noticeboard for 30 days. Seekers can tap **I'm interested** and apply directly to the employer.
 
 Without Supabase the same flow runs on sample data in your browser: switch between the Member, Church admin, Moderator and Admin demo views. In the Admin view the demo persona is the super admin. With Supabase connected there is no view switcher: the menu follows the signed-in account's role.
