@@ -264,6 +264,7 @@ export const NAV = {
   menu: [
     { id: 'drafts', label: 'My posts', icon: 'file' },
     { id: 'career', label: 'Career support', icon: 'sparkles' },
+    { id: 'care', label: 'Pastoral care', icon: 'hand' },
     { id: 'apply', label: 'Get involved', icon: 'heart' },
     { id: 'profile', label: 'Profile & privacy', icon: 'shield' },
     { id: 'faq', label: 'Help & FAQs', icon: 'help' }
@@ -272,6 +273,7 @@ export const NAV = {
   dashboard: { id: 'dashboard', label: 'Overview', icon: 'grid' },
   moderator: [
     { id: 'review', label: 'Review', icon: 'check' },
+    { id: 'joining', label: 'New members', icon: 'users' },
     { id: 'reports', label: 'Reports', icon: 'flag' }
   ],
   church: [
@@ -279,6 +281,9 @@ export const NAV = {
   ],
   volunteer: [
     { id: 'mentoring', label: 'Session requests', icon: 'hand' }
+  ],
+  pastoral: [
+    { id: 'carerQueue', label: 'Pastoral requests', icon: 'hand' }
   ],
   admin: [
     { id: 'applications', label: 'Applications', icon: 'badge' },
@@ -289,14 +294,17 @@ export const NAV = {
 
 // Fictional accounts for the Admin demo view; same shape as admin_members() rows
 export const SAMPLE_MEMBERS = [
-  { id: 'demo-me', name: 'Jordan Morgan', email: 'jordan@example.test', role: 'super_admin', church_id: null, suspended: false, joined: '2026-09-01', posts: 0 },
-  { id: 'member-amara', name: 'Amara Nwosu', email: 'amara@example.test', role: 'admin', church_id: null, suspended: false, joined: '2026-09-04', posts: 0 },
-  { id: 'member-sam', name: 'Sam Haddad', email: 'sam@example.test', role: 'moderator', church_id: null, suspended: false, joined: '2026-09-12', posts: 0 },
-  { id: 'member-ruth', name: 'Ruth Mensah', email: 'ruth@example.test', role: 'church_admin', church_id: 'church-stluke', suspended: false, joined: '2026-09-15', posts: 0 },
-  { id: 'member-priya', name: 'Priya Nair', email: 'priya@example.test', role: 'member', church_id: null, suspended: false, joined: '2026-10-02', posts: 2 },
-  { id: 'member-david', name: 'David Okafor', email: 'david@example.test', role: 'member', church_id: null, suspended: false, joined: '2026-10-20', posts: 0 },
-  { id: 'member-lena', name: 'Lena Fischer', email: 'lena@example.test', role: 'volunteer', church_id: null, suspended: false, joined: '2026-10-21', posts: 0 },
-  { id: 'member-quickjobs', name: 'Quick Jobs Agency', email: 'quickjobs@example.test', role: 'member', church_id: null, suspended: true, joined: '2026-10-24', posts: 3 }
+  { id: 'demo-me', name: 'Jordan Morgan', email: 'jordan@example.test', role: 'super_admin', church_id: null, suspended: false, joined: '2026-09-01', posts: 0, status: 'approved', referral_code: 'EPH-7K2Q9D', referred_by: null, decided_by: null, decided_at: '2026-09-01' },
+  { id: 'member-amara', name: 'Amara Nwosu', email: 'amara@example.test', role: 'admin', church_id: null, suspended: false, joined: '2026-09-04', posts: 0, status: 'approved', referral_code: 'EPH-A41C07', referred_by: 'demo-me', decided_by: 'demo-me', decided_at: '2026-09-04' },
+  { id: 'member-sam', name: 'Sam Haddad', email: 'sam@example.test', role: 'moderator', church_id: null, suspended: false, joined: '2026-09-12', posts: 0, status: 'approved', referral_code: 'EPH-5A3E12', referred_by: 'member-amara', decided_by: 'demo-me', decided_at: '2026-09-12' },
+  { id: 'member-ruth', name: 'Ruth Mensah', email: 'ruth@example.test', role: 'church_admin', church_id: 'church-stluke', suspended: false, joined: '2026-09-15', posts: 0, status: 'approved', referral_code: 'EPH-R7F0B2', referred_by: 'member-amara', decided_by: 'member-sam', decided_at: '2026-09-16' },
+  { id: 'member-esther', name: 'Esther Adeyemi', email: 'esther@example.test', role: 'pastoral_carer', church_id: 'church-stluke', suspended: false, joined: '2026-09-18', posts: 0, status: 'approved', referral_code: 'EPH-E2D96A', referred_by: 'member-ruth', decided_by: 'member-sam', decided_at: '2026-09-18' },
+  { id: 'member-priya', name: 'Priya Nair', email: 'priya@example.test', role: 'member', church_id: null, suspended: false, joined: '2026-10-02', posts: 2, status: 'approved', referral_code: 'EPH-P90B3C', referred_by: 'member-ruth', decided_by: 'member-sam', decided_at: '2026-10-03' },
+  { id: 'member-david', name: 'David Okafor', email: 'david@example.test', role: 'member', church_id: null, suspended: false, joined: '2026-10-20', posts: 0, status: 'approved', referral_code: 'EPH-D0C4E1', referred_by: 'member-priya', decided_by: 'member-amara', decided_at: '2026-10-20' },
+  { id: 'member-lena', name: 'Lena Fischer', email: 'lena@example.test', role: 'volunteer', church_id: null, suspended: false, joined: '2026-10-21', posts: 0, status: 'approved', referral_code: 'EPH-L3A8F5', referred_by: 'member-david', decided_by: 'member-sam', decided_at: '2026-10-22' },
+  { id: 'member-quickjobs', name: 'Quick Jobs Agency', email: 'quickjobs@example.test', role: 'member', church_id: null, suspended: true, joined: '2026-10-24', posts: 3, status: 'approved', referral_code: 'EPH-Q6B1D8', referred_by: 'member-lena', decided_by: 'member-sam', decided_at: '2026-10-24' },
+  { id: 'member-grace', name: 'Grace Bello', email: 'grace@example.test', role: 'member', church_id: null, suspended: false, joined: '2026-11-01', posts: 0, status: 'pending', referral_code: null, referred_by: 'member-priya', decided_by: null, decided_at: null },
+  { id: 'member-tunde', name: 'Tunde Afolabi', email: 'tunde@example.test', role: 'member', church_id: null, suspended: false, joined: '2026-11-02', posts: 0, status: 'pending', referral_code: null, referred_by: null, decided_by: null, decided_at: null }
 ]
 
 // Same shape as role_applications rows
@@ -314,4 +322,9 @@ export const SAMPLE_CHURCH_SUGGESTIONS = [
 export const SAMPLE_SUPPORT_REQUESTS = [
   { id: 'support-01', member_id: 'member-priya', service: 'cv-review', display_name: 'Priya Nair', preferred_time: 'Weekday evening (after 6 pm)', note: 'Moving from retail into office administration.', may_email: true, status: 'open', volunteer_id: null, created_at: '2026-10-26T18:00:00Z' },
   { id: 'support-02', member_id: 'member-david', service: 'mock-interview', display_name: 'David Okafor', preferred_time: 'Saturday morning', note: 'Interview for an operations role next week.', may_email: true, status: 'open', volunteer_id: null, created_at: '2026-10-27T09:30:00Z' }
+]
+
+// Same shape as pastoral_requests rows; requests to the sample church's pastoral carer
+export const SAMPLE_PASTORAL_REQUESTS = [
+  { id: 'care-01', member_id: 'member-david', church_id: 'church-stluke', display_name: 'David Okafor', kind: 'prayer', note: 'Six months without work. I could do with prayer and some encouragement.', may_contact: true, status: 'open', carer_id: null, created_at: '2026-10-30T19:00:00Z' }
 ]

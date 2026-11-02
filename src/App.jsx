@@ -6,12 +6,13 @@ import {
   LockKeyhole, MapPin, Menu, MoreHorizontal, Plus, Search, ShieldCheck,
   SlidersHorizontal, UsersRound, LayoutDashboard, LifeBuoy, KeyRound, X, RotateCcw, ExternalLink,
   Clock3, Mail, Building2, Eye, Send, Info, AlertTriangle, ShieldAlert,
-  Calendar, CheckCheck, Scale, Lock, UserRound, Heart, Ban
+  Calendar, CheckCheck, Scale, Lock, UserRound, Heart, Ban, UserPlus, Copy, BookOpen, Sparkles, BellRing
 } from 'lucide-react'
-import { NAV, SAMPLE_JOBS, SAMPLE_VOLUNTEER, CAREER_SUPPORT_MODULES, TRUST_PILLARS, SAMPLE_VOUCH_REQUESTS, SAMPLE_CHURCHES, SAMPLE_MEMBERS, SAMPLE_APPLICATIONS, SAMPLE_CHURCH_SUGGESTIONS, SAMPLE_SUPPORT_REQUESTS, SITE_NAME, CONTACT_EMAIL } from './data'
+import { NAV, SAMPLE_JOBS, SAMPLE_VOLUNTEER, CAREER_SUPPORT_MODULES, TRUST_PILLARS, SAMPLE_VOUCH_REQUESTS, SAMPLE_CHURCHES, SAMPLE_MEMBERS, SAMPLE_APPLICATIONS, SAMPLE_CHURCH_SUGGESTIONS, SAMPLE_SUPPORT_REQUESTS, SAMPLE_PASTORAL_REQUESTS, SITE_NAME, CONTACT_EMAIL } from './data'
 import { INFO_PAGES, INFO_GROUPS, FOOTER } from './content'
 import { supabase, api, toJob } from './supabase'
 import { scanPost } from './scam'
+import { verseOfDay } from './verses'
 
 const icons = {
   briefcase: BriefcaseBusiness, bookmark: Bookmark, sparkles: LifeBuoy,
@@ -19,8 +20,8 @@ const icons = {
   plus: Plus, file: FileText, check: ClipboardCheck, flag: Flag, badge: BadgeCheck, home: Home, help: CircleHelp, grid: LayoutDashboard, hand: HandHeart
 }
 // Demo-only persona switcher (no backend). With Supabase the menu comes from the signed-in account's role.
-const PERSONAS = { member: 'Member', volunteer: 'Volunteer', moderator: 'Moderator', church_admin: 'Church admin', super_admin: 'Admin' }
-const demoKey = 'ephworks-local-demo-v4'
+const PERSONAS = { member: 'Member', volunteer: 'Volunteer', moderator: 'Moderator', church_admin: 'Church admin', pastoral_carer: 'Pastoral carer', super_admin: 'Admin' }
+const demoKey = 'ephworks-local-demo-v5'
 const defaultDemo = {
   saved: [],
   tracked: [],
@@ -33,6 +34,9 @@ const defaultDemo = {
   members: SAMPLE_MEMBERS,
   applications: SAMPLE_APPLICATIONS,
   churchSuggestions: SAMPLE_CHURCH_SUGGESTIONS,
+  pastoralRequests: SAMPLE_PASTORAL_REQUESTS,
+  prefs: {}, // the demo persona's profile details and job preferences, same keys as public.profiles
+  seenMatches: [], // matching job ids already shown as new
   churches: SAMPLE_CHURCHES // partner churches; admins can add, rename and remove them in the demo
 }
 
@@ -48,13 +52,19 @@ const VOUCH_STATUS = { pending: 'Awaiting church vouch', vouched: 'Vouched', dec
 const DEMO_ME = 'demo-me' // the demo persona's own vouch request id
 const NO_CHURCH = { id: '', name: '', emirate: '' } // a picked partner church (id) or a typed one to suggest (name + emirate)
 const EMPTY_VOUCH = { church: NO_CHURCH, note: '' }
-const ROLE_LABELS = { member: 'Member', volunteer: 'Volunteer mentor', moderator: 'Moderator', church_admin: 'Church admin', admin: 'Admin', super_admin: 'Super admin' }
+const ROLE_LABELS = { member: 'Member', volunteer: 'Volunteer mentor', moderator: 'Moderator', church_admin: 'Church admin', pastoral_carer: 'Pastoral carer', admin: 'Admin', super_admin: 'Super admin' }
+const CHURCH_ROLES = ['church_admin', 'pastoral_carer'] // roles that serve one church
 const APPLY_ROLES = [
   ['volunteer', 'Volunteer mentor', 'Give free CV reviews, practice interviews or LinkedIn help to job seekers.'],
   ['church_admin', 'Church admin', 'Confirm which members of your church can post jobs. Only a yes/no is stored.']
 ]
 const APP_STATUS = { pending: 'Waiting for review', approved: 'Approved', declined: 'Declined' }
 const EMPTY_APPLY = { role: 'volunteer', church: NO_CHURCH, name: '', note: '', agreed: false }
+const EMPTY_AUTH = { mode: 'signin', name: '', email: '', password: '', code: '' } // mode: signin | signup | reset
+// Must match the pastoral_requests.kind check in the 20261102 migration
+const CARE_KINDS = { prayer: 'Prayer', talk: 'Someone to talk to', other: 'Something else' }
+const CARE_STATUS = { open: 'Waiting for a pastoral carer', taken: 'A pastoral carer will email you', closed: 'Closed' }
+const EMPTY_CARE = { church: '', name: '', kind: 'prayer', note: '', consent: false }
 // Must match the jobs.emirate / type / mode checks in the first migration
 const EMIRATES = ['Abu Dhabi', 'Dubai', 'Sharjah', 'Ajman', 'Umm Al Quwain', 'Ras Al Khaimah', 'Fujairah']
 const WORK_TYPES = ['Full-time', 'Part-time']
@@ -71,13 +81,29 @@ const POST_STEPS = [
   { key: 'preview', label: 'Preview' }
 ]
 const aed = n => `AED ${Number(n).toLocaleString('en-US')}`
+
+// Mirrors job_matches() in the 20261104 migration (the live site asks the server); used by the demo.
+// Every preference set must fit, an empty one fits anything, and no preferences means no matches.
+const hasPreferences = p => Boolean(p.emirates?.length || p.work_types?.length || p.work_settings?.length || p.keywords?.trim() || p.min_pay)
+function matchesJob(p, job) {
+  if (!hasPreferences(p)) return false
+  const emirates = p.emirates || [], types = p.work_types || [], settings = p.work_settings || []
+  // Whole words, plurals included: "admin" doesn't match "administrative", "driver" matches "drivers"
+  const words = (p.keywords || '').split(',').map(w => w.trim()).filter(Boolean)
+    .map(w => new RegExp(`\\b${w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(e?s)?\\b`, 'i'))
+  const text = `${job.title} ${job.company} ${job.category} ${job.description}`
+  const pay = Math.max(...(job.salary.match(/\d[\d,]*/g) || []).map(n => Number(n.replace(/,/g, ''))))
+  return (!emirates.length || emirates.includes(job.emirate)) && (!types.length || types.includes(job.type))
+    && (!settings.length || settings.includes(job.mode)) && (!words.length || words.some(w => w.test(text)))
+    && (!p.min_pay || !Number.isFinite(pay) || pay >= Number(p.min_pay))
+}
 const salaryText = ({ payFrom, payTo }) => payFrom ? (payTo && Number(payTo) !== Number(payFrom) ? `${aed(payFrom)} – ${Number(payTo).toLocaleString('en-US')}` : aed(payFrom)) : ''
 
 // Every page has its own address, so links can be shared and the back button works
 const PATHS = {
   home: '/', dashboard: '/work', mentoring: '/work/mentoring', opportunities: '/jobs', interests: '/saved', post: '/post', drafts: '/my-posts', career: '/career-support',
   apply: '/get-involved', profile: '/profile', review: '/work/review', reports: '/work/reports', applications: '/work/applications',
-  people: '/work/people', churchRequests: '/work/churches', vouch: '/work/vouches',
+  people: '/work/people', churchRequests: '/work/churches', vouch: '/work/vouches', joining: '/work/joining', carerQueue: '/work/pastoral', care: '/pastoral-care', unsubscribe: '/unsubscribe',
   ...Object.fromEntries(INFO_PAGES.map(p => [p.id, p.path]))
 }
 const pageFor = path => Object.keys(PATHS).find(id => PATHS[id] === (path.replace(/\/+$/, '') || '/')) || 'home'
@@ -103,6 +129,9 @@ function getSavedDemo() {
       members: Array.isArray(value.members) ? value.members : SAMPLE_MEMBERS,
       applications: Array.isArray(value.applications) ? value.applications : SAMPLE_APPLICATIONS,
       churchSuggestions: Array.isArray(value.churchSuggestions) ? value.churchSuggestions : SAMPLE_CHURCH_SUGGESTIONS,
+      pastoralRequests: Array.isArray(value.pastoralRequests) ? value.pastoralRequests : SAMPLE_PASTORAL_REQUESTS,
+      prefs: value.prefs && typeof value.prefs === 'object' ? value.prefs : {},
+      seenMatches: Array.isArray(value.seenMatches) ? value.seenMatches : [],
       churches: Array.isArray(value.churches) ? value.churches : [...SAMPLE_CHURCHES, ...(Array.isArray(value.addedChurches) ? value.addedChurches : [])]
     }
   } catch { return defaultDemo }
@@ -160,7 +189,7 @@ export default function App() {
   const [jobs, setJobs] = useState(supabase ? [] : SAMPLE_JOBS)
   const [session, setSession] = useState(null)
   const [authReady, setAuthReady] = useState(!supabase) // the saved sign-in has been read
-  const [server, setServer] = useState({ myJobs: [], queue: [], reports: [], posterVouches: {}, myVouch: null, vouchRequests: [], members: [], applications: [], interested: [], interestCounts: {}, churchSuggestions: [], supportRequests: [], volunteerRequests: [], churchOverview: [] })
+  const [server, setServer] = useState({ myJobs: [], queue: [], reports: [], posterVouches: {}, myVouch: null, vouchRequests: [], members: [], applications: [], interested: [], interestCounts: {}, churchSuggestions: [], supportRequests: [], volunteerRequests: [], churchOverview: [], pendingMembers: [], joinedMembers: [], pastoral: [], carerRequests: [], matches: [] })
   const [serverChurches, setChurches] = useState([])
   const [vouchForm, setVouchForm] = useState(EMPTY_VOUCH)
   const [applyForm, setApplyForm] = useState(EMPTY_APPLY)
@@ -169,21 +198,30 @@ export default function App() {
   const [showSignIn, setShowSignIn] = useState(false)
   const [verifying, setVerifying] = useState(null)
   const [profile, setProfile] = useState({})
-  const [googleEnabled, setGoogleEnabled] = useState(false)
+  const [providers, setProviders] = useState({ google: false, email: false }) // sign-in methods switched on in Supabase
+  const [authForm, setAuthForm] = useState(EMPTY_AUTH)
+  const [newPassword, setNewPassword] = useState(null) // set after following a password-reset link
+  const [codeInput, setCodeInput] = useState('')
+  const [careForm, setCareForm] = useState(EMPTY_CARE)
+  const [matchOnly, setMatchOnly] = useState(false) // job feed shows only jobs matching your profile
+  const [unsubscribed, setUnsubscribed] = useState(null) // result of an email unsubscribe link: null while working, then true or false
   const [supportForm, setSupportForm] = useState({ name: '', preferredTime: 'Weekday evening (after 6 pm)', note: '', consent: false })
 
   const uid = session?.user.id
   const churches = supabase ? serverChurches : demo.churches
   // What this account can do. Admins also moderate; suspended accounts get no staff tools (the server refuses them anyway).
-  const accountRole = supabase ? (uid && !profile.suspended && profile.role) || 'member' : PERSONAS[demo.role] ? demo.role : 'member'
+  const accountRole = supabase ? (uid && !profile.suspended && profile.status === 'approved' && profile.role) || 'member' : PERSONAS[demo.role] ? demo.role : 'member'
   const canModerate = ['moderator', 'admin', 'super_admin'].includes(accountRole)
   const isChurchAdmin = accountRole === 'church_admin'
   const isAdmin = ['admin', 'super_admin'].includes(accountRole)
   const isVolunteer = accountRole === 'volunteer'
-  const staffQueues = isAdmin ? [NAV.moderator[0], ...NAV.admin, NAV.moderator[1]] : canModerate ? NAV.moderator : isChurchAdmin ? NAV.church : isVolunteer ? NAV.volunteer : []
+  const isCarer = accountRole === 'pastoral_carer'
+  const staffQueues = isAdmin ? [...NAV.moderator.slice(0, 2), ...NAV.admin, NAV.moderator[2]] : canModerate ? NAV.moderator : isChurchAdmin ? NAV.church : isVolunteer ? NAV.volunteer : isCarer ? NAV.pastoral : []
   const staffNav = staffQueues.length ? [NAV.dashboard, ...staffQueues] : []
   // What the staff area is called for this account, so admins, moderators and church admins each see their own space
-  const workLabel = isAdmin ? 'Admin' : canModerate ? 'Moderation' : isChurchAdmin ? 'Church admin' : 'Volunteer'
+  const workLabel = isAdmin ? 'Admin' : canModerate ? 'Moderation' : isChurchAdmin ? 'Church admin' : isCarer ? 'Pastoral care' : 'Volunteer'
+  // Signed in but not let in yet ('pending' or 'declined'): browsing only, until a moderator or admin approves the account
+  const joinStatus = supabase && uid && profile.status !== 'approved' ? profile.status : null
 
   // Real-time scam detection for the employer post form
   const draftSalary = salaryText(draftForm)
@@ -198,6 +236,12 @@ export default function App() {
   const interestedIds = supabase ? server.interested : demo.interested
   const interestCount = job => supabase ? server.interestCounts[job.id] || 0 : Number(demo.interested.includes(job.id))
   const queue = supabase ? server.queue : demoJobs.filter(j => j.status === 'pending')
+
+  // Jobs matching your profile, and the ones that went live since you last looked
+  const prefs = supabase ? profile : demo.prefs
+  const hasPrefs = hasPreferences(prefs)
+  const matchIds = supabase ? server.matches.map(m => m.job_id) : board.filter(j => matchesJob(prefs, j)).map(j => j.id)
+  const newMatchIds = supabase ? server.matches.filter(m => m.is_new).map(m => m.job_id) : matchIds.filter(id => !demo.seenMatches.includes(id))
 
   // The signed-in member's (or demo persona's) church vouch; null until requested
   const myVouch = supabase
@@ -231,6 +275,22 @@ export default function App() {
     .map(r => ({ ...r, mine: r.volunteer_id === DEMO_ME, email: r.volunteer_id === DEMO_ME ? SAMPLE_MEMBERS.find(m => m.id === r.member_id)?.email : null }))
   const openMentorRequests = mentorQueue.filter(r => r.status === 'open').length
 
+  // Joining: who is waiting (moderators and admins), and everyone who joined with who invited and who decided (admins)
+  const demoMember = id => demo.members.find(m => m.id === id)
+  const pendingMembers = supabase ? server.pendingMembers : demo.members.filter(m => m.status === 'pending')
+    .map(m => ({ id: m.id, name: m.name, email: m.email, invited_by: demoMember(m.referred_by)?.name, invited_by_email: demoMember(m.referred_by)?.email, joined: m.joined }))
+  const joinedMembers = supabase ? server.joinedMembers : demo.members.filter(m => m.role !== 'super_admin' || m.id === DEMO_ME)
+    .map(m => ({ id: m.id, name: m.name, email: m.email, status: m.status, invited_by: demoMember(m.referred_by)?.name, decided_by: demoMember(m.decided_by)?.name, decided_by_role: demoMember(m.decided_by)?.role, joined: m.joined }))
+  const myCode = supabase ? profile.referral_code : demoMember(DEMO_ME)?.referral_code
+
+  // Pastoral care: your own requests, and (for carers) their church's open ones plus those they took
+  const myCare = supabase ? server.pastoral : demo.pastoralRequests.filter(r => r.member_id === DEMO_ME)
+  const carerChurch = supabase ? profile.church_id : SAMPLE_CHURCHES[0].id
+  const carerQueue = supabase ? server.carerRequests : demo.pastoralRequests
+    .filter(r => r.church_id === carerChurch && r.member_id !== DEMO_ME && (r.status === 'open' || (r.status === 'taken' && r.carer_id === DEMO_ME)))
+    .map(r => ({ ...r, mine: r.carer_id === DEMO_ME, email: r.carer_id === DEMO_ME ? demoMember(r.member_id)?.email : null }))
+  const openCareRequests = carerQueue.filter(r => r.status === 'open').length
+
   // Admin church list with how many depend on each church (the server counts on the live site)
   const churchOverview = supabase ? server.churchOverview : churches.map(c => ({
     ...c,
@@ -250,8 +310,9 @@ export default function App() {
     (emirate === 'All emirates' || j.emirate === emirate) &&
     (workType === 'Any work type' || j.type === workType || j.mode === workType) &&
     (`${j.title} ${j.company} ${j.category}`.toLowerCase().includes(search.trim().toLowerCase())) &&
-    (tab !== 'saved' || demo.saved.includes(j.id))
-  ), [board, emirate, workType, search, tab, demo.saved])
+    (tab !== 'saved' || demo.saved.includes(j.id)) &&
+    (!matchOnly || matchIds.includes(j.id))
+  ), [board, emirate, workType, search, tab, demo.saved, matchOnly, matchIds.join()])
 
   const updateDemo = patch => setDemo(prev => ({ ...prev, ...patch }))
   const notify = message => setBanner(message)
@@ -259,7 +320,7 @@ export default function App() {
 
   useEffect(() => {
     if (!supabase) return
-    api.googleEnabled().then(setGoogleEnabled)
+    api.providers().then(setProviders)
     // A cancelled or failed Google sign-in comes back with the reason in the URL
     const params = new URLSearchParams(window.location.hash.slice(1) || window.location.search)
     if (params.get('error_description')) {
@@ -267,7 +328,10 @@ export default function App() {
       window.history.replaceState(null, '', window.location.pathname)
     }
     supabase.auth.getSession().then(({ data }) => { setSession(data.session); setAuthReady(true) })
-    const { data } = supabase.auth.onAuthStateChange((_event, next) => setSession(next))
+    const { data } = supabase.auth.onAuthStateChange((event, next) => {
+      setSession(next)
+      if (event === 'PASSWORD_RECOVERY') setNewPassword('')
+    })
     return () => data.subscription.unsubscribe()
   }, [])
 
@@ -287,14 +351,19 @@ export default function App() {
     uid ? api.churchSuggestions() : [],
     uid ? api.supportRequests() : [],
     uid && isVolunteer ? api.volunteerRequests() : [],
-    uid && isAdmin ? api.churchOverview() : []
-  ]).then(([live, mine, queue, reports, posters, myVouch, vouchRequests, members, applications, interested, interestCounts, churchSuggestions, supportRequests, volunteerRequests, churchOverview]) => {
+    uid && isAdmin ? api.churchOverview() : [],
+    uid && canModerate ? api.pendingMembers() : [],
+    uid && isAdmin ? api.joinedMembers() : [],
+    uid ? api.myPastoral() : [],
+    uid && isCarer ? api.carerRequests() : [],
+    uid ? api.myMatches() : []
+  ]).then(([live, mine, queue, reports, posters, myVouch, vouchRequests, members, applications, interested, interestCounts, churchSuggestions, supportRequests, volunteerRequests, churchOverview, pendingMembers, joinedMembers, pastoral, carerRequests, matches]) => {
     setJobs(live.map(toJob))
     setServer({
       myJobs: mine.map(toJob), queue: queue.map(toJob), reports, myVouch,
       posterVouches: Object.fromEntries(posters.map(p => [p.user_id, p.status])),
       vouchRequests: vouchRequests.filter(v => v.user_id !== uid), // admins can't vouch for themselves
-      members, applications, interested, interestCounts, churchSuggestions, supportRequests, volunteerRequests, churchOverview
+      members, applications, interested, interestCounts, churchSuggestions, supportRequests, volunteerRequests, churchOverview, pendingMembers, joinedMembers, pastoral, carerRequests, matches
     })
   }).catch(err => notify(`Could not load from the server: ${err.message}`))
 
@@ -316,7 +385,7 @@ export default function App() {
   }, [uid])
 
   const pendingVouches = vouchRows.filter(m => m.status === 'pending').length
-  const waitingFor = canModerate && queue.length ? 'review' : isChurchAdmin && pendingVouches ? 'vouch' : isAdmin && pendingApplications ? 'applications' : isAdmin && pendingChurchRequests ? 'churchRequests' : isVolunteer && openMentorRequests ? 'mentoring' : null
+  const waitingFor = canModerate && queue.length ? 'review' : canModerate && pendingMembers.length ? 'joining' : isCarer && openCareRequests ? 'carerQueue' : isChurchAdmin && pendingVouches ? 'vouch' : isAdmin && pendingApplications ? 'applications' : isAdmin && pendingChurchRequests ? 'churchRequests' : isVolunteer && openMentorRequests ? 'mentoring' : null
   const landed = useRef(null)
   useEffect(() => {
     if (!supabase || !uid || !waitingFor || landed.current === uid) return
@@ -326,13 +395,22 @@ export default function App() {
 
   useEffect(() => { document.querySelector('.work-tabs .active')?.scrollIntoView({ block: 'nearest', inline: 'center' }) }, [page])
 
+  // Unsubscribe link from a job-alert email: /unsubscribe?token=…
+  useEffect(() => {
+    if (page !== 'unsubscribe') return
+    const token = new URLSearchParams(window.location.search).get('token')
+    if (!supabase) return setUnsubscribed(true)
+    if (!/^[0-9a-f-]{36}$/i.test(token || '')) return setUnsubscribed(false)
+    api.unsubscribe(token).then(ok => { setUnsubscribed(ok); if (ok && uid) api.profile(uid).then(setProfile) }).catch(() => setUnsubscribed(false))
+  }, [page])
+
   // Keep the address bar and tab title in step with the page; back and forward move between pages
   const infoPage = INFO_PAGES.find(p => p.id === page)
   useEffect(() => {
     const path = PATHS[page] || '/'
     if (window.location.pathname !== path) window.history[replaceUrl.current ? 'replaceState' : 'pushState'](null, '', path)
     replaceUrl.current = false
-    const label = infoPage?.title || (page === 'dashboard' ? `${workLabel} dashboard` : page === 'drafts' && isEmployer ? 'Employer dashboard' : [...NAV.member, ...NAV.menu, ...NAV.moderator, ...NAV.church, ...NAV.admin, ...NAV.volunteer].find(n => n.id === page)?.label)
+    const label = infoPage?.title || (page === 'dashboard' ? `${workLabel} dashboard` : page === 'drafts' && isEmployer ? 'Employer dashboard' : [...NAV.member, ...NAV.menu, ...NAV.moderator, ...NAV.church, ...NAV.admin, ...NAV.volunteer, ...NAV.pastoral].find(n => n.id === page)?.label)
     document.title = page === 'home' || !label ? `${SITE_NAME} · Find work through people who know you` : `${label} · ${SITE_NAME}`
   }, [page, workLabel, isEmployer])
   useEffect(() => {
@@ -343,17 +421,39 @@ export default function App() {
 
   // Leave staff pages if the account loses access (e.g. after signing out)
   useEffect(() => {
-    const allowed = { dashboard: staffNav.length > 0, mentoring: isVolunteer, review: canModerate, reports: canModerate, vouch: isChurchAdmin, people: isAdmin, applications: isAdmin, churchRequests: isAdmin }[page]
+    const allowed = { dashboard: staffNav.length > 0, mentoring: isVolunteer, review: canModerate, reports: canModerate, vouch: isChurchAdmin, people: isAdmin, applications: isAdmin, churchRequests: isAdmin, joining: canModerate, carerQueue: isCarer }[page]
     // wait for the sign-in and the account's role before deciding, so links to staff pages survive a reload
     if (!authReady || (uid && profile.role === undefined)) return
     if (allowed === false) { replaceUrl.current = true; setPage('home') }
   }, [accountRole, page, authReady, profile.role])
 
-  // True (and opens sign-in) when a server action needs an account first
+  // True (and shows the next step) when a server action needs an approved account first
   const needsSignIn = () => {
-    if (!supabase || session) return false
-    setShowSignIn(true)
+    if (!supabase) return false
+    if (!session) { setShowSignIn(true); return true }
+    if (!joinStatus) return false
+    notify(joinStatus === 'declined' ? 'Your request to join was not approved, so this is switched off.' : 'You can do this once a moderator approves your account. Until then you can browse jobs.')
     return true
+  }
+
+  const setAuthMode = mode => setAuthForm(f => ({ ...f, mode }))
+  const submitAuth = e => {
+    e.preventDefault()
+    const { mode, name, password, code } = authForm
+    const email = authForm.email.trim()
+    const close = () => { setShowSignIn(false); setAuthForm(EMPTY_AUTH) }
+    if (mode === 'reset') return api.sendPasswordReset(email).then(() => { close(); notify(`If ${email} has an account, a link to choose a new password is on its way.`) }).catch(fail)
+    if (mode === 'signin') return api.signIn(email, password).then(close).catch(fail)
+    api.signUp({ name: name.trim(), email, password, code: code.trim() })
+      .then(data => { close(); notify(data.session ? 'Account created. A moderator will check who invited you, then approve you. You can browse jobs meanwhile.' : `Check ${email} for a link to confirm your address. A moderator approves new accounts after that.`) })
+      .catch(fail)
+  }
+  const saveNewPassword = e => { e.preventDefault(); api.setPassword(newPassword).then(() => { setNewPassword(null); notify('Password updated. You are signed in.') }).catch(fail) }
+  const submitCode = e => {
+    e.preventDefault()
+    api.useReferralCode(codeInput.trim())
+      .then(() => { setCodeInput(''); api.profile(uid).then(setProfile); notify('Thanks. A moderator will check with the member who invited you, then approve your account.') })
+      .catch(fail)
   }
 
   const signInWithGoogle = () => supabase.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: window.location.origin } })
@@ -369,7 +469,7 @@ export default function App() {
       if (e.key === 'Escape') {
         setSelectedJob(null); setShowMobileMore(false);
         setShowReset(false); setShowReport(false); setShowSupportModal(false); setRemoving(null)
-        setShowSignIn(false); setVerifying(null)
+        setShowSignIn(false); setVerifying(null); setNewPassword(null)
       }
     }
     window.addEventListener('keydown', onKey)
@@ -377,10 +477,10 @@ export default function App() {
   }, [])
 
   useEffect(() => {
-    const modal = selectedJob || showMobileMore || showReset || removing || showReport || showSupportModal || showSignIn || verifying
+    const modal = selectedJob || showMobileMore || showReset || removing || showReport || showSupportModal || showSignIn || verifying || newPassword !== null
     document.body.classList.toggle('modal-open', Boolean(modal))
     return () => document.body.classList.remove('modal-open')
-  }, [selectedJob, showMobileMore, showReset, removing, showReport, showSupportModal, showSignIn, verifying])
+  }, [selectedJob, showMobileMore, showReset, removing, showReport, showSupportModal, showSignIn, verifying, newPassword])
 
   const go = id => { setPage(id); setShowMobileMore(false); setBanner(null); window.scrollTo({ top: 0, behavior: 'smooth' }) }
   const setRole = next => {
@@ -553,6 +653,63 @@ export default function App() {
   const finishSupport = (r, isDone) => updateSupport(r, isDone ? { status: 'done' } : { status: 'open', volunteer_id: null },
     isDone ? 'Marked as done. Thank you for volunteering.' : 'Handed back to the open list.', () => api.finishSupport(r.id, isDone))
 
+  // Profile details and job preferences: only you see the preferences
+  const saveProfile = form => {
+    const row = { ...form, display_name: form.display_name.trim(), phone: form.phone.trim(), keywords: form.keywords.trim(), min_pay: form.min_pay ? Number(form.min_pay) : null }
+    if (row.phone && !/^\+?[0-9 ()-]{7,20}$/.test(row.phone)) return notify('Check the phone number: digits, spaces, brackets and a leading + only.')
+    const done = () => notify(hasPreferences(row) ? 'Profile saved. Jobs that match it are marked “New for you” as they go live.' : 'Profile saved.')
+    if (supabase) {
+      if (!session) return setShowSignIn(true)
+      return api.updateProfile(row).then(() => { api.profile(uid).then(setProfile); refresh(); done() }).catch(fail)
+    }
+    updateDemo({ prefs: row })
+    done()
+  }
+  // Showing your matches marks them as seen, so the count only ever means new jobs
+  const showMatches = on => {
+    setMatchOnly(on)
+    if (!on || !newMatchIds.length) return
+    if (supabase) return api.markMatchesSeen().then(() => setServer(prev => ({ ...prev, matches: prev.matches.map(m => ({ ...m, is_new: false })) }))).catch(fail)
+    updateDemo({ seenMatches: [...new Set([...demo.seenMatches, ...matchIds])] })
+  }
+
+  // Joining: approving gives the newcomer their own referral code
+  const decideMember = (m, approve) => {
+    const done = () => notify(approve ? `${m.name} is approved and can now take part. They get their own referral code.` : `${m.name}'s request to join was declined.`)
+    if (supabase) return api.decideMember(m.id, approve).then(() => { refresh(); done() }).catch(fail)
+    updateDemo({ members: demo.members.map(x => x.id === m.id ? { ...x, status: approve ? 'approved' : 'declined', referral_code: approve ? `EPH-${Math.random().toString(16).slice(2, 8).toUpperCase()}` : null, decided_by: DEMO_ME, decided_at: new Date().toISOString() } : x) })
+    done()
+  }
+  const copyCode = () => navigator.clipboard.writeText(myCode).then(() => notify('Referral code copied.')).catch(() => notify(`Your referral code is ${myCode}`))
+
+  // Pastoral care: a member asks a carer at their church; it never touches jobs, vouches or interest
+  const askForCare = e => {
+    e.preventDefault()
+    if (supabase && needsSignIn()) return
+    const { church, name, kind, note } = careForm
+    const row = { church_id: church, display_name: (name || account.name).trim(), kind, note: note.trim() || null, may_contact: true }
+    const done = () => { setCareForm(EMPTY_CARE); notify(`Sent to a pastoral carer at ${churchName(church)}. Only they will see it.`) }
+    const already = 'You already have a request open. Delete it first if you want to send a new one.'
+    if (supabase) return api.requestPastoral(row).then(() => { refresh(); done() }).catch(err => notify(/one_open_pastoral_request/.test(err.message) ? already : err.message))
+    if (myCare.some(r => r.status !== 'closed')) return notify(already)
+    updateDemo({ pastoralRequests: [{ ...row, id: `care-${Date.now()}`, member_id: DEMO_ME, status: 'open', carer_id: null, created_at: new Date().toISOString() }, ...demo.pastoralRequests] })
+    done()
+  }
+  const deleteCare = r => {
+    const done = () => notify('Request deleted. It is erased, not just hidden.')
+    if (supabase) return api.deletePastoral(r.id).then(() => { refresh(); done() }).catch(fail)
+    updateDemo({ pastoralRequests: demo.pastoralRequests.filter(x => x.id !== r.id) })
+    done()
+  }
+  const updateCare = (r, patch, message, call) => {
+    if (supabase) return call().then(() => { refresh(); notify(message) }).catch(fail)
+    updateDemo({ pastoralRequests: demo.pastoralRequests.map(x => x.id === r.id ? { ...x, ...patch } : x) })
+    notify(message)
+  }
+  const takeCare = r => updateCare(r, { status: 'taken', carer_id: DEMO_ME }, `You took ${r.display_name}'s request. Email them, and keep what they share confidential.`, () => api.takePastoral(r.id))
+  const finishCare = (r, closed) => updateCare(r, closed ? { status: 'closed' } : { status: 'open', carer_id: null },
+    closed ? 'Request closed.' : 'Handed back to your church’s open list.', () => api.finishPastoral(r.id, closed))
+
   // Church management (admins)
   const refreshChurches = () => { refresh(); api.churches().then(setChurches) }
   const addChurch = (name, emirate) => {
@@ -617,8 +774,8 @@ export default function App() {
     notify(message)
   }
   const saveRole = (member, nextRole, church) => {
-    if (nextRole === 'church_admin' && !church) return notify('Choose the church this admin vouches for.')
-    changeMember(member, { role: nextRole, church_id: nextRole === 'church_admin' ? church : null }, `${member.name}'s role is now ${ROLE_LABELS[nextRole]}.`)
+    if (CHURCH_ROLES.includes(nextRole) && !church) return notify('Choose the church this person serves.')
+    changeMember(member, { role: nextRole, church_id: CHURCH_ROLES.includes(nextRole) ? church : null }, `${member.name}'s role is now ${ROLE_LABELS[nextRole]}.`)
   }
   const toggleSuspend = member => changeMember(member, { suspended: !member.suspended }, member.suspended
     ? `${member.name} is restored.`
@@ -670,8 +827,8 @@ export default function App() {
 
   // Who the header and menus show: the signed-in account, a guest, or the demo persona without a backend
   const meta = session?.user.user_metadata || {}
-  const account = !supabase ? { name: 'Jordan Morgan', detail: 'jordan@example.test' } // matches SAMPLE_MEMBERS; vouch status lives on the Profile page
-    : session ? { name: meta.full_name || meta.name || session.user.email.split('@')[0], detail: session.user.email, photo: meta.avatar_url || meta.picture }
+  const account = !supabase ? { name: demo.prefs.display_name || 'Jordan Morgan', detail: 'jordan@example.test' } // matches SAMPLE_MEMBERS; vouch status lives on the Profile page
+    : session ? { name: profile.display_name || meta.full_name || meta.name || session.user.email.split('@')[0], detail: session.user.email, photo: meta.avatar_url || meta.picture }
     : { name: 'Guest', detail: 'Not signed in', guest: true }
 
   const reportRows = supabase
@@ -681,13 +838,16 @@ export default function App() {
   // Phone bottom bar: Home, Jobs, Saved, then Post (members) or the first staff queue. On desktop the logo is Home.
   const userMainNav = [NAV.home, NAV.member[0], NAV.member[1], staffNav.length ? { ...NAV.dashboard, label: workLabel } : isEmployer ? { id: 'drafts', label: 'Employer', icon: 'grid' } : NAV.member[2]]
   const navCount = id => ({
+    opportunities: newMatchIds.length,
     interests: demo.saved.length + demo.tracked.length + interestedIds.length,
     dashboard: 0,
     mentoring: isVolunteer ? openMentorRequests : 0,
     review: canModerate ? queue.length : 0,
     vouch: isChurchAdmin ? pendingVouches : 0,
     applications: isAdmin ? pendingApplications : 0,
-    churchRequests: isAdmin ? pendingChurchRequests : 0
+    churchRequests: isAdmin ? pendingChurchRequests : 0,
+    joining: canModerate ? pendingMembers.length : 0,
+    carerQueue: isCarer ? openCareRequests : 0
   })[id] || 0
   const workCount = staffNav.reduce((sum, n) => sum + navCount(n.id), 0)
   // Account menu: whatever the phone bottom bar leaves out (top-bar duplicates are hidden on desktop by CSS)
@@ -742,7 +902,13 @@ export default function App() {
       </div>
 
       <div className="listing-header">
-        <span className="result-count">{visibleJobs.length} verified {visibleJobs.length === 1 ? 'role' : 'roles'}</span>
+        <span className="result-count">{visibleJobs.length} verified {visibleJobs.length === 1 ? 'role' : 'roles'}{matchOnly && ' matching your profile'}</span>
+        {hasPrefs
+          ? <button type="button" className={`match-toggle ${matchOnly ? 'on' : ''}`} aria-pressed={matchOnly} onClick={() => showMatches(!matchOnly)}>
+              <Sparkles size={15} aria-hidden="true"/> {matchOnly ? 'Show all jobs' : `Matches for you · ${matchIds.length}`}
+              {!matchOnly && newMatchIds.length > 0 && <span className="count">{newMatchIds.length} new</span>}
+            </button>
+          : <button type="button" className="match-toggle" onClick={() => go('profile')}><BellRing size={15} aria-hidden="true"/> Get job alerts</button>}
       </div>
 
       <div className="job-list">
@@ -757,8 +923,11 @@ export default function App() {
             interested={interestedIds.includes(job.id)}
             onInterest={() => toggleInterest(job.id)}
             onLearn={() => go('jobReview')}
+            isNew={newMatchIds.includes(job.id)}
           />
-        )) : board.length
+        )) : matchOnly
+          ? <Empty icon={BellRing} title="No matching jobs right now" description="New jobs that fit your profile show up here as they go live." action={<button type="button" className="secondary-button" onClick={() => go('profile')}>Edit what you’re looking for</button>}/>
+          : board.length
           ? <Empty title="No verified roles match" description="Try a different keyword or change your filters." icon={Search}/>
           : <Empty title="No jobs live yet" description="New jobs appear here once a moderator has checked them with the employer. Check back soon." icon={BriefcaseBusiness}/>}
       </div>
@@ -828,6 +997,17 @@ export default function App() {
         {supabase && profile.suspended && (
           <Warning tone="strong">Your account is suspended. You can browse the noticeboard, but you can't post, vouch, report or review. Contact the Ephworks team if you think this is a mistake.</Warning>
         )}
+        {joinStatus === 'declined' && <Warning tone="strong">Your request to join was not approved. You can still browse jobs. If you think this is a mistake, email {CONTACT_EMAIL}.</Warning>}
+        {joinStatus === 'pending' && (profile.referred_by
+          ? <Warning>Welcome. A moderator will check with the member who invited you, then approve your account. Until then you can browse jobs.</Warning>
+          : (
+            <form className="notice join-code" onSubmit={submitCode}>
+              <KeyRound size={17} className="notice-icon" aria-hidden="true"/>
+              <span><strong>Enter your referral code to join.</strong> Ask the member who invited you for their code. Until a moderator approves you, you can browse jobs.</span>
+              <input aria-label="Referral code" placeholder="EPH-XXXXXX" maxLength={10} required value={codeInput} onChange={e => setCodeInput(e.target.value)}/>
+              <button className="primary-button" type="submit">Send code</button>
+            </form>
+          ))}
 
         {staffNav.length > 1 && staffNav.some(n => n.id === page) && (
           <nav className="tab-list work-tabs" aria-label="Your work">
@@ -898,6 +1078,7 @@ export default function App() {
             <li className="stat"><b>AED 0</b><span>Free for everyone, always</span></li>
             <li className="stat"><b>30 days</b><span>Longest a post can stay up</span></li>
           </ul>
+          <VerseCard/>
 
           <section id="opp-list" className="opportunity-section">
             <SectionTitle title="Verified UAE opportunities" subtitle="Apply directly to employers · every post expires after 30 days"/>
@@ -1231,6 +1412,7 @@ export default function App() {
             desc={isEmployer ? 'Your posts, who is interested and what needs doing.' : 'Each post goes live once your church has vouched for you and a moderator has checked it with the employer.'}
             action={<button className="primary-button" onClick={() => go('post')}><Plus size={17}/> Post a job</button>}
           />
+          {isEmployer && <VerseCard/>}
           {isEmployer && (
             <div className="info-cards dash-tiles" style={{ '--cols': 4 }}>
               {[
@@ -1279,16 +1461,20 @@ export default function App() {
 
         {page === 'dashboard' && <>
           <PageHeading eyebrow={workLabel} title={`${ROLE_LABELS[accountRole]} dashboard`} desc="Everything waiting for you, in one place."/>
+          <VerseCard/>
           <div className="info-cards dash-tiles" style={{ '--cols': 3 }}>
             {[
               canModerate && ['review', ClipboardCheck, 'Posts to review', queue.length, 'Check each one with the employer'],
+              canModerate && ['joining', UserPlus, 'Waiting to join', pendingMembers.length, 'Check who invited them'],
               isAdmin && ['applications', BadgeCheck, 'Role applications', pendingApplications, 'Volunteers and church admins'],
               isAdmin && ['churchRequests', HeartHandshake, 'Church requests', pendingChurchRequests, 'Churches members want added'],
               canModerate && ['reports', Flag, 'Open safety reports', reportRows.filter(r => !r.resolved).length, 'Follow up within 24 hours'],
               isAdmin && ['people', UsersRound, 'Members', members.length, `${members.filter(m => m.suspended).length} suspended · ${members.filter(m => !['member', 'volunteer'].includes(m.role)).length} staff`],
               isChurchAdmin && ['vouch', UsersRound, 'Vouch requests', pendingVouches, adminChurch || 'Your church'],
               isVolunteer && ['mentoring', HandHeart, 'Open session requests', openMentorRequests, 'Members waiting for a mentor'],
-              isVolunteer && ['mentoring', CheckCircle2, 'Sessions you took', mentorQueue.filter(r => r.mine && r.status === 'taken').length, 'Email them to arrange a time']
+              isVolunteer && ['mentoring', CheckCircle2, 'Sessions you took', mentorQueue.filter(r => r.mine && r.status === 'taken').length, 'Email them to arrange a time'],
+              isCarer && ['carerQueue', HandHeart, 'Open requests', openCareRequests, churchName(carerChurch) || 'Your church'],
+              isCarer && ['carerQueue', CheckCircle2, 'Requests you took', carerQueue.filter(r => r.mine).length, 'Keep what you hear confidential']
             ].filter(Boolean).map(([id, Icon, label, n, sub]) => (
               <button key={label} type="button" className={`plain-card dash-tile ${n > 0 && id !== 'people' ? 'waiting' : ''}`} onClick={() => go(id)}>
                 <span className="feature-icon"><Icon size={22} aria-hidden="true"/></span>
@@ -1326,6 +1512,146 @@ export default function App() {
             </div>
           ) : <Empty icon={HandHeart} title="No requests right now" description="When a member asks for career support, it shows up here for you to take."/>}
         </>}
+
+        {page === 'joining' && <>
+          <PageHeading eyebrow={workLabel} title="New members" desc="People asking to join. Approve someone only once the member who invited them confirms they know them."/>
+          {pendingMembers.length ? (
+            <div className="review-list">
+              {pendingMembers.map(m => (
+                <QueueCard
+                  key={m.id}
+                  avatar={<div className="company-icon blue">{m.name.split(/\s+/).slice(0, 2).map(w => w[0]?.toUpperCase()).join('')}</div>}
+                  title={m.name}
+                  status={m.invited_by ? 'Waiting' : 'No code yet'}
+                  tone="pending"
+                  sub={[m.email, m.phone, `Asked ${new Date(m.joined).toLocaleDateString()}`].filter(Boolean).join(' · ')}
+                  note={m.invited_by && `Invited by ${m.invited_by}${m.invited_by_email ? ` (${m.invited_by_email})` : ''}`}
+                  footNote={!m.invited_by && <><LockKeyhole size={15}/> They need a member’s referral code before you can approve them</>}
+                >
+                  <button type="button" className="reject-small" onClick={() => decideMember(m, false)}><X size={15}/> Decline</button>
+                  <button type="button" className="approve-small" disabled={!m.invited_by} onClick={() => decideMember(m, true)}><Check size={15}/> Approve</button>
+                </QueueCard>
+              ))}
+            </div>
+          ) : <Empty icon={UserPlus} title="Nobody waiting" description="When someone signs up with a referral code, they appear here for you to approve."/>}
+          {isAdmin && <>
+            <div className="spacer-24"/>
+            <SectionTitle title="Everyone who joined" subtitle="Who invited each member, and which moderator or admin let them in"/>
+            <div className="table-wrap">
+              <table className="data-table">
+                <thead><tr><th scope="col">Member</th><th scope="col">Invited by</th><th scope="col">Approved or declined by</th><th scope="col">Status</th><th scope="col">Joined</th></tr></thead>
+                <tbody>
+                  {joinedMembers.map(m => (
+                    <tr key={m.id}>
+                      <td><strong>{m.name}</strong><small>{m.email}</small></td>
+                      <td>{m.invited_by || <span className="muted">{m.status === 'approved' ? 'Before referral codes' : 'No code given'}</span>}</td>
+                      <td>{m.decided_by ? <>{m.decided_by}<small>{ROLE_LABELS[m.decided_by_role]}</small></> : <span className="muted">—</span>}</td>
+                      <td><span className={`status-chip ${m.status === 'approved' ? 'ok' : m.status === 'declined' ? 'bad' : 'pending'}`}>{APP_STATUS[m.status]}</span></td>
+                      <td>{new Date(m.joined).toLocaleDateString()}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>}
+        </>}
+
+        {page === 'carerQueue' && <>
+          <PageHeading eyebrow="Pastoral care" title="Pastoral requests" desc={`Members of ${churchName(carerChurch) || 'your church'} asking for prayer or someone to talk to. Keep what you hear confidential, and never connect it to jobs or vouching.`}/>
+          {carerQueue.length ? (
+            <div className="review-list">
+              {[...carerQueue].sort((a, b) => b.mine - a.mine).map(r => (
+                <QueueCard
+                  key={r.id}
+                  avatar={<div className="company-icon rose">{r.display_name.split(/\s+/).slice(0, 2).map(w => w[0]?.toUpperCase()).join('')}</div>}
+                  title={`${CARE_KINDS[r.kind]} · ${r.display_name}`}
+                  status={r.mine ? 'Yours' : 'Open'}
+                  tone={r.mine ? 'ok' : 'pending'}
+                  sub={new Date(r.created_at).toLocaleDateString()}
+                  note={r.note}
+                  footNote={r.mine ? <><Mail size={15}/> {r.email}</> : <><LockKeyhole size={15}/> Email shown once you take it</>}
+                >
+                  {r.mine ? <>
+                    <button type="button" className="reject-small" onClick={() => finishCare(r, false)}>Hand back</button>
+                    <a className="outline-small" href={`mailto:${r.email}`}><Mail size={15}/> Email</a>
+                    <button type="button" className="approve-small" onClick={() => finishCare(r, true)}><Check size={15}/> Close</button>
+                  </> : <button type="button" className="approve-small" onClick={() => takeCare(r)}><HandHeart size={15}/> I'll take this</button>}
+                </QueueCard>
+              ))}
+            </div>
+          ) : <Empty icon={HandHeart} title="No requests right now" description="When a member of your church asks for pastoral care, it shows up here."/>}
+        </>}
+
+        {page === 'unsubscribe' && <div className="page-narrow">
+          <PageHeading
+            eyebrow="Job alert emails"
+            title={unsubscribed === null ? 'Unsubscribing…' : unsubscribed ? 'You’re unsubscribed' : 'This link didn’t work'}
+            desc={unsubscribed === null ? '' : unsubscribed
+              ? 'You won’t get job alert emails any more. Matching jobs still show in the app, and you can switch the emails back on in your profile.'
+              : 'It may have been copied only in part. You can switch job alert emails off on your profile instead.'}
+          />
+          {unsubscribed !== null && (
+            <div className="info-cta">
+              <button type="button" className="primary-button" onClick={() => go('profile')}>Go to your profile <ArrowRight size={16}/></button>
+              <button type="button" className="secondary-button" onClick={() => go('opportunities')}>Browse jobs</button>
+            </div>
+          )}
+        </div>}
+
+        {page === 'care' && <div className="page-narrow">
+          <PageHeading eyebrow="Pastoral care" title="Someone from your church to pray with you" desc="Ask for prayer or someone to talk to. Your request goes only to a pastoral carer at the church you choose."/>
+          <VerseCard/>
+          <ul className="care-promises">
+            <li><LockKeyhole size={18} aria-hidden="true"/><span><strong>Confidential.</strong> Only a pastoral carer at your church sees your request. Employers, moderators and admins never do.</span></li>
+            <li><ShieldCheck size={18} aria-hidden="true"/><span><strong>Separate from jobs.</strong> Asking, or not asking, never affects the jobs you see, your church vouch or your posts.</span></li>
+            <li><X size={18} aria-hidden="true"/><span><strong>Yours to delete.</strong> Delete a request at any time and it is erased, not hidden.</span></li>
+          </ul>
+          {supabase && profile.suspended ? <Empty icon={Ban} title="Paused on your account" description="This is switched off while your account is suspended."/> : (
+            <form className="form-panel booking-form" onSubmit={askForCare}>
+              <label>
+                Your church
+                <select required value={careForm.church} onChange={e => setCareForm({ ...careForm, church: e.target.value })}>
+                  <option value="">Choose your church</option>
+                  {churches.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+              </label>
+              <label>
+                Your name
+                <input maxLength={80} placeholder={account.guest ? 'Full name' : account.name} value={careForm.name} onChange={e => setCareForm({ ...careForm, name: e.target.value })}/>
+              </label>
+              <label>
+                What would help?
+                <select value={careForm.kind} onChange={e => setCareForm({ ...careForm, kind: e.target.value })}>
+                  {Object.entries(CARE_KINDS).map(([key, label]) => <option key={key} value={key}>{label}</option>)}
+                </select>
+              </label>
+              <label>
+                Anything you’d like them to know (optional)
+                <textarea rows={3} maxLength={500} placeholder="Share only what you’re comfortable with." value={careForm.note} onChange={e => setCareForm({ ...careForm, note: e.target.value })}/>
+              </label>
+              <label className="check-label">
+                <input type="checkbox" checked={careForm.consent} onChange={e => setCareForm({ ...careForm, consent: e.target.checked })}/>
+                <span>A pastoral carer from my church may email me at my sign-in address. Only they will see it.</span>
+              </label>
+              <button className="primary-button" type="submit" disabled={!careForm.consent || !careForm.church}><Send size={16}/> Send request</button>
+            </form>
+          )}
+          {myCare.length > 0 && (
+            <div className="plain-card stack-gap care-mine">
+              <h3>Your requests</h3>
+              {myCare.map(r => (
+                <div className="mini-row" key={r.id}>
+                  <HandHeart size={19}/>
+                  <div>
+                    <strong>{CARE_KINDS[r.kind]} · {churchName(r.church_id)}</strong>
+                    <small>{CARE_STATUS[r.status]} · {new Date(r.created_at).toLocaleDateString()}</small>
+                  </div>
+                  <button type="button" className="outline-small" onClick={() => deleteCare(r)}>Delete</button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>}
 
         {page === 'review' && <>
           <PageHeading
@@ -1406,7 +1732,7 @@ export default function App() {
           <PageHeading
             eyebrow="Join the team"
             title={`Apply to help run ${SITE_NAME}`}
-            desc="Every role is free and unpaid. An admin checks each application, usually with a short call. Moderators are invited by the team."
+            desc="Every role is free and unpaid. An admin checks each application, usually with a short call. Moderators and pastoral carers are appointed by the team."
           />
           {supabase && profile.suspended ? <Empty icon={Ban} title="Paused on your account" description="This is switched off while your account is suspended."/> : (
           <form className="form-panel booking-form apply-form" onSubmit={submitApplication}>
@@ -1612,8 +1938,8 @@ export default function App() {
                   <h2>{account.name}</h2>
                   <p>{account.detail}</p>
                 </div>
-                <span className={`status-chip ${supabase && profile.suspended ? 'bad' : accountRole === 'member' ? 'neutral' : 'ok'}`}>
-                  {supabase && profile.suspended ? 'Suspended' : ROLE_LABELS[accountRole]}
+                <span className={`status-chip ${supabase && profile.suspended ? 'bad' : joinStatus ? 'pending' : accountRole === 'member' ? 'neutral' : 'ok'}`}>
+                  {supabase && profile.suspended ? 'Suspended' : joinStatus ? (joinStatus === 'declined' ? 'Not approved' : 'Waiting to join') : ROLE_LABELS[accountRole]}
                 </span>
               </div>
 
@@ -1632,6 +1958,17 @@ export default function App() {
                 )}
               </div>
 
+              {myCode && (
+                <div className="profile-vouch">
+                  <div>
+                    <span>Your referral code</span>
+                    <strong className="referral-code">{myCode}</strong>
+                    <small>Give it only to people you know. You’ll be shown as the person who invited them.</small>
+                  </div>
+                  <button type="button" className="secondary-button" onClick={copyCode}><Copy size={15}/> Copy</button>
+                </div>
+              )}
+
               <div className="sheet-items profile-activity">
                 {[
                   ['interests', Bookmark, 'Saved jobs', demo.saved.length + demo.tracked.length + interestedIds.length],
@@ -1649,7 +1986,7 @@ export default function App() {
 
               <p className="profile-privacy">
                 <LockKeyhole size={16} aria-hidden="true"/>
-                <span>We keep your name, email and a yes/no church vouch. Never your CV or your beliefs. <button type="button" onClick={() => go('privacySafety')}>Privacy & data</button></span>
+                <span>We keep your name, email, who invited you and a yes/no church vouch. Never your CV or your beliefs. <button type="button" onClick={() => go('privacySafety')}>Privacy & data</button></span>
               </p>
 
               {supabase
@@ -1657,6 +1994,7 @@ export default function App() {
                 : <button type="button" className="secondary-button" onClick={() => setShowReset(true)}><RotateCcw size={16}/> Reset demo</button>}
             </div>
           )}
+          {(!supabase || session) && <ProfileForm prefs={prefs} onSave={saveProfile}/>}
         </div>}
 
         <div className="footer-gap" aria-hidden="true"/>
@@ -1942,13 +2280,68 @@ export default function App() {
     )}
 
     {showSignIn && (
-      <Modal onClose={() => setShowSignIn(false)} title={`Sign in to ${SITE_NAME}`}>
-        {/* Google only: no sign-in emails, so no email quota to run out or abuse */}
-        <p>Sign in with your Google account. Any Google account works, including work addresses that use Google.</p>
-        {googleEnabled
-          ? <button type="button" className="secondary-button full google-button" onClick={signInWithGoogle}><GoogleMark/> Continue with Google</button>
-          : <Warning>Sign-in is being set up. Please try again soon.</Warning>}
-        <p className="sign-in-note">We only receive your name, email and profile photo. <button type="button" className="link-button" onClick={() => { setShowSignIn(false); go('privacy') }}>Privacy</button></p>
+      <Modal onClose={() => setShowSignIn(false)} title={authForm.mode === 'signup' ? `Join ${SITE_NAME}` : authForm.mode === 'reset' ? 'Choose a new password' : `Sign in to ${SITE_NAME}`}>
+        {providers.email && authForm.mode !== 'reset' && (
+          <div className="tab-list auth-tabs" role="tablist" aria-label="Sign in or join">
+            <button type="button" role="tab" aria-selected={authForm.mode === 'signin'} className={authForm.mode === 'signin' ? 'active' : ''} onClick={() => setAuthMode('signin')}>Sign in</button>
+            <button type="button" role="tab" aria-selected={authForm.mode === 'signup'} className={authForm.mode === 'signup' ? 'active' : ''} onClick={() => setAuthMode('signup')}>Create account</button>
+          </div>
+        )}
+        {authForm.mode === 'signup' && <p>{SITE_NAME} is for people invited by a member. You need their referral code, and a moderator approves every new account.</p>}
+        {authForm.mode === 'reset' && <p>We’ll email you a link to choose a new password.</p>}
+        {providers.email && (
+          <form className="booking-form auth-form" onSubmit={submitAuth}>
+            {authForm.mode === 'signup' && (
+              <label>
+                Full name
+                <input required minLength={2} maxLength={80} autoComplete="name" value={authForm.name} onChange={e => setAuthForm({ ...authForm, name: e.target.value })}/>
+              </label>
+            )}
+            <label>
+              Email
+              <input type="email" required maxLength={254} autoComplete="email" value={authForm.email} onChange={e => setAuthForm({ ...authForm, email: e.target.value })}/>
+            </label>
+            {authForm.mode !== 'reset' && (
+              <label>
+                Password
+                <input type="password" required minLength={authForm.mode === 'signup' ? 8 : undefined} autoComplete={authForm.mode === 'signup' ? 'new-password' : 'current-password'} value={authForm.password} onChange={e => setAuthForm({ ...authForm, password: e.target.value })}/>
+                {authForm.mode === 'signup' && <small>At least 8 characters.</small>}
+              </label>
+            )}
+            {authForm.mode === 'signup' && (
+              <label>
+                Referral code
+                <input required maxLength={10} placeholder="EPH-XXXXXX" autoComplete="off" value={authForm.code} onChange={e => setAuthForm({ ...authForm, code: e.target.value })}/>
+                <small>From the member who invited you.</small>
+              </label>
+            )}
+            <button className="primary-button full" type="submit">{authForm.mode === 'signup' ? 'Create account' : authForm.mode === 'reset' ? 'Send link' : 'Sign in'}</button>
+            {authForm.mode === 'signin' && <button type="button" className="link-button" onClick={() => setAuthMode('reset')}>Forgot your password?</button>}
+            {authForm.mode === 'reset' && <button type="button" className="link-button" onClick={() => setAuthMode('signin')}>Back to sign in</button>}
+          </form>
+        )}
+        {providers.google && authForm.mode !== 'reset' && <>
+          {providers.email && <p className="auth-or"><span>or</span></p>}
+          <button type="button" className="secondary-button full google-button" onClick={signInWithGoogle}><GoogleMark/> Continue with Google</button>
+          {authForm.mode === 'signup' && <p className="sign-in-note">With Google, you enter your referral code after signing in.</p>}
+        </>}
+        {!providers.google && !providers.email && <Warning>Sign-in is being set up. Please try again soon.</Warning>}
+        <p className="sign-in-note">We keep your name and email{providers.google ? ', and your Google profile photo if you use Google' : ''}. <button type="button" className="link-button" onClick={() => { setShowSignIn(false); go('privacy') }}>Privacy</button></p>
+      </Modal>
+    )}
+
+    {newPassword !== null && (
+      <Modal onClose={() => setNewPassword(null)} title="Choose a new password">
+        <form className="booking-form" onSubmit={saveNewPassword}>
+          <label>
+            New password
+            <input type="password" required minLength={8} autoComplete="new-password" value={newPassword} onChange={e => setNewPassword(e.target.value)}/>
+            <small>At least 8 characters.</small>
+          </label>
+          <div className="modal-actions">
+            <button type="submit" className="primary-button">Save password</button>
+          </div>
+        </form>
       </Modal>
     )}
 
@@ -1989,7 +2382,21 @@ function Brand({ compact = false }) {
   )
 }
 
-function JobCard({ job, saved, tracked, interested, onSave, onOpen, onInterest, onLearn }) {
+// Verse of the day: the same for everyone, changes at midnight (verses.js)
+function VerseCard() {
+  const [reference, text] = verseOfDay()
+  return (
+    <figure className="verse-card">
+      <BookOpen size={20} aria-hidden="true"/>
+      <div>
+        <blockquote>{text}</blockquote>
+        <figcaption>{reference} <span>· Verse of the day (KJV)</span></figcaption>
+      </div>
+    </figure>
+  )
+}
+
+function JobCard({ job, saved, tracked, interested, onSave, onOpen, onInterest, onLearn, isNew }) {
   const life = Math.max(4, Math.min(100, Math.round((job.daysLeft / 30) * 100)))
   return (
     <article className="jc">
@@ -1997,6 +2404,7 @@ function JobCard({ job, saved, tracked, interested, onSave, onOpen, onInterest, 
         {onLearn
           ? <button type="button" className="jc-check" title="How we review jobs" onClick={onLearn}><BadgeCheck size={15}/> Checked with employer</button>
           : <span className="jc-check"><BadgeCheck size={15}/> Checked with employer</span>}
+        {isNew && <span className="jc-new"><Sparkles size={13}/> New for you</span>}
         {tracked && <span className="jc-applied"><CheckCheck size={13}/> Applied</span>}
         <button
           className={`jc-save ${saved ? 'is-saved' : ''}`}
@@ -2328,6 +2736,64 @@ function ChurchRequestCard({ suggestion, churches, suggester, onDecide }) {
   )
 }
 
+// Your details and what work you want. Preferences stay private and only drive "Matches for you".
+function ProfileForm({ prefs, onSave }) {
+  const toForm = p => ({ display_name: p.display_name || '', phone: p.phone || '', emirates: p.emirates || [], work_types: p.work_types || [],
+    work_settings: p.work_settings || [], keywords: p.keywords || '', min_pay: p.min_pay || '', alerts_email: Boolean(p.alerts_email) })
+  const saved = JSON.stringify(toForm(prefs))
+  const [form, setForm] = useState(() => JSON.parse(saved))
+  useEffect(() => setForm(JSON.parse(saved)), [saved]) // only when the saved profile really changed, so typing isn't reset
+  const toggle = (key, value) => setForm(f => ({ ...f, [key]: f[key].includes(value) ? f[key].filter(x => x !== value) : [...f[key], value] }))
+  const chips = (key, values, legend) => (
+    <fieldset className="pref-chips">
+      <legend>{legend}</legend>
+      {values.map(v => (
+        <label key={v} className={form[key].includes(v) ? 'on' : ''}>
+          <input type="checkbox" checked={form[key].includes(v)} onChange={() => toggle(key, v)}/>{v}
+        </label>
+      ))}
+    </fieldset>
+  )
+  return (
+    <form className="form-panel booking-form profile-form" onSubmit={e => { e.preventDefault(); onSave(form) }}>
+      <h2>Your details</h2>
+      <div className="form-two">
+        <label>
+          Name
+          <input maxLength={80} autoComplete="name" value={form.display_name} onChange={e => setForm({ ...form, display_name: e.target.value })}/>
+          <small>Shown to mentors, carers and staff instead of your sign-in name.</small>
+        </label>
+        <label>
+          Phone (optional)
+          <input type="tel" maxLength={20} placeholder="+971 50 123 4567" autoComplete="tel" value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })}/>
+          <small>Only moderators and admins see it, to check your account.</small>
+        </label>
+      </div>
+      <h2>Job alerts</h2>
+      <p className="form-intro">Tell us what you’re looking for. Matching jobs are marked “New for you” as they go live. Only you see this, and employers never see who a job matched.</p>
+      {chips('emirates', EMIRATES, 'Emirates')}
+      {chips('work_types', WORK_TYPES, 'Work type')}
+      {chips('work_settings', WORK_SETTINGS, 'Work setting')}
+      <div className="form-two">
+        <label>
+          Keywords
+          <input maxLength={200} placeholder="e.g. accountant, driver, receptionist" value={form.keywords} onChange={e => setForm({ ...form, keywords: e.target.value })}/>
+          <small>Separate with commas. A job matches if it mentions any of them.</small>
+        </label>
+        <label>
+          Minimum monthly pay (AED, optional)
+          <input type="number" inputMode="numeric" min={1} max={999999} placeholder="5000" value={form.min_pay} onChange={e => setForm({ ...form, min_pay: e.target.value })}/>
+        </label>
+      </div>
+      <label className="check-label">
+        <input type="checkbox" checked={form.alerts_email} onChange={e => setForm({ ...form, alerts_email: e.target.checked })}/>
+        <span>Also email me once a day when new jobs match.</span>
+      </label>
+      <button className="primary-button" type="submit"><Check size={16}/> Save profile</button>
+    </form>
+  )
+}
+
 // One account on the People page; role changes wait for Save, suspension is one click and reversible
 function MemberCard({ member, you, churches, canManage, onSave, onSuspend }) {
   const [nextRole, setNextRole] = useState(member.role)
@@ -2335,7 +2801,7 @@ function MemberCard({ member, you, churches, canManage, onSave, onSuspend }) {
   useEffect(() => { setNextRole(member.role); setChurch(member.church_id || '') }, [member.role, member.church_id])
   const manageable = canManage(member, member.role)
   const options = Object.keys(ROLE_LABELS).filter(r => r === member.role || canManage(member, r))
-  const changed = nextRole !== member.role || (nextRole === 'church_admin' && church !== (member.church_id || ''))
+  const changed = nextRole !== member.role || (CHURCH_ROLES.includes(nextRole) && church !== (member.church_id || ''))
   const locked = you ? 'You can’t change your own account'
     : member.role === 'super_admin' ? 'The super admin is changed in the SQL editor'
     : 'Only the super admin can change admins'
@@ -2345,14 +2811,14 @@ function MemberCard({ member, you, churches, canManage, onSave, onSuspend }) {
       title={you ? `${member.name} (you)` : member.name}
       status={member.suspended ? 'Suspended' : ROLE_LABELS[member.role]}
       tone={member.suspended ? 'bad' : member.role === 'member' ? 'neutral' : 'ok'}
-      sub={[member.email, churches.find(c => c.id === member.church_id)?.name, `Joined ${new Date(member.joined).toLocaleDateString()}`, `${member.posts} ${Number(member.posts) === 1 ? 'post' : 'posts'}`].filter(Boolean).join(' · ')}
+      sub={[member.email, member.phone, churches.find(c => c.id === member.church_id)?.name, `Joined ${new Date(member.joined).toLocaleDateString()}`, `${member.posts} ${Number(member.posts) === 1 ? 'post' : 'posts'}`].filter(Boolean).join(' · ')}
       footNote={!manageable && <><LockKeyhole size={15}/> {locked}</>}
     >
       {manageable && <>
         <select className="member-select" aria-label={`Role for ${member.name}`} value={nextRole} onChange={e => setNextRole(e.target.value)}>
           {options.map(r => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
         </select>
-        {nextRole === 'church_admin' && (
+        {CHURCH_ROLES.includes(nextRole) && (
           <select className="member-select" aria-label={`Church for ${member.name}`} value={church} onChange={e => setChurch(e.target.value)}>
             <option value="">Choose church</option>
             {churches.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}

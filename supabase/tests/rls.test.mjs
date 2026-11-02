@@ -8,7 +8,7 @@ const db = new PGlite()
 
 // Minimal stand-in for Supabase's auth schema and API roles
 await db.exec(`
-  create role anon; create role authenticated;
+  create role anon; create role authenticated; create role service_role;
   create schema auth;
   create table auth.users (id uuid primary key, email text, raw_user_meta_data jsonb not null default '{}');
   create function auth.uid() returns uuid language sql stable as
@@ -28,7 +28,10 @@ const EMP = '00000000-0000-0000-0000-00000000000b'
 const OTHER = '00000000-0000-0000-0000-00000000000c'
 const ADMIN = '00000000-0000-0000-0000-00000000000d' // church admin for the poster's church
 const ADMIN2 = '00000000-0000-0000-0000-00000000000e' // church admin elsewhere
+// New accounts wait for approval (20261102); the older checks run as approved members
+const approveAll = () => db.exec(`update public.profiles set status = 'approved', referral_code = 'TEST-' || id where status = 'pending'`)
 await db.exec(`insert into auth.users values ('${MOD}'), ('${EMP}'), ('${OTHER}'), ('${ADMIN}'), ('${ADMIN2}')`)
+await approveAll()
 await db.exec(`update public.profiles set role = 'moderator' where id = '${MOD}'`)
 const [CHURCH, CHURCH2] = (await db.query(`select id from public.churches order by name`)).rows.map(r => r.id)
 await db.exec(`update public.profiles set role = 'church_admin', church_id = '${CHURCH}' where id = '${ADMIN}'`)
@@ -142,6 +145,7 @@ const ADM = '00000000-0000-0000-0000-0000000000f2'
 const APPLICANT = '00000000-0000-0000-0000-0000000000f3'
 await db.exec(`insert into auth.users (id, email, raw_user_meta_data) values
   ('${SUPER}', 'owner@ephworks.test', '{"full_name":"Site Owner"}'), ('${ADM}', 'admin@ephworks.test', '{}'), ('${APPLICANT}', 'helper@ephworks.test', '{}')`)
+await approveAll()
 await db.exec(`update public.profiles set role = 'super_admin' where id = '${SUPER}'`)
 r = await db.query(`update public.profiles set role = 'super_admin' where id = '${ADM}'`).catch(e => ({ error: e.message }))
 check('only one super admin', /one_super_admin/.test(r.error || ''), r)
@@ -268,6 +272,7 @@ check('approved church admin is tied to the new church', r.rows?.[0]?.role === '
 // Volunteer mentoring ----------------------------------------------------------------
 const VOL = '00000000-0000-0000-0000-0000000000f4'
 await db.exec(`insert into auth.users (id, email) values ('${VOL}', 'mentor@ephworks.test')`)
+await approveAll()
 await db.exec(`update auth.users set email = 'employer@ephworks.test' where id = '${EMP}'`)
 await as(SUPER, `select public.set_member_role($1, 'volunteer')`, [VOL])
 r = await as(EMP, `insert into public.support_requests (service, display_name, preferred_time, may_email) values ('cv-review', 'Omar', 'Weekday evening', false)`)
@@ -337,6 +342,170 @@ r = await as(ADM, `select email from public.admin_members() where id = $1`, [EMP
 check('admins still see other members with email', r.rows?.[0]?.email === 'employer@ephworks.test', r)
 r = await as(SUPER, `select name from public.admin_members() where id = $1`, [SUPER])
 check('super admin still sees themself', r.rows?.[0]?.name === 'Site Owner', r)
+
+// Joining by referral ------------------------------------------------------------------
+const NEW1 = '00000000-0000-0000-0000-0000000000a1' // signs in with Google, enters a code afterwards
+const NEW2 = '00000000-0000-0000-0000-0000000000a2' // email sign-up with the code in the form
+const NEW3 = '00000000-0000-0000-0000-0000000000a3' // never enters a code
+await db.exec(`update public.profiles set referral_code = 'EPH-EMP001' where id = '${EMP}'`)
+await db.exec(`insert into auth.users (id, email, raw_user_meta_data) values
+  ('${NEW1}', 'new1@ephworks.test', '{"full_name":"Grace New"}'),
+  ('${NEW2}', 'new2@ephworks.test', '{"full_name":"Tunde New","referral_code":" eph-emp001 "}'),
+  ('${NEW3}', 'new3@ephworks.test', '{}')`)
+r = await db.query(`select id, status, referred_by from public.profiles where id in ('${NEW1}', '${NEW2}') order by id`)
+check('new accounts wait for approval', r.rows.every(p => p.status === 'pending'), r.rows)
+check('code in the sign-up form links the referrer', r.rows[0].referred_by === null && r.rows[1].referred_by === EMP, r.rows)
+r = await as(NEW1, `select id from public.jobs where status = 'published'`)
+check('waiting account can still browse live jobs', r.rows?.length > 0, r)
+r = await as(NEW1, `insert into public.job_interest (job_id) values ($1)`, [jobId])
+check('waiting account cannot mark interest', /waiting for approval/.test(r.error || ''), r)
+r = await as(NEW1, job())
+check('waiting account cannot post', /waiting for approval/.test(r.error || ''), r)
+r = await as(NEW1, `select public.referrer_for('EPH-EMP001')`)
+check('codes cannot be tested from the app', /permission denied/.test(r.error || ''), r)
+r = await as(NEW1, `select public.use_referral_code('EPH-NOPE00')`)
+check('wrong referral code refused', /isn't valid/.test(r.error || ''), r)
+await db.exec(`update public.profiles set suspended = true where id = '${OTHER}'; update public.profiles set referral_code = 'EPH-OTH001' where id = '${OTHER}'`)
+r = await as(NEW1, `select public.use_referral_code('EPH-OTH001')`)
+check('suspended member\'s code refused', /isn't valid/.test(r.error || ''), r)
+await db.exec(`update public.profiles set suspended = false where id = '${OTHER}'`)
+r = await as(NEW1, `select public.use_referral_code('eph-emp001')`)
+r = await db.query(`select referred_by from public.profiles where id = '${NEW1}'`)
+check('code entered after Google sign-in links the referrer', r.rows[0].referred_by === EMP, r.rows)
+
+r = await as(EMP, `select * from public.pending_members()`)
+check('members see nobody waiting', r.rows?.length === 0, r)
+r = await as(MOD, `select name, invited_by, invited_by_email from public.pending_members() where id = $1`, [NEW2])
+check('moderators see who is waiting and who invited them', r.rows?.[0]?.name === 'Tunde New' && r.rows[0].invited_by_email === 'employer@ephworks.test', r)
+r = await as(EMP, `select public.decide_member($1, true)`, [NEW1])
+check('members cannot approve', /Only moderators/.test(r.error || ''), r)
+r = await as(MOD, `select public.decide_member($1, true)`, [NEW3])
+check('no approval without a referral code', /referral code/.test(r.error || ''), r)
+r = await as(MOD, `select public.decide_member($1, true)`, [MOD])
+check('nobody decides their own account', /own account/.test(r.error || ''), r)
+r = await as(MOD, `select public.decide_member($1, true)`, [NEW1])
+r = await db.query(`select status, referral_code, decided_by from public.profiles where id = '${NEW1}'`)
+check('moderator approves; new member gets their own code', r.rows[0].status === 'approved' && /^EPH-[0-9A-F]{6}$/.test(r.rows[0].referral_code) && r.rows[0].decided_by === MOD, r.rows)
+r = await as(MOD, `select public.decide_member($1, false)`, [NEW3])
+r = await as(MOD, `select public.decide_member($1, true)`, [NEW3])
+check('a declined account stays declined', /no longer waiting/.test(r.error || ''), r)
+r = await as(NEW1, `insert into public.job_interest (job_id) values ($1)`, [jobId])
+check('approved newcomer can take part', !r.error, r)
+
+r = await as(SUPER, `select public.set_member_role($1, 'moderator')`, [NEW2])
+r = await as(NEW2, `select * from public.pending_members()`)
+check('a role does nothing until the account is approved', r.rows?.length === 0, r)
+await as(SUPER, `select public.set_member_role($1, 'member')`, [NEW2])
+
+r = await as(ADM, `select name, invited_by, decided_by, decided_by_role, status from public.joined_members() where id = $1`, [NEW1])
+check('admins see who invited and who approved', r.rows?.[0]?.invited_by === 'employer' && r.rows[0].decided_by_role === 'moderator' && r.rows[0].status === 'approved', r)
+r = await as(MOD, `select * from public.joined_members()`)
+check('joined table is admins only', r.rows?.length === 0, r)
+
+// Pastoral care --------------------------------------------------------------------------
+const CARER = '00000000-0000-0000-0000-0000000000b1'
+const CARER2 = '00000000-0000-0000-0000-0000000000b2'
+await db.exec(`insert into auth.users (id, email) values ('${CARER}', 'carer@ephworks.test'), ('${CARER2}', 'carer2@ephworks.test')`)
+await approveAll()
+r = await as(SUPER, `select public.set_member_role($1, 'pastoral_carer')`, [CARER])
+check('pastoral carer needs a church', /Choose the church/.test(r.error || ''), r)
+await as(SUPER, `select public.set_member_role($1, 'pastoral_carer', $2)`, [CARER, CHURCH])
+await as(SUPER, `select public.set_member_role($1, 'pastoral_carer', $2)`, [CARER2, CHURCH2])
+
+const careRow = `insert into public.pastoral_requests (church_id, display_name, kind, note, may_contact, status) values ($1, 'Omar', 'prayer', 'Struggling since losing my job.', true, 'closed') returning status`
+r = await as(NEW3, careRow, [CHURCH])
+check('waiting or declined account cannot ask for pastoral care', /waiting for approval/.test(r.error || ''), r)
+r = await as(EMP, careRow, [CHURCH])
+check('member asks for pastoral care; status forced open', r.rows?.[0]?.status === 'open', r)
+r = await as(EMP, careRow, [CHURCH])
+check('one open pastoral request at a time', /one_open_pastoral_request/.test(r.error || ''), r)
+r = await as(CARER, `select display_name, email from public.carer_requests()`)
+check('carer sees their church\'s request without the email', r.rows?.length === 1 && r.rows[0].email === null, r)
+r = await as(CARER2, `select * from public.carer_requests()`)
+check('carer at another church sees nothing', r.rows?.length === 0, r)
+for (const [who, label] of [[SUPER, 'super admin'], [ADM, 'admin'], [MOD, 'moderator'], [ADMIN, 'church admin'], [VOL, 'volunteer']]) {
+  r = await as(who, `select id from public.pastoral_requests`)
+  const direct = r.rows?.length
+  r = await as(who, `select id from public.carer_requests()`)
+  check(`${label} cannot read pastoral requests`, direct === 0 && r.rows?.length === 0, r)
+}
+const careId = (await as(EMP, `select id from public.pastoral_requests`)).rows[0].id
+r = await as(MOD, `select public.take_pastoral_request($1)`, [careId])
+check('only a carer for that church can take a request', /no longer open/.test(r.error || ''), r)
+await as(CARER, `select public.take_pastoral_request($1)`, [careId])
+r = await as(CARER, `select email from public.carer_requests() where id = $1`, [careId])
+check('carer sees the email once they take it', r.rows?.[0]?.email === 'employer@ephworks.test', r)
+r = await as(CARER, `delete from public.pastoral_requests where id = $1 returning id`, [careId])
+check('carer cannot delete a member\'s request', r.rows?.length === 0, r)
+r = await as(EMP, `delete from public.pastoral_requests where id = $1 returning id`, [careId])
+check('member erases their own request', r.rows?.length === 1, r)
+r = await as(ADM, `select public.remove_church($1)`, [CHURCH2])
+check('church with a pastoral carer cannot be removed', /cannot be removed/.test(r.error || ''), r)
+
+// Editable profile and job matches ---------------------------------------------------------
+const setProfile = (who, args) => as(who, `select public.update_my_profile($1, $2, $3, $4, $5, $6, $7, $8)`, args)
+r = await as(NEW1, `update public.profiles set role = 'admin' where id = $1 returning id`, [NEW1])
+check('members still cannot write their profile row directly', Boolean(r.error) || r.rows?.length === 0, r)
+r = await setProfile(NEW1, ['Grace B.', '+971 50 123 4567', ['Narnia'], [], [], null, null, false])
+check('unknown emirate refused', Boolean(r.error), r)
+r = await setProfile(NEW1, ['Grace B.', 'call me', [], [], [], null, null, false])
+check('phone must look like a number', Boolean(r.error), r)
+r = await setProfile(NEW1, ['Grace B.', '+971 50 123 4567', [], [], [], null, null, false])
+r = await as(NEW1, `select * from public.my_job_matches()`)
+check('no preferences, no matches', r.rows?.length === 0, r)
+r = await setProfile(NEW1, ['Grace B.', '+971 50 123 4567', ['Dubai'], ['Full-time'], [], ' coordinator, nurse ', 4000, true])
+r = await db.query(`select display_name, role, keywords, emirates from public.profiles where id = '${NEW1}'`)
+check('member edits their own profile, role untouched', r.rows[0].display_name === 'Grace B.' && r.rows[0].role === 'member' && r.rows[0].keywords === 'coordinator, nurse', r.rows)
+r = await as(ADM, `select name, phone from public.admin_members() where id = $1`, [NEW1])
+check('chosen name and phone show to admins', r.rows?.[0]?.name === 'Grace B.' && r.rows[0].phone === '+971 50 123 4567', r)
+await db.exec(`update public.profiles set alerts_seen_at = now() - interval '2 days' where id = '${NEW1}'`)
+r = await as(NEW1, `select job_id, is_new from public.my_job_matches()`)
+check('matching live job found and marked new', r.rows?.length === 1 && r.rows[0].job_id === jobId && r.rows[0].is_new === true, r)
+r = await setProfile(NEW1, ['Grace B.', null, ['Dubai'], ['Full-time'], [], 'coordinator', 9000, true])
+r = await as(NEW1, `select job_id from public.my_job_matches()`)
+check('pay below the minimum does not match', r.rows?.length === 0, r)
+r = await setProfile(NEW1, ['Grace B.', null, ['Sharjah'], [], [], null, null, true])
+r = await as(NEW1, `select job_id from public.my_job_matches()`)
+check('other emirate does not match', r.rows?.length === 0, r)
+r = await setProfile(NEW1, ['Grace B.', null, ['Dubai'], [], [], 'coordinator', 5000, true])
+await as(NEW1, `select public.mark_matches_seen()`)
+r = await as(NEW1, `select is_new from public.my_job_matches()`)
+check('seen matches are no longer new', r.rows?.length === 1 && r.rows[0].is_new === false, r)
+r = await as(EMP, `select job_id from public.my_job_matches()`)
+check('your own posts never match you', r.rows?.length === 0, r)
+r = await as(NEW1, `select * from public.take_alert_digest()`)
+check('digest is server only', /permission denied/.test(r.error || ''), r)
+await db.exec(`update public.profiles set alerts_emailed_at = now() - interval '2 days' where id = '${NEW1}'`)
+r = await db.query(`select email, name, jobs from public.take_alert_digest()`)
+check('digest lists new matches for opted-in members', r.rows.length === 1 && r.rows[0].email === 'new1@ephworks.test' && r.rows[0].jobs[0].title === 'Office Coordinator', r.rows)
+r = await db.query(`select * from public.take_alert_digest()`)
+check('the same job is not emailed twice', r.rows.length === 0, r.rows)
+
+// Keywords match whole words, plurals included; regex characters are taken literally
+for (const [words, expected, label] of [
+  ['coord', 0, 'part of a word does not match'],
+  ['schedule', 1, 'a plural in the job text matches the singular keyword'],
+  ['Office Coordinator', 1, 'a two-word keyword matches'],
+  ['c.ordinator', 0, 'regex characters are taken literally']
+]) {
+  await setProfile(NEW1, ['Grace B.', null, [], [], [], words, null, true])
+  r = await as(NEW1, `select job_id from public.my_job_matches()`)
+  check(`keywords: ${label}`, r.rows?.length === expected, { words, r })
+}
+
+// One-click unsubscribe from the email
+await setProfile(NEW1, ['Grace B.', null, [], [], [], 'coordinator', null, true])
+const token = (await db.query(`select alerts_token from public.profiles where id = '${NEW1}'`)).rows[0].alerts_token
+r = await as(null, `select public.unsubscribe_alerts('00000000-0000-0000-0000-000000000000') as ok`)
+check('unknown unsubscribe token changes nothing', r.rows?.[0]?.ok === false, r)
+r = await as(null, `select public.unsubscribe_alerts($1) as ok`, [token])
+r = await db.query(`select alerts_email from public.profiles where id = '${NEW1}'`)
+check('unsubscribe link works without signing in', r.rows[0].alerts_email === false, r.rows)
+await db.exec(`update public.profiles set alerts_email = true, alerts_emailed_at = now() - interval '2 days' where id = '${NEW1}'`)
+r = await db.query(`select token from public.take_alert_digest()`)
+check('digest carries the unsubscribe token', r.rows[0]?.token === token, r.rows)
+r = await as(NEW1, `select public.take_alert_digest()`)
+check('digest is still server only', /permission denied/.test(r.error || ''), r)
 
 console.log(failed ? `\n${failed} failed` : '\nAll checks passed')
 process.exit(failed ? 1 : 0)

@@ -7,7 +7,7 @@
 // Page options: hero (photo for the page banner, or 'plain' for a photo-free banner), doc (render as a document card).
 import { SITE_NAME, CONTACT_EMAIL } from './data'
 
-const UPDATED = '28 October 2026'
+const UPDATED = '2 November 2026'
 
 export const INFO_PAGES = [
   // ---------- About ----------
@@ -155,9 +155,9 @@ export const INFO_PAGES = [
     lede: 'We keep as little about you as we can.',
     blocks: [
       { cards: [
-        ['What we keep', 'Your name, email and photo from sign-in, a yes or no church vouch, your posts, saved interest and any role applications.', 'file'],
+        ['What we keep', 'Your name, email and photo from sign-in, who invited you and who approved you, any phone number and job preferences you add, a yes or no church vouch, your posts, saved interest, role applications and any pastoral-care request.', 'file'],
         ['What we never keep', 'Your CV, your beliefs or denomination, or payment details.', 'ban'],
-        ['Who sees what', 'Employers see a count of interested people, never names. Church admins see requests sent to their church. Admins see names and emails to keep the community safe.', 'eye']
+        ['Who sees what', 'Employers see a count of interested people, never names. Church admins see requests sent to their church. Moderators see who invited a new member. Admins see names and emails to keep the community safe. Pastoral-care requests are seen only by a pastoral carer at your church.', 'eye']
       ] },
       { note: 'We follow the UAE Personal Data Protection Law (Federal Decree-Law No. 45 of 2021).' },
       { cta: [['Read the privacy policy', 'privacy']] }
@@ -193,7 +193,9 @@ export const INFO_PAGES = [
     blocks: [
       { faq: [
         [`Is ${SITE_NAME} free?`, 'Yes, for everyone, always. Job seekers never pay and employers never pay to post.'],
-        ['Do I need to belong to a church to find work?', 'No. Anyone can browse and apply. Only people who post jobs are vouched for by their church.'],
+        ['Do I need to belong to a church to find work?', 'No. Anyone can browse jobs and apply to employers directly. Only people who post jobs are vouched for by their church.'],
+        [`How do I join ${SITE_NAME}?`, 'Ask a member who knows you for their referral code, then create an account with your email or Google. A moderator checks with that member and approves you. Until then you can browse jobs.'],
+        ['What is pastoral care?', 'You can ask a pastoral carer at your church for prayer or someone to talk to. Only that carer sees your request, it is never linked to jobs, and you can delete it at any time.'],
         [`Does ${SITE_NAME} store my CV?`, 'No. You apply to the employer directly by their email or careers page.'],
         ['How are jobs checked?', 'Fee wording is blocked, the poster is vouched for by their church, and a moderator confirms the job with the employer.'],
         ['Someone asked me to pay for a job. What do I do?', 'Do not pay. It is illegal to charge job seekers. Report the job and tell us what happened.'],
@@ -227,20 +229,23 @@ export const INFO_PAGES = [
       { note: 'This is the pilot version of our privacy policy. It is being reviewed before public launch.', tone: 'strong' },
       { h: 'What we collect' },
       { list: [
-        'From sign-in: your name, email address and profile photo',
+        'From sign-in: your name, email address and, if you use Google, your profile photo. If you use a password, it is stored only as a secure hash',
+        'Who invited you (their referral code) and which moderator or admin approved your account',
+        'Anything you add to your profile: the name you want shown, a phone number, and the emirates, kinds of work, keywords and minimum pay you are looking for',
         'A yes or no church vouch, and which partner church gave it',
-        'Jobs you post, jobs you mark as interested, reports you file and role applications you send'
+        'Jobs you post, jobs you mark as interested, reports you file and role applications you send',
+        'If you ask for pastoral care: the church you chose, the name you gave, what would help and any note you write'
       ] },
       { h: 'What we do not collect' },
       { p: 'Your CV, your religious beliefs or denomination, or any payment details.' },
       { h: 'How we use it' },
-      { p: 'Only to run the noticeboard: to show jobs, check posters and jobs, keep the community safe and contact you about your account.' },
+      { p: 'Only to run the noticeboard: to show jobs, check posters and jobs, keep the community safe and contact you about your account. A pastoral-care request is used only so a carer at your church can contact you. It is never used for anything to do with jobs, and asking for care never affects what jobs you see or how your posts are treated. Your job preferences are used only to show you matching jobs and, if you ask, to email you about them.' },
       { h: 'Who can see it' },
-      { p: 'Employers see a count of interested people, never names. Church admins see vouch requests sent to their church. Moderators see posts waiting for checks. Admins see members\' names and emails. We never sell or share your data with advertisers.' },
+      { p: 'Employers see a count of interested people, never names. Church admins see vouch requests sent to their church. Moderators see posts waiting for checks, and who invited each new member and their phone number if they added one. Only you see your job preferences; employers never see who a job matched. Admins see members\' names and emails, and who invited and approved each member. A pastoral-care request is seen only by you and a pastoral carer at the church you chose; admins, moderators, church admins and employers cannot see it. We never sell or share your data with advertisers.' },
       { h: 'Where it is kept' },
       { p: 'Accounts and posts are stored with our database provider, Supabase. Saved and applied jobs stay on your own device. Fonts are loaded from Google Fonts, which receives your IP address. We use no advertising or tracking cookies.' },
       { h: 'How long we keep it' },
-      { p: 'Jobs end after 30 days. Your account is kept until you ask us to delete it.' },
+      { p: 'Jobs end after 30 days. You can delete a pastoral-care request yourself at any time, and it is erased. Your account is kept until you ask us to delete it.' },
       { h: 'Your rights' },
       { p: `You can ask to see, correct or delete your data at any time: ${CONTACT_EMAIL}. We follow the UAE Personal Data Protection Law (Federal Decree-Law No. 45 of 2021).` }
     ]

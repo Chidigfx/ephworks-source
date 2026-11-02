@@ -58,9 +58,28 @@ async function changed(query, refusal) {
 }
 
 export const api = {
-  // Lets the UI hide "Continue with Google" until the provider is switched on in the dashboard
-  googleEnabled: () => fetch(`${url}/auth/v1/settings`, { headers: { apikey: key } }).then(r => r.json()).then(s => Boolean(s.external?.google)).catch(() => false),
-  profile: uid => run(supabase.from('profiles').select('role, church_id, suspended').eq('id', uid)).then(rows => rows[0] || {}),
+  // Which sign-in methods are switched on in the dashboard, so the UI only offers those
+  providers: () => fetch(`${url}/auth/v1/settings`, { headers: { apikey: key } }).then(r => r.json())
+    .then(s => ({ google: Boolean(s.external?.google), email: Boolean(s.external?.email) })).catch(() => ({ google: false, email: false })),
+  // The referral code rides along in the sign-up; the server links it to the member who invited them
+  signUp: ({ name, email, password, code }) => supabase.auth.signUp({ email, password, options: { data: { full_name: name, referral_code: code }, emailRedirectTo: window.location.origin } })
+    .then(({ data, error }) => { if (error) throw error; return data }),
+  signIn: (email, password) => supabase.auth.signInWithPassword({ email, password }).then(({ error }) => { if (error) throw error }),
+  sendPasswordReset: email => supabase.auth.resetPasswordForEmail(email, { redirectTo: window.location.origin }).then(({ error }) => { if (error) throw error }),
+  setPassword: password => supabase.auth.updateUser({ password }).then(({ error }) => { if (error) throw error }),
+  profile: uid => run(supabase.from('profiles').select('role, church_id, suspended, status, referral_code, referred_by, display_name, phone, emirates, work_types, work_settings, keywords, min_pay, alerts_email').eq('id', uid)).then(rows => rows[0] || {}),
+  // Joining: a waiting account enters a code; moderators and admins decide (see 20261102 migration)
+  useReferralCode: code => run(supabase.rpc('use_referral_code', { code })),
+  pendingMembers: () => run(supabase.rpc('pending_members')),
+  decideMember: (target, approve) => run(supabase.rpc('decide_member', { target, approve })),
+  joinedMembers: () => run(supabase.rpc('joined_members')),
+  // Members change only their own details and job preferences (see 20261103 migration)
+  updateProfile: f => run(supabase.rpc('update_my_profile', { new_name: f.display_name, new_phone: f.phone, new_emirates: f.emirates, new_work_types: f.work_types,
+    new_work_settings: f.work_settings, new_keywords: f.keywords, new_min_pay: f.min_pay, new_alerts_email: f.alerts_email })),
+  myMatches: () => run(supabase.rpc('my_job_matches')),
+  markMatchesSeen: () => run(supabase.rpc('mark_matches_seen')),
+  // From the link in an alert email; works without signing in
+  unsubscribe: token => run(supabase.rpc('unsubscribe_alerts', { token })),
   churches: () => run(supabase.from('churches').select('id, name, emirate').order('name')),
   // RLS returns every suggestion to admins and only their own to everyone else
   churchSuggestions: () => run(supabase.from('church_suggestions').select('*').order('created_at', { ascending: false })),
@@ -108,5 +127,12 @@ export const api = {
   addChurch: (church_name, church_emirate) => run(supabase.rpc('add_church', { church_name, church_emirate })),
   updateChurch: (church, church_name, church_emirate) => run(supabase.rpc('update_church', { church, church_name, church_emirate })),
   removeChurch: church => run(supabase.rpc('remove_church', { church })),
+  // Pastoral care: only the member and a carer at their chosen church ever see a request
+  myPastoral: () => run(supabase.from('pastoral_requests').select('*').order('created_at', { ascending: false })),
+  requestPastoral: row => run(supabase.from('pastoral_requests').insert(row)),
+  deletePastoral: id => changed(supabase.from('pastoral_requests').delete().eq('id', id), 'Could not delete this request.'),
+  carerRequests: () => run(supabase.rpc('carer_requests')),
+  takePastoral: request => run(supabase.rpc('take_pastoral_request', { request })),
+  finishPastoral: (request, closed) => run(supabase.rpc('finish_pastoral_request', { request, closed })),
   resolveReport: id => changed(supabase.from('reports').update({ status: 'resolved' }).eq('id', id), 'Only moderators can resolve reports.')
 }
