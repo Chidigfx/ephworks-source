@@ -1,6 +1,5 @@
 // One place for the name and contact address, so they are easy to change once confirmed
 export const SITE_NAME = 'Ephworks'
-export const CONTACT_EMAIL = 'hello@ephworks.example' // placeholder: replace with the real inbox before launch
 
 // Every company, person, job, and remuneration figure below is fictional demo data.
 export const SAMPLE_JOBS = [
@@ -274,7 +273,8 @@ export const NAV = {
   moderator: [
     { id: 'review', label: 'Review', icon: 'check' },
     { id: 'joining', label: 'New members', icon: 'users' },
-    { id: 'reports', label: 'Reports', icon: 'flag' }
+    { id: 'reports', label: 'Reports', icon: 'flag' },
+    { id: 'inbox', label: 'Inbox', icon: 'mail' }
   ],
   church: [
     { id: 'vouch', label: 'Vouches', icon: 'users' }
@@ -327,4 +327,10 @@ export const SAMPLE_SUPPORT_REQUESTS = [
 // Same shape as pastoral_requests rows; requests to the sample church's pastoral carer
 export const SAMPLE_PASTORAL_REQUESTS = [
   { id: 'care-01', member_id: 'member-david', church_id: 'church-stluke', display_name: 'David Okafor', kind: 'prayer', note: 'Six months without work. I could do with prayer and some encouragement.', may_contact: true, status: 'open', carer_id: null, created_at: '2026-10-30T19:00:00Z' }
+]
+
+// Same shape as contact_messages rows; what the contact form has received, for the Admin and Moderator demo views
+export const SAMPLE_CONTACT_MESSAGES = [
+  { id: 'msg-01', name: 'Mariam Haddad', email: 'mariam@example.test', topic: 'partnership', message: 'Our church in Ajman would like to join as a partner church. Who should our pastor speak to?', status: 'open', created_at: '2026-11-02T08:15:00Z' },
+  { id: 'msg-02', name: 'Kofi Mensah', email: 'kofi@example.test', topic: 'safety', message: 'Someone messaged me on WhatsApp about one of your jobs and asked for AED 500 for a medical check. Is this real?', status: 'open', created_at: '2026-11-02T19:40:00Z' }
 ]

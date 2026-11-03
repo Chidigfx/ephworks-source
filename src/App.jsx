@@ -8,7 +8,7 @@ import {
   Clock3, Mail, Building2, Eye, Send, Info, AlertTriangle, ShieldAlert,
   Calendar, CheckCheck, Scale, Lock, UserRound, Heart, Ban, UserPlus, Copy, BookOpen, Sparkles, BellRing
 } from 'lucide-react'
-import { NAV, SAMPLE_JOBS, SAMPLE_VOLUNTEER, CAREER_SUPPORT_MODULES, TRUST_PILLARS, SAMPLE_VOUCH_REQUESTS, SAMPLE_CHURCHES, SAMPLE_MEMBERS, SAMPLE_APPLICATIONS, SAMPLE_CHURCH_SUGGESTIONS, SAMPLE_SUPPORT_REQUESTS, SAMPLE_PASTORAL_REQUESTS, SITE_NAME, CONTACT_EMAIL } from './data'
+import { NAV, SAMPLE_JOBS, SAMPLE_VOLUNTEER, CAREER_SUPPORT_MODULES, TRUST_PILLARS, SAMPLE_VOUCH_REQUESTS, SAMPLE_CHURCHES, SAMPLE_MEMBERS, SAMPLE_APPLICATIONS, SAMPLE_CHURCH_SUGGESTIONS, SAMPLE_SUPPORT_REQUESTS, SAMPLE_PASTORAL_REQUESTS, SAMPLE_CONTACT_MESSAGES, SITE_NAME } from './data'
 import { INFO_PAGES, INFO_GROUPS, FOOTER } from './content'
 import { supabase, api, toJob } from './supabase'
 import { scanPost } from './scam'
@@ -17,7 +17,7 @@ import { verseOfDay } from './verses'
 const icons = {
   briefcase: BriefcaseBusiness, bookmark: Bookmark, sparkles: LifeBuoy,
   heart: HeartHandshake, users: UsersRound, shield: ShieldCheck,
-  plus: Plus, file: FileText, check: ClipboardCheck, flag: Flag, badge: BadgeCheck, home: Home, help: CircleHelp, grid: LayoutDashboard, hand: HandHeart
+  plus: Plus, file: FileText, check: ClipboardCheck, flag: Flag, badge: BadgeCheck, home: Home, help: CircleHelp, grid: LayoutDashboard, hand: HandHeart, mail: Mail
 }
 // Demo-only persona switcher (no backend). With Supabase the menu comes from the signed-in account's role.
 const PERSONAS = { member: 'Member', volunteer: 'Volunteer', moderator: 'Moderator', church_admin: 'Church admin', pastoral_carer: 'Pastoral carer', super_admin: 'Admin' }
@@ -37,6 +37,7 @@ const defaultDemo = {
   pastoralRequests: SAMPLE_PASTORAL_REQUESTS,
   prefs: {}, // the demo persona's profile details and job preferences, same keys as public.profiles
   seenMatches: [], // matching job ids already shown as new
+  contactMessages: SAMPLE_CONTACT_MESSAGES,
   churches: SAMPLE_CHURCHES // partner churches; admins can add, rename and remove them in the demo
 }
 
@@ -65,6 +66,9 @@ const EMPTY_AUTH = { mode: 'signin', name: '', email: '', password: '', code: ''
 const CARE_KINDS = { prayer: 'Prayer', talk: 'Someone to talk to', other: 'Something else' }
 const CARE_STATUS = { open: 'Waiting for a pastoral carer', taken: 'A pastoral carer will email you', closed: 'Closed' }
 const EMPTY_CARE = { church: '', name: '', kind: 'prayer', note: '', consent: false }
+// Must match the contact_messages.topic check in the 20261105 migration
+const CONTACT_TOPICS = { question: 'General question', safety: 'Safety concern', partnership: 'Church or partner enquiry', account: 'Help with my account', other: 'Something else' }
+const EMPTY_CONTACT = { name: '', email: '', topic: 'question', message: '', website: '' } // website: a trap field people never see, only bots fill in
 // Must match the jobs.emirate / type / mode checks in the first migration
 const EMIRATES = ['Abu Dhabi', 'Dubai', 'Sharjah', 'Ajman', 'Umm Al Quwain', 'Ras Al Khaimah', 'Fujairah']
 const WORK_TYPES = ['Full-time', 'Part-time']
@@ -103,7 +107,7 @@ const salaryText = ({ payFrom, payTo }) => payFrom ? (payTo && Number(payTo) !==
 const PATHS = {
   home: '/', dashboard: '/work', mentoring: '/work/mentoring', opportunities: '/jobs', interests: '/saved', post: '/post', drafts: '/my-posts', career: '/career-support',
   apply: '/get-involved', profile: '/profile', review: '/work/review', reports: '/work/reports', applications: '/work/applications',
-  people: '/work/people', churchRequests: '/work/churches', vouch: '/work/vouches', joining: '/work/joining', carerQueue: '/work/pastoral', care: '/pastoral-care', unsubscribe: '/unsubscribe',
+  people: '/work/people', churchRequests: '/work/churches', vouch: '/work/vouches', joining: '/work/joining', carerQueue: '/work/pastoral', care: '/pastoral-care', unsubscribe: '/unsubscribe', inbox: '/work/inbox',
   ...Object.fromEntries(INFO_PAGES.map(p => [p.id, p.path]))
 }
 const pageFor = path => Object.keys(PATHS).find(id => PATHS[id] === (path.replace(/\/+$/, '') || '/')) || 'home'
@@ -132,6 +136,7 @@ function getSavedDemo() {
       pastoralRequests: Array.isArray(value.pastoralRequests) ? value.pastoralRequests : SAMPLE_PASTORAL_REQUESTS,
       prefs: value.prefs && typeof value.prefs === 'object' ? value.prefs : {},
       seenMatches: Array.isArray(value.seenMatches) ? value.seenMatches : [],
+      contactMessages: Array.isArray(value.contactMessages) ? value.contactMessages : SAMPLE_CONTACT_MESSAGES,
       churches: Array.isArray(value.churches) ? value.churches : [...SAMPLE_CHURCHES, ...(Array.isArray(value.addedChurches) ? value.addedChurches : [])]
     }
   } catch { return defaultDemo }
@@ -189,7 +194,7 @@ export default function App() {
   const [jobs, setJobs] = useState(supabase ? [] : SAMPLE_JOBS)
   const [session, setSession] = useState(null)
   const [authReady, setAuthReady] = useState(!supabase) // the saved sign-in has been read
-  const [server, setServer] = useState({ myJobs: [], queue: [], reports: [], posterVouches: {}, myVouch: null, vouchRequests: [], members: [], applications: [], interested: [], interestCounts: {}, churchSuggestions: [], supportRequests: [], volunteerRequests: [], churchOverview: [], pendingMembers: [], joinedMembers: [], pastoral: [], carerRequests: [], matches: [] })
+  const [server, setServer] = useState({ myJobs: [], queue: [], reports: [], posterVouches: {}, myVouch: null, vouchRequests: [], members: [], applications: [], interested: [], interestCounts: {}, churchSuggestions: [], supportRequests: [], volunteerRequests: [], churchOverview: [], pendingMembers: [], joinedMembers: [], pastoral: [], carerRequests: [], matches: [], contactMessages: [] })
   const [serverChurches, setChurches] = useState([])
   const [vouchForm, setVouchForm] = useState(EMPTY_VOUCH)
   const [applyForm, setApplyForm] = useState(EMPTY_APPLY)
@@ -203,6 +208,7 @@ export default function App() {
   const [newPassword, setNewPassword] = useState(null) // set after following a password-reset link
   const [codeInput, setCodeInput] = useState('')
   const [careForm, setCareForm] = useState(EMPTY_CARE)
+  const [contactForm, setContactForm] = useState(EMPTY_CONTACT)
   const [matchOnly, setMatchOnly] = useState(false) // job feed shows only jobs matching your profile
   const [unsubscribed, setUnsubscribed] = useState(null) // result of an email unsubscribe link: null while working, then true or false
   const [supportForm, setSupportForm] = useState({ name: '', preferredTime: 'Weekday evening (after 6 pm)', note: '', consent: false })
@@ -216,7 +222,7 @@ export default function App() {
   const isAdmin = ['admin', 'super_admin'].includes(accountRole)
   const isVolunteer = accountRole === 'volunteer'
   const isCarer = accountRole === 'pastoral_carer'
-  const staffQueues = isAdmin ? [...NAV.moderator.slice(0, 2), ...NAV.admin, NAV.moderator[2]] : canModerate ? NAV.moderator : isChurchAdmin ? NAV.church : isVolunteer ? NAV.volunteer : isCarer ? NAV.pastoral : []
+  const staffQueues = isAdmin ? [...NAV.moderator.slice(0, 2), ...NAV.admin, ...NAV.moderator.slice(2)] : canModerate ? NAV.moderator : isChurchAdmin ? NAV.church : isVolunteer ? NAV.volunteer : isCarer ? NAV.pastoral : []
   const staffNav = staffQueues.length ? [NAV.dashboard, ...staffQueues] : []
   // What the staff area is called for this account, so admins, moderators and church admins each see their own space
   const workLabel = isAdmin ? 'Admin' : canModerate ? 'Moderation' : isChurchAdmin ? 'Church admin' : isCarer ? 'Pastoral care' : 'Volunteer'
@@ -291,6 +297,10 @@ export default function App() {
     .map(r => ({ ...r, mine: r.carer_id === DEMO_ME, email: r.carer_id === DEMO_ME ? demoMember(r.member_id)?.email : null }))
   const openCareRequests = carerQueue.filter(r => r.status === 'open').length
 
+  // Contact form messages: admins see all, moderators the safety concerns (the server filters the same way)
+  const contactMessages = supabase ? server.contactMessages : demo.contactMessages.filter(m => isAdmin || m.topic === 'safety')
+  const openMessages = contactMessages.filter(m => m.status === 'open').length
+
   // Admin church list with how many depend on each church (the server counts on the live site)
   const churchOverview = supabase ? server.churchOverview : churches.map(c => ({
     ...c,
@@ -356,14 +366,15 @@ export default function App() {
     uid && isAdmin ? api.joinedMembers() : [],
     uid ? api.myPastoral() : [],
     uid && isCarer ? api.carerRequests() : [],
-    uid ? api.myMatches() : []
-  ]).then(([live, mine, queue, reports, posters, myVouch, vouchRequests, members, applications, interested, interestCounts, churchSuggestions, supportRequests, volunteerRequests, churchOverview, pendingMembers, joinedMembers, pastoral, carerRequests, matches]) => {
+    uid ? api.myMatches() : [],
+    uid && canModerate ? api.contactMessages() : []
+  ]).then(([live, mine, queue, reports, posters, myVouch, vouchRequests, members, applications, interested, interestCounts, churchSuggestions, supportRequests, volunteerRequests, churchOverview, pendingMembers, joinedMembers, pastoral, carerRequests, matches, contactMessages]) => {
     setJobs(live.map(toJob))
     setServer({
       myJobs: mine.map(toJob), queue: queue.map(toJob), reports, myVouch,
       posterVouches: Object.fromEntries(posters.map(p => [p.user_id, p.status])),
       vouchRequests: vouchRequests.filter(v => v.user_id !== uid), // admins can't vouch for themselves
-      members, applications, interested, interestCounts, churchSuggestions, supportRequests, volunteerRequests, churchOverview, pendingMembers, joinedMembers, pastoral, carerRequests, matches
+      members, applications, interested, interestCounts, churchSuggestions, supportRequests, volunteerRequests, churchOverview, pendingMembers, joinedMembers, pastoral, carerRequests, matches, contactMessages
     })
   }).catch(err => notify(`Could not load from the server: ${err.message}`))
 
@@ -421,7 +432,7 @@ export default function App() {
 
   // Leave staff pages if the account loses access (e.g. after signing out)
   useEffect(() => {
-    const allowed = { dashboard: staffNav.length > 0, mentoring: isVolunteer, review: canModerate, reports: canModerate, vouch: isChurchAdmin, people: isAdmin, applications: isAdmin, churchRequests: isAdmin, joining: canModerate, carerQueue: isCarer }[page]
+    const allowed = { dashboard: staffNav.length > 0, mentoring: isVolunteer, review: canModerate, reports: canModerate, vouch: isChurchAdmin, people: isAdmin, applications: isAdmin, churchRequests: isAdmin, joining: canModerate, carerQueue: isCarer, inbox: canModerate }[page]
     // wait for the sign-in and the account's role before deciding, so links to staff pages survive a reload
     if (!authReady || (uid && profile.role === undefined)) return
     if (allowed === false) { replaceUrl.current = true; setPage('home') }
@@ -673,6 +684,33 @@ export default function App() {
     updateDemo({ seenMatches: [...new Set([...demo.seenMatches, ...matchIds])] })
   }
 
+  // Contact form: opened from any "message us" button with the right topic, filled in for signed-in members
+  const openContact = topic => { setContactForm(f => ({ ...f, topic: CONTACT_TOPICS[topic] ? topic : 'question' })); go('contact') }
+  const sendContact = e => {
+    e.preventDefault()
+    const { name, email, topic, message, website } = contactForm
+    const done = () => {
+      setContactForm(f => ({ ...f, message: '' }))
+      notify(topic === 'safety' ? 'Thanks. The safety team has your message and will reply by email within 24 hours.' : 'Thanks, your message is with the team. We will reply by email.')
+    }
+    if (website) return done() // only bots fill in the hidden field; tell them it worked and keep nothing
+    const row = { name: name.trim(), email: email.trim(), topic, message: message.trim() }
+    if (supabase) return api.sendContact(row).then(done).catch(fail)
+    updateDemo({ contactMessages: [{ ...row, id: `msg-${Date.now()}`, status: 'open', created_at: new Date().toISOString() }, ...demo.contactMessages] })
+    done()
+  }
+  const setHandled = (m, handled) => {
+    const done = () => notify(handled ? 'Marked as handled.' : 'Moved back to open.')
+    if (supabase) return api.setContactHandled(m.id, handled).then(() => { refresh(); done() }).catch(fail)
+    updateDemo({ contactMessages: demo.contactMessages.map(x => x.id === m.id ? { ...x, status: handled ? 'handled' : 'open' } : x) })
+    done()
+  }
+  const deleteMessage = m => {
+    if (supabase) return api.deleteContact(m.id).then(() => { refresh(); notify('Message deleted.') }).catch(fail)
+    updateDemo({ contactMessages: demo.contactMessages.filter(x => x.id !== m.id) })
+    notify('Message deleted.')
+  }
+
   // Joining: approving gives the newcomer their own referral code
   const decideMember = (m, approve) => {
     const done = () => notify(approve ? `${m.name} is approved and can now take part. They get their own referral code.` : `${m.name}'s request to join was declined.`)
@@ -830,6 +868,10 @@ export default function App() {
   const account = !supabase ? { name: demo.prefs.display_name || 'Jordan Morgan', detail: 'jordan@example.test' } // matches SAMPLE_MEMBERS; vouch status lives on the Profile page
     : session ? { name: profile.display_name || meta.full_name || meta.name || session.user.email.split('@')[0], detail: session.user.email, photo: meta.avatar_url || meta.picture }
     : { name: 'Guest', detail: 'Not signed in', guest: true }
+  // The contact form starts with a signed-in member's name and email
+  useEffect(() => {
+    if (page === 'contact' && !account.guest) setContactForm(f => ({ ...f, name: f.name || account.name, email: f.email || account.detail }))
+  }, [page, account.name])
 
   const reportRows = supabase
     ? server.reports.map(r => ({ id: r.id, title: r.jobs?.title, reason: r.reason, resolved: r.status === 'resolved', created: new Date(r.created_at).toLocaleString() }))
@@ -847,6 +889,7 @@ export default function App() {
     applications: isAdmin ? pendingApplications : 0,
     churchRequests: isAdmin ? pendingChurchRequests : 0,
     joining: canModerate ? pendingMembers.length : 0,
+    inbox: canModerate ? openMessages : 0,
     carerQueue: isCarer ? openCareRequests : 0
   })[id] || 0
   const workCount = staffNav.reduce((sum, n) => sum + navCount(n.id), 0)
@@ -997,7 +1040,7 @@ export default function App() {
         {supabase && profile.suspended && (
           <Warning tone="strong">Your account is suspended. You can browse the noticeboard, but you can't post, vouch, report or review. Contact the Ephworks team if you think this is a mistake.</Warning>
         )}
-        {joinStatus === 'declined' && <Warning tone="strong">Your request to join was not approved. You can still browse jobs. If you think this is a mistake, email {CONTACT_EMAIL}.</Warning>}
+        {joinStatus === 'declined' && <Warning tone="strong">Your request to join was not approved. You can still browse jobs. If you think this is a mistake, <button type="button" className="link-button" onClick={() => openContact('account')}>send us a message</button>.</Warning>}
         {joinStatus === 'pending' && (profile.referred_by
           ? <Warning>Welcome. A moderator will check with the member who invited you, then approve your account. Until then you can browse jobs.</Warning>
           : (
@@ -1468,6 +1511,7 @@ export default function App() {
               canModerate && ['joining', UserPlus, 'Waiting to join', pendingMembers.length, 'Check who invited them'],
               isAdmin && ['applications', BadgeCheck, 'Role applications', pendingApplications, 'Volunteers and church admins'],
               isAdmin && ['churchRequests', HeartHandshake, 'Church requests', pendingChurchRequests, 'Churches members want added'],
+              canModerate && ['inbox', Mail, 'New messages', openMessages, isAdmin ? 'From the contact form' : 'Safety concerns sent to the team'],
               canModerate && ['reports', Flag, 'Open safety reports', reportRows.filter(r => !r.resolved).length, 'Follow up within 24 hours'],
               isAdmin && ['people', UsersRound, 'Members', members.length, `${members.filter(m => m.suspended).length} suspended · ${members.filter(m => !['member', 'volunteer'].includes(m.role)).length} staff`],
               isChurchAdmin && ['vouch', UsersRound, 'Vouch requests', pendingVouches, adminChurch || 'Your church'],
@@ -1719,12 +1763,60 @@ export default function App() {
           ) : <Empty icon={Flag} title="No open safety reports" description="When a member reports a job, it appears here."/>}
         </>}
 
+        {page === 'inbox' && <>
+          <PageHeading
+            eyebrow={workLabel}
+            title="Inbox"
+            desc={isAdmin ? 'Messages from the contact form. Reply by email, then mark each one handled.' : 'Safety concerns sent through the contact form. Reply by email within 24 hours, then mark each one handled.'}
+          />
+          {contactMessages.length ? (
+            <div className="review-list">
+              {[...contactMessages].sort((a, b) => (b.status === 'open') - (a.status === 'open')).map(m => (
+                <ContactCard key={m.id} message={m} onHandled={setHandled} onDelete={deleteMessage}/>
+              ))}
+            </div>
+          ) : <Empty icon={Mail} title="No messages" description="Messages sent through the Contact us page appear here."/>}
+        </>}
+
         {infoPage && (
           <InfoPage
             page={infoPage}
             onGo={go}
-            onAction={action => action === 'mail' ? window.location.assign(`mailto:${CONTACT_EMAIL}`) : action.startsWith('apply:') ? applyFor(action.slice(6)) : go(action)}
+            onAction={action => action.startsWith('contact:') ? openContact(action.slice(8)) : action.startsWith('apply:') ? applyFor(action.slice(6)) : go(action)}
             roles={SAMPLE_VOLUNTEER}
+            contactForm={
+              <form className="form-panel booking-form contact-form" onSubmit={sendContact}>
+                <div className="form-two">
+                  <label>
+                    Your name
+                    <input required minLength={2} maxLength={80} autoComplete="name" value={contactForm.name} onChange={e => setContactForm({ ...contactForm, name: e.target.value })}/>
+                  </label>
+                  <label>
+                    Your email
+                    <input type="email" required maxLength={254} autoComplete="email" value={contactForm.email} onChange={e => setContactForm({ ...contactForm, email: e.target.value })}/>
+                    <small>We reply to this address.</small>
+                  </label>
+                </div>
+                <label>
+                  What is it about?
+                  <select value={contactForm.topic} onChange={e => setContactForm({ ...contactForm, topic: e.target.value })}>
+                    {Object.entries(CONTACT_TOPICS).map(([key, label]) => <option key={key} value={key}>{label}</option>)}
+                  </select>
+                </label>
+                {contactForm.topic === 'safety' && <Warning tone="strong">If you are in danger or have lost money, call the police on 999 first. To report a job, you can also open it and tap Report.</Warning>}
+                <label>
+                  Your message
+                  <textarea required minLength={10} maxLength={2000} rows={6} value={contactForm.message} onChange={e => setContactForm({ ...contactForm, message: e.target.value })}/>
+                  <small>{contactForm.message.length} / 2000</small>
+                </label>
+                <label className="trap-field" aria-hidden="true">
+                  Leave this empty
+                  <input tabIndex={-1} autoComplete="off" value={contactForm.website} onChange={e => setContactForm({ ...contactForm, website: e.target.value })}/>
+                </label>
+                <button className="primary-button" type="submit"><Send size={16}/> Send message</button>
+                <p className="sign-in-note">We only use these details to reply to you. <button type="button" className="link-button" onClick={() => go('privacy')}>Privacy</button></p>
+              </form>
+            }
           />
         )}
 
@@ -2518,7 +2610,7 @@ const INFO_ICONS = {
 }
 
 // About, Safety & Trust, Help and Legal pages, drawn from content.js. Pages in a group share a tab row.
-function InfoPage({ page, onGo, onAction, roles }) {
+function InfoPage({ page, onGo, onAction, roles, contactForm }) {
   const siblings = INFO_PAGES.filter(p => p.group === page.group)
   const icon = name => { const Icon = INFO_ICONS[name] || Info; return <span className="feature-icon"><Icon size={22} aria-hidden="true"/></span> }
   const list = (items, tone) => <ul className={`info-list ${tone || ''}`}>{items.map(x => <li key={x}>{tone === 'warn' ? <AlertTriangle size={16} aria-hidden="true"/> : <Check size={16} aria-hidden="true"/>}{x}</li>)}</ul>
@@ -2553,6 +2645,7 @@ function InfoPage({ page, onGo, onAction, roles }) {
         ))}
       </div>
     )
+    : b.contactForm ? <div key={i}>{contactForm}</div>
     : b.stats ? <ul key={i} className="info-stats">{b.stats.map(([v, l]) => <li key={l}><b>{v}</b><span>{l}</span></li>)}</ul>
     : b.split ? (
       <div key={i} className="info-split">
@@ -2791,6 +2884,28 @@ function ProfileForm({ prefs, onSave }) {
       </label>
       <button className="primary-button" type="submit"><Check size={16}/> Save profile</button>
     </form>
+  )
+}
+
+// One contact-form message in the staff inbox: reply by email, mark handled, or delete after a second click
+function ContactCard({ message: m, onHandled, onDelete }) {
+  const [confirming, setConfirming] = useState(false)
+  const open = m.status === 'open'
+  return (
+    <QueueCard
+      avatar={<div className={`feature-icon ${m.topic === 'safety' ? 'danger' : ''}`}><Mail size={20}/></div>}
+      title={`${CONTACT_TOPICS[m.topic]} · ${m.name}`}
+      status={open ? 'Open' : 'Handled'}
+      tone={open ? 'pending' : 'ok'}
+      sub={[m.email, new Date(m.created_at).toLocaleString()].join(' · ')}
+      note={m.message}
+    >
+      <a className="outline-small" href={`mailto:${m.email}?subject=${encodeURIComponent(`Re: your message to ${SITE_NAME}`)}`}><Mail size={15}/> Reply</a>
+      <button type="button" className="approve-small" onClick={() => onHandled(m, open)}>{open ? <><Check size={15}/> Mark handled</> : <><RotateCcw size={15}/> Reopen</>}</button>
+      {confirming
+        ? <button type="button" className="reject-small" onClick={() => onDelete(m)}><X size={15}/> Confirm delete</button>
+        : <button type="button" className="reject-small" onClick={() => setConfirming(true)}>Delete</button>}
+    </QueueCard>
   )
 }
 

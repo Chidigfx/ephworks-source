@@ -1090,3 +1090,8 @@ button.jc-check{cursor:pointer;text-decoration:underline dotted;text-underline-o
 .match-toggle:hover,.match-toggle.on{background:var(--primary-50)}
 .match-toggle .count{margin-left:2px;padding:1px 8px;border-radius:var(--radius-pill);background:var(--primary);color:#fff;font-size:12px}
 .jc-new{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:var(--radius-pill);background:var(--surface);border:1px solid var(--primary-200);color:var(--primary);font-size:12px;font-weight:600}
+
+/* contact form and staff inbox */
+.contact-form{margin-bottom:24px}
+.trap-field{position:absolute;left:-10000px;width:1px;height:1px;overflow:hidden}
+.queue-note{white-space:pre-wrap}

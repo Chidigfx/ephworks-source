@@ -134,5 +134,10 @@ export const api = {
   carerRequests: () => run(supabase.rpc('carer_requests')),
   takePastoral: request => run(supabase.rpc('take_pastoral_request', { request })),
   finishPastoral: (request, closed) => run(supabase.rpc('finish_pastoral_request', { request, closed })),
+  // Contact form: anyone sends; admins (and moderators, for safety concerns) read and handle (see 20261105 migration)
+  sendContact: row => run(supabase.from('contact_messages').insert(row)),
+  contactMessages: () => run(supabase.from('contact_messages').select('*').order('created_at', { ascending: false })),
+  setContactHandled: (entry, handled) => run(supabase.rpc('set_contact_handled', { entry, handled })),
+  deleteContact: entry => run(supabase.rpc('delete_contact_message', { entry })),
   resolveReport: id => changed(supabase.from('reports').update({ status: 'resolved' }).eq('id', id), 'Only moderators can resolve reports.')
 }

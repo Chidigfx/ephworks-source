@@ -5,7 +5,7 @@
 // faq [[question, answer]], roles (volunteer roles), cta [[label, action]].
 // Actions: a page id, 'apply:<role>', or 'mail'. Icons are names from ICONS in App.jsx.
 // Page options: hero (photo for the page banner, or 'plain' for a photo-free banner), doc (render as a document card).
-import { SITE_NAME, CONTACT_EMAIL } from './data'
+import { SITE_NAME } from './data'
 
 const UPDATED = '2 November 2026'
 
@@ -89,7 +89,7 @@ export const INFO_PAGES = [
       { cards: [
         ['Churches', 'Become a partner church. Your church office applies as church admin and vouches for members who post jobs.', 'church', ['Apply as a church admin', 'apply:church_admin']],
         ['Employers', 'Post jobs for free. Every post is checked with you before it goes live.', 'building', ['Post a job', 'post']],
-        ['Organisations & sponsors', 'Support the work, run a training session or offer volunteers.', 'hand', ['Email us', 'mail']]
+        ['Organisations & sponsors', 'Support the work, run a training session or offer volunteers.', 'hand', ['Send us a message', 'contact:partnership']]
       ] }
     ]
   },
@@ -143,7 +143,7 @@ export const INFO_PAGES = [
     blocks: [
       { cards: [
         ['About a job', 'Open the job and tap Report. Choose what is wrong. It goes straight to the safety team.', 'flag', ['Browse jobs', 'opportunities']],
-        ['Anything else', 'Email us what happened, with any names, links or screenshots.', 'mail', ['Email the safety team', 'mail']],
+        ['Anything else', 'Send the safety team a message. Tell us what happened, with any names or links.', 'mail', ['Message the safety team', 'contact:safety']],
         ['What happens next', 'We follow up within 24 hours. We may remove the post or suspend the account.', 'clock']
       ] },
       { note: 'If you are in danger or have lost money, contact the police first: call 999.', tone: 'strong' }
@@ -202,7 +202,7 @@ export const INFO_PAGES = [
         ['How do I post a job?', 'Tap Post a job. Your church vouches for you, then a moderator checks the post with you before it goes live.'],
         ["My church isn't listed. What now?", 'Type its name and choose Suggest this church. We check it and add it.'],
         ['How long do jobs stay up?', '30 days. Then they end, so the board stays fresh.'],
-        ['How do I delete my account?', `Email us at ${CONTACT_EMAIL} and we will delete it.`]
+        ['How do I delete my account?', 'Send us a message from the Contact us page, choosing "Help with my account", and we will delete it.']
       ] },
       { cta: [['Contact us', 'contact']] }
     ]
@@ -210,10 +210,10 @@ export const INFO_PAGES = [
   {
     id: 'contact', path: '/contact', group: 'help', tab: 'Contact us',
     title: 'Contact us',
-    lede: 'Questions, partnerships or concerns. We read every message.',
+    lede: 'Questions, partnerships or concerns. We read every message and reply by email.',
     blocks: [
+      { contactForm: true },
       { cards: [
-        ['Email us', `Write to ${CONTACT_EMAIL} about anything.`, 'mail', ['Email us', 'mail']],
         ['Report a job', 'Open the job and tap Report. That reaches the safety team fastest.', 'flag', ['How reporting works', 'report']],
         ['Partner with us', 'Churches, employers and organisations who want to help.', 'hand', ['Ways to partner', 'partner']]
       ] }
@@ -234,20 +234,21 @@ export const INFO_PAGES = [
         'Anything you add to your profile: the name you want shown, a phone number, and the emirates, kinds of work, keywords and minimum pay you are looking for',
         'A yes or no church vouch, and which partner church gave it',
         'Jobs you post, jobs you mark as interested, reports you file and role applications you send',
-        'If you ask for pastoral care: the church you chose, the name you gave, what would help and any note you write'
+        'If you ask for pastoral care: the church you chose, the name you gave, what would help and any note you write',
+        'If you contact us: the name, email address and message you send'
       ] },
       { h: 'What we do not collect' },
       { p: 'Your CV, your religious beliefs or denomination, or any payment details.' },
       { h: 'How we use it' },
       { p: 'Only to run the noticeboard: to show jobs, check posters and jobs, keep the community safe and contact you about your account. A pastoral-care request is used only so a carer at your church can contact you. It is never used for anything to do with jobs, and asking for care never affects what jobs you see or how your posts are treated. Your job preferences are used only to show you matching jobs and, if you ask, to email you about them.' },
       { h: 'Who can see it' },
-      { p: 'Employers see a count of interested people, never names. Church admins see vouch requests sent to their church. Moderators see posts waiting for checks, and who invited each new member and their phone number if they added one. Only you see your job preferences; employers never see who a job matched. Admins see members\' names and emails, and who invited and approved each member. A pastoral-care request is seen only by you and a pastoral carer at the church you chose; admins, moderators, church admins and employers cannot see it. We never sell or share your data with advertisers.' },
+      { p: 'Employers see a count of interested people, never names. Church admins see vouch requests sent to their church. Moderators see posts waiting for checks, and who invited each new member and their phone number if they added one. Only you see your job preferences; employers never see who a job matched. Admins see members\' names and emails, and who invited and approved each member. A pastoral-care request is seen only by you and a pastoral carer at the church you chose; admins, moderators, church admins and employers cannot see it. Messages sent through the contact form are read by admins, and safety concerns also by moderators. We never sell or share your data with advertisers.' },
       { h: 'Where it is kept' },
       { p: 'Accounts and posts are stored with our database provider, Supabase. Saved and applied jobs stay on your own device. Fonts are loaded from Google Fonts, which receives your IP address. We use no advertising or tracking cookies.' },
       { h: 'How long we keep it' },
       { p: 'Jobs end after 30 days. You can delete a pastoral-care request yourself at any time, and it is erased. Your account is kept until you ask us to delete it.' },
       { h: 'Your rights' },
-      { p: `You can ask to see, correct or delete your data at any time: ${CONTACT_EMAIL}. We follow the UAE Personal Data Protection Law (Federal Decree-Law No. 45 of 2021).` }
+      { p: 'You can ask to see, correct or delete your data at any time by sending us a message from the Contact us page. We follow the UAE Personal Data Protection Law (Federal Decree-Law No. 45 of 2021).' }
     ]
   },
   {
