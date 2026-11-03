@@ -13,8 +13,10 @@ await db.exec(`
   create table auth.users (id uuid primary key, email text, raw_user_meta_data jsonb not null default '{}');
   create function auth.uid() returns uuid language sql stable as
     $$ select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid $$;
+  create function auth.jwt() returns jsonb language sql stable as
+    $$ select jsonb_build_object('aal', coalesce(nullif(current_setting('request.jwt.claim.aal', true), ''), 'aal1')) $$;
   grant usage on schema auth to anon, authenticated;
-  grant execute on function auth.uid() to anon, authenticated;
+  grant execute on function auth.uid(), auth.jwt() to anon, authenticated;
 `)
 await db.exec(migration)
 await db.exec(`
@@ -37,8 +39,9 @@ const [CHURCH, CHURCH2] = (await db.query(`select id from public.churches order 
 await db.exec(`update public.profiles set role = 'church_admin', church_id = '${CHURCH}' where id = '${ADMIN}'`)
 await db.exec(`update public.profiles set role = 'church_admin', church_id = '${CHURCH2}' where id = '${ADMIN2}'`)
 
-const as = async (uid, sql, params) => {
-  await db.exec(`reset role; select set_config('request.jwt.claim.sub', '${uid || ''}', false); set role ${uid ? 'authenticated' : 'anon'}`)
+// Sessions pass two-step sign-in (aal2) unless a check says otherwise
+const as = async (uid, sql, params, aal = 'aal2') => {
+  await db.exec(`reset role; select set_config('request.jwt.claim.sub', '${uid || ''}', false); select set_config('request.jwt.claim.aal', '${aal}', false); set role ${uid ? 'authenticated' : 'anon'}`)
   try { return { rows: (await db.query(sql, params)).rows } }
   catch (e) { return { error: e.message } }
   finally { await db.exec('reset role') }
@@ -544,6 +547,36 @@ check('members cannot delete messages', /Only admins/.test(r.error || ''), r)
 await as(ADM, `select public.delete_contact_message($1)`, [questionId])
 r = await db.query(`select id from public.contact_messages where id = $1`, [questionId])
 check('admin deletes a message', r.rows.length === 0, r.rows)
+
+// Two-step sign-in for staff --------------------------------------------------------------
+// Parked in supabase/later/ for now; these checks run once that migration is moved back into migrations/
+if (migration.includes('two_step_passed')) {
+const oneStep = (uid, sql, params) => as(uid, sql, params, 'aal1')
+r = await oneStep(MOD, `select id from public.pending_members()`)
+check('moderator without the second step sees nobody waiting', r.rows?.length === 0, r)
+r = await oneStep(MOD, `select id from public.jobs where status = 'pending'`)
+check('moderator without the second step cannot see the review queue', r.rows?.length === 0, r)
+r = await oneStep(MOD, `select public.decide_member($1, false)`, [NEW2])
+check('moderator without the second step cannot decide members', /Only moderators/.test(r.error || ''), r)
+r = await oneStep(ADM, `select id from public.joined_members()`)
+check('admin without the second step sees no joined table', r.rows?.length === 0, r)
+r = await oneStep(ADM, `select id from public.contact_messages`)
+check('admin without the second step cannot read the inbox', r.rows?.length === 0, r)
+r = await oneStep(ADMIN, `select user_id from public.vouches where user_id <> $1`, [ADMIN])
+const vouchesOneStep = r.rows?.length
+r = await as(ADMIN, `select user_id from public.vouches where user_id <> $1`, [ADMIN])
+check('church admin needs the second step to see other members’ vouch requests', vouchesOneStep === 0 && r.rows?.length > 0, { vouchesOneStep, r })
+await as(EMP, careRow, [CHURCH])
+r = await oneStep(CARER, `select id from public.carer_requests()`)
+const careOneStep = r.rows?.length
+r = await as(CARER, `select id from public.carer_requests()`)
+check('pastoral carer needs the second step to see requests', careOneStep === 0 && r.rows?.length === 1, { careOneStep, r })
+r = await oneStep(VOL, `select id from public.volunteer_requests()`)
+check('volunteer mentors work without the second step', !r.error && Array.isArray(r.rows), r)
+r = await oneStep(NEW1, `select job_id from public.my_job_matches()`)
+check('members work without the second step', !r.error, r)
+
+}
 
 console.log(failed ? `\n${failed} failed` : '\nAll checks passed')
 process.exit(failed ? 1 : 0)

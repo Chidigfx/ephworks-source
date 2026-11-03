@@ -1095,3 +1095,13 @@ button.jc-check{cursor:pointer;text-decoration:underline dotted;text-underline-o
 .contact-form{margin-bottom:24px}
 .trap-field{position:absolute;left:-10000px;width:1px;height:1px;overflow:hidden}
 .queue-note{white-space:pre-wrap}
+
+/* two-step sign-in and CAPTCHA */
+.two-step-notice{flex-wrap:wrap;align-items:center}
+.two-step-notice>span{flex:1 1 320px}
+.two-step-notice .primary-button{min-height:40px}
+.two-step-qr{display:grid;justify-items:center;gap:10px;margin:8px 0 4px;text-align:center}
+.two-step-qr img{padding:8px;background:#fff;border:1px solid var(--border);border-radius:var(--radius-sm)}
+.two-step-qr small{font-size:13px;color:var(--muted)}
+.two-step-qr code{display:inline-block;margin-top:4px;padding:2px 6px;border-radius:4px;background:var(--surface-2);font-size:12px;word-break:break-all}
+.captcha{min-height:65px}

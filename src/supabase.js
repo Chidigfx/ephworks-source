@@ -11,6 +11,10 @@ export const configError = url && key && !/^https?:\/\/[^\s/]+\/?$/.test(url) ? 
 // Without env vars the app runs as the local-only demo (sample data + localStorage)
 export const supabase = url && key && !configError ? createClient(url, key) : null
 
+// Cloudflare Turnstile site key. When set, sign-in, sign-up and password reset show a CAPTCHA; switch on
+// Turnstile under Authentication → Attack Protection in Supabase at the same time, so the server checks it.
+export const captchaKey = clean(import.meta.env.VITE_TURNSTILE_SITE_KEY)
+
 const DAY = 86400000
 const HUES = ['sage', 'sand', 'blue', 'rose']
 
@@ -62,10 +66,26 @@ export const api = {
   providers: () => fetch(`${url}/auth/v1/settings`, { headers: { apikey: key } }).then(r => r.json())
     .then(s => ({ google: Boolean(s.external?.google), email: Boolean(s.external?.email) })).catch(() => ({ google: false, email: false })),
   // The referral code rides along in the sign-up; the server links it to the member who invited them
-  signUp: ({ name, email, password, code }) => supabase.auth.signUp({ email, password, options: { data: { full_name: name, referral_code: code }, emailRedirectTo: window.location.origin } })
+  signUp: ({ name, email, password, code, captchaToken }) => supabase.auth.signUp({ email, password, options: { data: { full_name: name, referral_code: code }, emailRedirectTo: window.location.origin, captchaToken } })
     .then(({ data, error }) => { if (error) throw error; return data }),
-  signIn: (email, password) => supabase.auth.signInWithPassword({ email, password }).then(({ error }) => { if (error) throw error }),
-  sendPasswordReset: email => supabase.auth.resetPasswordForEmail(email, { redirectTo: window.location.origin }).then(({ error }) => { if (error) throw error }),
+  signIn: (email, password, captchaToken) => supabase.auth.signInWithPassword({ email, password, options: { captchaToken } }).then(({ error }) => { if (error) throw error }),
+  sendPasswordReset: (email, captchaToken) => supabase.auth.resetPasswordForEmail(email, { redirectTo: window.location.origin, captchaToken }).then(({ error }) => { if (error) throw error }),
+  // Two-step sign-in (authenticator app) for staff; the server only grants staff powers to sessions that passed it
+  twoStepStatus: async () => {
+    const [level, factors] = await Promise.all([supabase.auth.mfa.getAuthenticatorAssuranceLevel(), supabase.auth.mfa.listFactors()])
+    if (level.error || factors.error) throw level.error || factors.error
+    return { level: level.data.currentLevel, factorId: factors.data.totp.find(f => f.status === 'verified')?.id || null }
+  },
+  // Starts a fresh setup, clearing any earlier one that was never confirmed
+  enrollTwoStep: async () => {
+    const { data: factors } = await supabase.auth.mfa.listFactors()
+    await Promise.all((factors?.all || []).filter(f => f.factor_type === 'totp' && f.status !== 'verified').map(f => supabase.auth.mfa.unenroll({ factorId: f.id })))
+    const { data, error } = await supabase.auth.mfa.enroll({ factorType: 'totp' })
+    if (error) throw error
+    const qr = data.totp.qr_code
+    return { id: data.id, secret: data.totp.secret, qr: qr.startsWith('<svg') ? `data:image/svg+xml;utf8,${encodeURIComponent(qr)}` : qr }
+  },
+  verifyTwoStep: (factorId, code) => supabase.auth.mfa.challengeAndVerify({ factorId, code }).then(({ error }) => { if (error) throw error }),
   setPassword: password => supabase.auth.updateUser({ password }).then(({ error }) => { if (error) throw error }),
   profile: uid => run(supabase.from('profiles').select('role, church_id, suspended, status, referral_code, referred_by, display_name, phone, emirates, work_types, work_settings, keywords, min_pay, alerts_email').eq('id', uid)).then(rows => rows[0] || {}),
   // Joining: a waiting account enters a code; moderators and admins decide (see 20261102 migration)

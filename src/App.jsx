@@ -10,7 +10,7 @@ import {
 } from 'lucide-react'
 import { NAV, SAMPLE_JOBS, SAMPLE_VOLUNTEER, CAREER_SUPPORT_MODULES, TRUST_PILLARS, SAMPLE_VOUCH_REQUESTS, SAMPLE_CHURCHES, SAMPLE_MEMBERS, SAMPLE_APPLICATIONS, SAMPLE_CHURCH_SUGGESTIONS, SAMPLE_SUPPORT_REQUESTS, SAMPLE_PASTORAL_REQUESTS, SAMPLE_CONTACT_MESSAGES, SITE_NAME } from './data'
 import { INFO_PAGES, INFO_GROUPS, FOOTER } from './content'
-import { supabase, api, toJob } from './supabase'
+import { supabase, api, toJob, captchaKey } from './supabase'
 import { scanPost } from './scam'
 import { verseOfDay } from './verses'
 
@@ -55,6 +55,11 @@ const NO_CHURCH = { id: '', name: '', emirate: '' } // a picked partner church (
 const EMPTY_VOUCH = { church: NO_CHURCH, note: '' }
 const ROLE_LABELS = { member: 'Member', volunteer: 'Volunteer mentor', moderator: 'Moderator', church_admin: 'Church admin', pastoral_carer: 'Pastoral carer', admin: 'Admin', super_admin: 'Super admin' }
 const CHURCH_ROLES = ['church_admin', 'pastoral_carer'] // roles that serve one church
+// Two-step sign-in for staff is built but switched off for now. To switch it on: set this to true, deploy,
+// then move supabase/later/20261106000000_staff_two_step.sql into migrations/ and run it (see README).
+const TWO_STEP_REQUIRED = false
+// Roles that approve people or see personal details; mirrors my_role() in the 20261106 migration
+const TWO_STEP_ROLES = ['moderator', 'church_admin', 'pastoral_carer', 'admin', 'super_admin']
 const APPLY_ROLES = [
   ['volunteer', 'Volunteer mentor', 'Give free CV reviews, practice interviews or LinkedIn help to job seekers.'],
   ['church_admin', 'Church admin', 'Confirm which members of your church can post jobs. Only a yes/no is stored.']
@@ -207,6 +212,10 @@ export default function App() {
   const [authForm, setAuthForm] = useState(EMPTY_AUTH)
   const [newPassword, setNewPassword] = useState(null) // set after following a password-reset link
   const [codeInput, setCodeInput] = useState('')
+  const [captchaToken, setCaptchaToken] = useState('')
+  const [captchaRound, setCaptchaRound] = useState(0) // a token works once, so each attempt gets a fresh CAPTCHA
+  const [twoStep, setTwoStep] = useState({ level: null, factorId: null }) // this session's sign-in level and confirmed authenticator
+  const [showTwoStep, setShowTwoStep] = useState(false)
   const [careForm, setCareForm] = useState(EMPTY_CARE)
   const [contactForm, setContactForm] = useState(EMPTY_CONTACT)
   const [matchOnly, setMatchOnly] = useState(false) // job feed shows only jobs matching your profile
@@ -216,7 +225,9 @@ export default function App() {
   const uid = session?.user.id
   const churches = supabase ? serverChurches : demo.churches
   // What this account can do. Admins also moderate; suspended accounts get no staff tools (the server refuses them anyway).
-  const accountRole = supabase ? (uid && !profile.suspended && profile.status === 'approved' && profile.role) || 'member' : PERSONAS[demo.role] ? demo.role : 'member'
+  // Staff without the second sign-in step act as members until they enter their code (the server agrees)
+  const needsTwoStep = Boolean(TWO_STEP_REQUIRED && supabase && uid && !profile.suspended && profile.status === 'approved' && TWO_STEP_ROLES.includes(profile.role) && twoStep.level !== 'aal2')
+  const accountRole = supabase ? (uid && !profile.suspended && profile.status === 'approved' && !needsTwoStep && profile.role) || 'member' : PERSONAS[demo.role] ? demo.role : 'member'
   const canModerate = ['moderator', 'admin', 'super_admin'].includes(accountRole)
   const isChurchAdmin = accountRole === 'church_admin'
   const isAdmin = ['admin', 'super_admin'].includes(accountRole)
@@ -381,6 +392,19 @@ export default function App() {
   useEffect(() => { refresh() }, [uid, accountRole])
 
   useEffect(() => {
+    if (!TWO_STEP_REQUIRED || !supabase || !session) return setTwoStep({ level: null, factorId: null })
+    api.twoStepStatus().then(setTwoStep).catch(() => {})
+  }, [session?.access_token])
+
+  // Staff who already set up two-step sign-in are asked for their code once after signing in
+  const askedForCode = useRef(null)
+  useEffect(() => {
+    if (!needsTwoStep || !twoStep.factorId || askedForCode.current === uid) return
+    askedForCode.current = uid
+    setShowTwoStep(true)
+  }, [needsTwoStep, twoStep.factorId])
+
+  useEffect(() => {
     if (!supabase || !uid) return setProfile({})
     api.profile(uid).then(setProfile).catch(fail)
     api.churches().then(setChurches).catch(fail)
@@ -434,9 +458,9 @@ export default function App() {
   useEffect(() => {
     const allowed = { dashboard: staffNav.length > 0, mentoring: isVolunteer, review: canModerate, reports: canModerate, vouch: isChurchAdmin, people: isAdmin, applications: isAdmin, churchRequests: isAdmin, joining: canModerate, carerQueue: isCarer, inbox: canModerate }[page]
     // wait for the sign-in and the account's role before deciding, so links to staff pages survive a reload
-    if (!authReady || (uid && profile.role === undefined)) return
+    if (!authReady || (uid && (profile.role === undefined || (TWO_STEP_REQUIRED && twoStep.level === null)))) return
     if (allowed === false) { replaceUrl.current = true; setPage('home') }
-  }, [accountRole, page, authReady, profile.role])
+  }, [accountRole, page, authReady, profile.role, twoStep.level])
 
   // True (and shows the next step) when a server action needs an approved account first
   const needsSignIn = () => {
@@ -453,11 +477,19 @@ export default function App() {
     const { mode, name, password, code } = authForm
     const email = authForm.email.trim()
     const close = () => { setShowSignIn(false); setAuthForm(EMPTY_AUTH) }
-    if (mode === 'reset') return api.sendPasswordReset(email).then(() => { close(); notify(`If ${email} has an account, a link to choose a new password is on its way.`) }).catch(fail)
-    if (mode === 'signin') return api.signIn(email, password).then(close).catch(fail)
-    api.signUp({ name: name.trim(), email, password, code: code.trim() })
-      .then(data => { close(); notify(data.session ? 'Account created. A moderator will check who invited you, then approve you. You can browse jobs meanwhile.' : `Check ${email} for a link to confirm your address. A moderator approves new accounts after that.`) })
-      .catch(fail)
+    const newCaptcha = () => { setCaptchaToken(''); setCaptchaRound(n => n + 1) }
+    const call = mode === 'reset'
+      ? api.sendPasswordReset(email, captchaToken).then(() => { close(); notify(`If ${email} has an account, a link to choose a new password is on its way.`) })
+      : mode === 'signin'
+        ? api.signIn(email, password, captchaToken).then(close)
+        : api.signUp({ name: name.trim(), email, password, code: code.trim(), captchaToken })
+          .then(data => { close(); notify(data.session ? 'Account created. A moderator will check who invited you, then approve you. You can browse jobs meanwhile.' : `Check ${email} for a link to confirm your address. A moderator approves new accounts after that.`) })
+    call.catch(fail).finally(newCaptcha)
+  }
+  const twoStepDone = () => {
+    setShowTwoStep(false)
+    api.twoStepStatus().then(setTwoStep)
+    notify('Two-step sign-in confirmed. Your staff tools are on.')
   }
   const saveNewPassword = e => { e.preventDefault(); api.setPassword(newPassword).then(() => { setNewPassword(null); notify('Password updated. You are signed in.') }).catch(fail) }
   const submitCode = e => {
@@ -480,7 +512,7 @@ export default function App() {
       if (e.key === 'Escape') {
         setSelectedJob(null); setShowMobileMore(false);
         setShowReset(false); setShowReport(false); setShowSupportModal(false); setRemoving(null)
-        setShowSignIn(false); setVerifying(null); setNewPassword(null)
+        setShowSignIn(false); setVerifying(null); setNewPassword(null); setShowTwoStep(false)
       }
     }
     window.addEventListener('keydown', onKey)
@@ -488,10 +520,10 @@ export default function App() {
   }, [])
 
   useEffect(() => {
-    const modal = selectedJob || showMobileMore || showReset || removing || showReport || showSupportModal || showSignIn || verifying || newPassword !== null
+    const modal = selectedJob || showMobileMore || showReset || removing || showReport || showSupportModal || showSignIn || verifying || newPassword !== null || showTwoStep
     document.body.classList.toggle('modal-open', Boolean(modal))
     return () => document.body.classList.remove('modal-open')
-  }, [selectedJob, showMobileMore, showReset, removing, showReport, showSupportModal, showSignIn, verifying, newPassword])
+  }, [selectedJob, showMobileMore, showReset, removing, showReport, showSupportModal, showSignIn, verifying, newPassword, showTwoStep])
 
   const go = id => { setPage(id); setShowMobileMore(false); setBanner(null); window.scrollTo({ top: 0, behavior: 'smooth' }) }
   const setRole = next => {
@@ -1039,6 +1071,15 @@ export default function App() {
 
         {supabase && profile.suspended && (
           <Warning tone="strong">Your account is suspended. You can browse the noticeboard, but you can't post, vouch, report or review. Contact the Ephworks team if you think this is a mistake.</Warning>
+        )}
+        {needsTwoStep && twoStep.level !== null && (
+          <div className="notice strong two-step-notice">
+            <LockKeyhole size={17} className="notice-icon" aria-hidden="true"/>
+            <span>{twoStep.factorId
+              ? <><strong>Enter your sign-in code to use your staff tools.</strong> Until then you see {SITE_NAME} as a member.</>
+              : <><strong>Your role needs two-step sign-in.</strong> You approve people and see personal details, so set up an authenticator app to switch on your staff tools.</>}</span>
+            <button type="button" className="primary-button" onClick={() => setShowTwoStep(true)}>{twoStep.factorId ? 'Enter code' : 'Set up'}</button>
+          </div>
         )}
         {joinStatus === 'declined' && <Warning tone="strong">Your request to join was not approved. You can still browse jobs. If you think this is a mistake, <button type="button" className="link-button" onClick={() => openContact('account')}>send us a message</button>.</Warning>}
         {joinStatus === 'pending' && (profile.referred_by
@@ -2407,7 +2448,8 @@ export default function App() {
                 <small>From the member who invited you.</small>
               </label>
             )}
-            <button className="primary-button full" type="submit">{authForm.mode === 'signup' ? 'Create account' : authForm.mode === 'reset' ? 'Send link' : 'Sign in'}</button>
+            {captchaKey && <Captcha key={`${authForm.mode}-${captchaRound}`} onToken={setCaptchaToken}/>}
+            <button className="primary-button full" type="submit" disabled={Boolean(captchaKey) && !captchaToken}>{authForm.mode === 'signup' ? 'Create account' : authForm.mode === 'reset' ? 'Send link' : 'Sign in'}</button>
             {authForm.mode === 'signin' && <button type="button" className="link-button" onClick={() => setAuthMode('reset')}>Forgot your password?</button>}
             {authForm.mode === 'reset' && <button type="button" className="link-button" onClick={() => setAuthMode('signin')}>Back to sign in</button>}
           </form>
@@ -2421,6 +2463,8 @@ export default function App() {
         <p className="sign-in-note">We keep your name and email{providers.google ? ', and your Google profile photo if you use Google' : ''}. <button type="button" className="link-button" onClick={() => { setShowSignIn(false); go('privacy') }}>Privacy</button></p>
       </Modal>
     )}
+
+    {showTwoStep && <TwoStepDialog factorId={twoStep.factorId} onDone={twoStepDone} onClose={() => setShowTwoStep(false)} onError={fail}/>}
 
     {newPassword !== null && (
       <Modal onClose={() => setNewPassword(null)} title="Choose a new password">
@@ -2471,6 +2515,61 @@ function Brand({ compact = false }) {
         {!compact && <span>VERIFIED PEOPLE · VERIFIED JOBS · REAL SUPPORT</span>}
       </div>
     </div>
+  )
+}
+
+// Cloudflare Turnstile, loaded only when a CAPTCHA is shown. Supabase checks the token it gives.
+let turnstileScript
+const loadTurnstile = () => window.turnstile ? Promise.resolve(window.turnstile) : (turnstileScript ||= new Promise((resolve, reject) => {
+  const s = document.createElement('script')
+  s.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit'
+  s.async = true
+  s.onload = () => resolve(window.turnstile)
+  s.onerror = reject
+  document.head.appendChild(s)
+}))
+
+function Captcha({ onToken }) {
+  const ref = useRef(null)
+  useEffect(() => {
+    let widget, gone = false
+    loadTurnstile().then(t => {
+      if (!gone && ref.current) widget = t.render(ref.current, { sitekey: captchaKey, callback: onToken, 'expired-callback': () => onToken(''), 'error-callback': () => onToken('') })
+    }).catch(() => onToken(''))
+    return () => { gone = true; if (widget !== undefined) window.turnstile?.remove(widget) }
+  }, [])
+  return <div ref={ref} className="captcha"/>
+}
+
+// Staff two-step sign-in: set up an authenticator app once, then type its 6-digit code after each sign-in
+function TwoStepDialog({ factorId, onDone, onClose, onError }) {
+  const [setup, setSetup] = useState(null) // { id, qr, secret } while setting up
+  const [code, setCode] = useState('')
+  useEffect(() => { if (!factorId) api.enrollTwoStep().then(setSetup).catch(onError) }, [factorId])
+  const id = factorId || setup?.id
+  const submit = e => { e.preventDefault(); api.verifyTwoStep(id, code).then(onDone).catch(err => { setCode(''); onError(err) }) }
+  return (
+    <Modal onClose={onClose} title={factorId ? 'Enter your sign-in code' : 'Set up two-step sign-in'}>
+      {factorId
+        ? <p>Open your authenticator app and type the 6-digit code it shows for {SITE_NAME}.</p>
+        : <>
+          <p>Install an authenticator app such as Google Authenticator or Microsoft Authenticator, then scan this code with it.</p>
+          {setup
+            ? <div className="two-step-qr"><img src={setup.qr} alt={`QR code that adds ${SITE_NAME} to your authenticator app`} width="180" height="180"/><small>Can’t scan it? Type this key into the app instead: <code>{setup.secret}</code></small></div>
+            : <p className="wizard-hint">Preparing your code…</p>}
+        </>}
+      <form className="booking-form" onSubmit={submit}>
+        <label>
+          6-digit code
+          <input inputMode="numeric" autoComplete="one-time-code" maxLength={6} required value={code} onChange={e => setCode(e.target.value.replace(/\D/g, ''))}/>
+        </label>
+        <div className="modal-actions">
+          <button type="button" className="secondary-button" onClick={onClose}>Later</button>
+          <button type="submit" className="primary-button" disabled={!id || code.length !== 6}><ShieldCheck size={16}/> {factorId ? 'Confirm' : 'Turn on'}</button>
+        </div>
+      </form>
+      {!factorId && <p className="sign-in-note">Lost your phone later? Ask the {SITE_NAME} super admin to reset it, then set it up again.</p>}
+    </Modal>
   )
 }
 
