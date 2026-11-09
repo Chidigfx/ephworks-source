@@ -326,7 +326,8 @@ export const SAMPLE_SUPPORT_REQUESTS = [
 
 // Same shape as pastoral_requests rows; requests to the sample church's pastoral carer
 export const SAMPLE_PASTORAL_REQUESTS = [
-  { id: 'care-01', member_id: 'member-david', church_id: 'church-stluke', display_name: 'David Okafor', kind: 'prayer', note: 'Six months without work. I could do with prayer and some encouragement.', may_contact: true, status: 'open', carer_id: null, created_at: '2026-10-30T19:00:00Z' }
+  { id: 'care-01', member_id: 'member-david', church_id: 'church-stluke', display_name: 'David Okafor', kind: 'prayer', note: 'Six months without work. I could do with prayer and some encouragement.', may_contact: true, share_with: 'own_church', status: 'open', carer_id: null, created_at: '2026-10-30T19:00:00Z' },
+  { id: 'care-02', member_id: 'member-priya', church_id: 'church-grace', display_name: 'Priya N.', kind: 'talk', note: 'I would rather not tell my own pastor yet. Could someone from another church talk with me?', may_contact: true, share_with: 'other_church', status: 'open', carer_id: null, created_at: '2026-11-04T18:30:00Z' }
 ]
 
 // Same shape as contact_messages rows; what the contact form has received, for the Admin and Moderator demo views

@@ -445,6 +445,33 @@ check('member erases their own request', r.rows?.length === 1, r)
 r = await as(ADM, `select public.remove_church($1)`, [CHURCH2])
 check('church with a pastoral carer cannot be removed', /cannot be removed/.test(r.error || ''), r)
 
+// The member chooses who is told (20261106): their own church's carers, or carers at other churches
+r = await as(EMP, `insert into public.pastoral_requests (church_id, display_name, kind, may_contact) values ($1, 'Omar', 'prayer', true) returning share_with`, [CHURCH])
+check('requests go to the member\'s own church by default', r.rows?.[0]?.share_with === 'own_church', r)
+await as(EMP, `delete from public.pastoral_requests`)
+r = await as(EMP, `insert into public.pastoral_requests (church_id, display_name, kind, may_contact, share_with) values ($1, 'Omar', 'prayer', true, 'everyone')`, [CHURCH])
+check('only own_church or other_church is accepted', /check/.test(r.error || ''), r)
+const otherRow = `insert into public.pastoral_requests (church_id, display_name, kind, note, may_contact, share_with) values ($1, 'Grace', 'talk', 'Rather not tell my own pastor yet.', true, 'other_church') returning id`
+const otherId = (await as(OTHER, otherRow, [CHURCH])).rows?.[0]?.id
+r = await as(CARER, `select id from public.carer_requests() where id = $1`, [otherId])
+check('own church carer never sees an other_church request', r.rows?.length === 0, r)
+r = await as(CARER, `select public.take_pastoral_request($1)`, [otherId])
+check('own church carer cannot take an other_church request', /no longer open/.test(r.error || ''), r)
+r = await as(CARER2, `select * from public.carer_requests() where id = $1`, [otherId])
+check('carer at another church sees it, labelled other_church, without the church', r.rows?.length === 1 && r.rows[0].share_with === 'other_church' && !('church_id' in r.rows[0]), r)
+r = await as(CARER2, `select public.take_pastoral_request($1)`, [otherId])
+await db.exec(`update auth.users set email = 'other@ephworks.test' where id = '${OTHER}'`)
+r = await as(CARER2, `select mine, email from public.carer_requests() where id = $1`, [otherId])
+check('carer at another church takes it and sees the email', r.rows?.[0]?.mine === true && r.rows[0].email === 'other@ephworks.test', r)
+r = await as(CARER2, `select public.carer_can_see(r) from public.pastoral_requests r`)
+check('visibility helper is not callable from the app', !!r.error, r)
+const CHURCH3 = (await db.query(`select id from public.churches where id not in ($1, $2) limit 1`, [CHURCH, CHURCH2])).rows[0].id
+r = await as(OTHER, `select * from public.pastoral_carers_available($1)`, [CHURCH])
+check('carers available: own and other church', r.rows?.[0]?.own_church === true && r.rows[0].other_church === true, r)
+r = await as(OTHER, `select * from public.pastoral_carers_available($1)`, [CHURCH3])
+check('carers available: none at a church without carers', r.rows?.[0]?.own_church === false && r.rows[0].other_church === true, r)
+await as(OTHER, `delete from public.pastoral_requests`)
+
 // Editable profile and job matches ---------------------------------------------------------
 const setProfile = (who, args) => as(who, `select public.update_my_profile($1, $2, $3, $4, $5, $6, $7, $8)`, args)
 r = await as(NEW1, `update public.profiles set role = 'admin' where id = $1 returning id`, [NEW1])

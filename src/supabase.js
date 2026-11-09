@@ -147,11 +147,13 @@ export const api = {
   addChurch: (church_name, church_emirate) => run(supabase.rpc('add_church', { church_name, church_emirate })),
   updateChurch: (church, church_name, church_emirate) => run(supabase.rpc('update_church', { church, church_name, church_emirate })),
   removeChurch: church => run(supabase.rpc('remove_church', { church })),
-  // Pastoral care: only the member and a carer at their chosen church ever see a request
+  // Pastoral care: only the member and the carers they chose (share_with: own_church | other_church) ever see a request
   myPastoral: () => run(supabase.from('pastoral_requests').select('*').order('created_at', { ascending: false })),
   requestPastoral: row => run(supabase.from('pastoral_requests').insert(row)),
   deletePastoral: id => changed(supabase.from('pastoral_requests').delete().eq('id', id), 'Could not delete this request.'),
   carerRequests: () => run(supabase.rpc('carer_requests')),
+  // { own_church, other_church }: whether any carer could receive a request from this church, without names or counts
+  carersAvailable: church => run(supabase.rpc('pastoral_carers_available', { church })).then(rows => rows?.[0] || { own_church: false, other_church: false }),
   takePastoral: request => run(supabase.rpc('take_pastoral_request', { request })),
   finishPastoral: (request, closed) => run(supabase.rpc('finish_pastoral_request', { request, closed })),
   // Contact form: anyone sends; admins (and moderators, for safety concerns) read and handle (see 20261105 migration)

@@ -70,7 +70,9 @@ const EMPTY_AUTH = { mode: 'signin', name: '', email: '', password: '', code: ''
 // Must match the pastoral_requests.kind check in the 20261102 migration
 const CARE_KINDS = { prayer: 'Prayer', talk: 'Someone to talk to', other: 'Something else' }
 const CARE_STATUS = { open: 'Waiting for a pastoral carer', taken: 'A pastoral carer will email you', closed: 'Closed' }
-const EMPTY_CARE = { church: '', name: '', kind: 'prayer', note: '', consent: false }
+// Must match the pastoral_requests.share_with check in the 20261106 migration: who the member lets see their request
+const CARE_SHARING = { own_church: "My church's care team", other_church: 'A carer from another church' }
+const EMPTY_CARE = { church: '', name: '', kind: 'prayer', note: '', consent: false, shareWith: 'own_church' }
 // Must match the contact_messages.topic check in the 20261105 migration
 const CONTACT_TOPICS = { question: 'General question', safety: 'Safety concern', partnership: 'Church or partner enquiry', account: 'Help with my account', other: 'Something else' }
 const EMPTY_CONTACT = { name: '', email: '', topic: 'question', message: '', website: '' } // website: a trap field people never see, only bots fill in
@@ -304,7 +306,8 @@ export default function App() {
   const myCare = supabase ? server.pastoral : demo.pastoralRequests.filter(r => r.member_id === DEMO_ME)
   const carerChurch = supabase ? profile.church_id : SAMPLE_CHURCHES[0].id
   const carerQueue = supabase ? server.carerRequests : demo.pastoralRequests
-    .filter(r => r.church_id === carerChurch && r.member_id !== DEMO_ME && (r.status === 'open' || (r.status === 'taken' && r.carer_id === DEMO_ME)))
+    // Same rule as carer_can_see() in the 20261106 migration
+    .filter(r => ((r.share_with || 'own_church') === 'own_church' ? r.church_id === carerChurch : r.church_id !== carerChurch) && r.member_id !== DEMO_ME && (r.status === 'open' || (r.status === 'taken' && r.carer_id === DEMO_ME)))
     .map(r => ({ ...r, mine: r.carer_id === DEMO_ME, email: r.carer_id === DEMO_ME ? demoMember(r.member_id)?.email : null }))
   const openCareRequests = carerQueue.filter(r => r.status === 'open').length
 
@@ -756,8 +759,8 @@ export default function App() {
   const askForCare = e => {
     e.preventDefault()
     if (supabase && needsSignIn()) return
-    const { church, name, kind, note } = careForm
-    const row = { church_id: church, display_name: (name || account.name).trim(), kind, note: note.trim() || null, may_contact: true }
+    const { church, name, kind, note, shareWith } = careForm
+    const row = { church_id: church, display_name: (name || account.name).trim(), kind, note: note.trim() || null, may_contact: true, share_with: shareWith }
     const done = () => { setCareForm(EMPTY_CARE); notify(`Sent to a pastoral carer at ${churchName(church)}. Only they will see it.`) }
     const already = 'You already have a request open. Delete it first if you want to send a new one.'
     if (supabase) return api.requestPastoral(row).then(() => { refresh(); done() }).catch(err => notify(/one_open_pastoral_request/.test(err.message) ? already : err.message))
