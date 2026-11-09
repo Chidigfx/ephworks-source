@@ -25,12 +25,14 @@ Deno.serve(async req => {
     return Response.json({ sent: 0, reason: 'email is not set up yet' })
   }
 
-  // take_alert_digest() also stamps the time, so the next run only finds newer jobs
-  const due = await rpc('take_alert_digest', {}).then(r => r.ok ? r.json() : Promise.reject(new Error(`digest query failed: ${r.status}`)))
+  // alert_digest() only reads; each member is stamped with alert_sent() once their email has gone out,
+  // so a failed send is retried on the next run instead of being lost
+  const due = await rpc('alert_digest', {}).then(r => r.ok ? r.json() : Promise.reject(new Error(`digest query failed: ${r.status}`)))
 
   const site = env('SITE_URL') || 'https://ephworks-source.vercel.app'
   let sent = 0
-  for (const { email, name, jobs, token } of due as { email: string, name: string, token: string, jobs: { title: string, company: string, emirate: string, salary: string }[] }[]) {
+  let failed = 0
+  for (const { email, name, jobs, token, as_of } of due as { email: string, name: string, token: string, as_of: string, jobs: { title: string, company: string, emirate: string, salary: string }[] }[]) {
     const oneClick = `${env('SUPABASE_URL')}/functions/v1/job-alerts?unsubscribe=${token}`
     const lines = jobs.map(j => `- ${j.title} at ${j.company}, ${j.emirate} (${j.salary} a month)`)
     const ok = await fetch('https://api.resend.com/emails', {
@@ -54,8 +56,11 @@ Deno.serve(async req => {
           `Stop these emails with one click: ${site}/unsubscribe?token=${token}`
         ].join('\n')
       })
-    }).then(r => r.ok)
-    if (ok) sent++
+    }).then(r => r.ok, () => false)
+    if (!ok) { failed++; continue }
+    const stamped = await rpc('alert_sent', { token, as_of }).then(r => r.ok, () => false)
+    if (stamped) sent++
+    else failed++ // sent but not stamped: the member may get these jobs again tomorrow, never lose them
   }
-  return Response.json({ sent, due: due.length })
+  return Response.json({ sent, failed, due: due.length })
 })

@@ -535,8 +535,9 @@ export default function App() {
     setShowMobileMore(false)
     notify(`Switched to ${PERSONAS[next]} demo view`)
   }
-  const handleVouch = (id, status) => {
-    const done = () => notify(status === 'vouched' ? 'Member vouched. Only a yes/no is stored, never belief or denomination data.' : 'Vouch request declined.')
+  const handleVouch = (id, status, withdrawing = false) => {
+    const done = () => notify(status === 'vouched' ? 'Member vouched. Only a yes/no is stored, never belief or denomination data.'
+      : withdrawing ? 'Vouch withdrawn. Their live jobs are hidden until they are vouched for again.' : 'Vouch request declined.')
     if (supabase) return api.decideVouch(id, status).then(() => { refresh(); done() }).catch(fail)
     updateDemo({ vouchQueue: demo.vouchQueue.map(m => m.id === id ? { ...m, status } : m) })
     done()
@@ -2050,7 +2051,7 @@ export default function App() {
                     note={m.note}
                     footNote={<><LockKeyhole size={15}/> Stores a yes/no vouch only</>}
                   >
-                    <button className="reject-small" disabled={declined} onClick={() => handleVouch(m.id, 'declined')}><X size={15}/> Decline</button>
+                    <button className="reject-small" disabled={declined} onClick={() => handleVouch(m.id, 'declined', vouched)}><X size={15}/> {vouched ? 'Withdraw vouch' : 'Decline'}</button>
                     <button className="approve-small" disabled={vouched} onClick={() => handleVouch(m.id, 'vouched')}>
                       <Check size={15}/> {vouched ? 'Vouched' : 'Vouch for member'}
                     </button>

@@ -507,13 +507,23 @@ r = await as(NEW1, `select is_new from public.my_job_matches()`)
 check('seen matches are no longer new', r.rows?.length === 1 && r.rows[0].is_new === false, r)
 r = await as(EMP, `select job_id from public.my_job_matches()`)
 check('your own posts never match you', r.rows?.length === 0, r)
-r = await as(NEW1, `select * from public.take_alert_digest()`)
+r = await as(NEW1, `select * from public.alert_digest()`)
 check('digest is server only', /permission denied/.test(r.error || ''), r)
+r = await as(NEW1, `select public.alert_sent(alerts_token, now()) from public.profiles where id = $1`, [NEW1])
+check('marking an alert sent is server only', /permission denied/.test(r.error || ''), r)
 await db.exec(`update public.profiles set alerts_emailed_at = now() - interval '2 days' where id = '${NEW1}'`)
-r = await db.query(`select email, name, jobs from public.take_alert_digest()`)
+r = await db.query(`select email, name, jobs, token, as_of from public.alert_digest()`)
 check('digest lists new matches for opted-in members', r.rows.length === 1 && r.rows[0].email === 'new1@ephworks.test' && r.rows[0].jobs[0].title === 'Office Coordinator', r.rows)
-r = await db.query(`select * from public.take_alert_digest()`)
-check('the same job is not emailed twice', r.rows.length === 0, r.rows)
+const digestRow = r.rows[0]
+r = await db.query(`select * from public.alert_digest()`)
+check('a failed send is not lost: the digest still lists it until marked sent', r.rows.length === 1, r.rows)
+await db.query(`select public.alert_sent($1, $2)`, [digestRow.token, digestRow.as_of])
+r = await db.query(`select * from public.alert_digest()`)
+check('the same job is not emailed twice once sent', r.rows.length === 0, r.rows)
+r = await db.query(`select public.alert_sent($1, now() - interval '3 days') as moved`, [digestRow.token])
+check('marking sent never moves the stamp backwards', r.rows[0].moved === false, r.rows)
+r = await db.query(`select public.alert_sent($1, now() + interval '1 day') as moved`, [digestRow.token])
+check('marking sent cannot skip future jobs', r.rows[0].moved === false, r.rows)
 
 // Keywords match whole words, plurals included; regex characters are taken literally
 for (const [words, expected, label] of [
@@ -536,9 +546,9 @@ r = await as(null, `select public.unsubscribe_alerts($1) as ok`, [token])
 r = await db.query(`select alerts_email from public.profiles where id = '${NEW1}'`)
 check('unsubscribe link works without signing in', r.rows[0].alerts_email === false, r.rows)
 await db.exec(`update public.profiles set alerts_email = true, alerts_emailed_at = now() - interval '2 days' where id = '${NEW1}'`)
-r = await db.query(`select token from public.take_alert_digest()`)
+r = await db.query(`select token from public.alert_digest()`)
 check('digest carries the unsubscribe token', r.rows[0]?.token === token, r.rows)
-r = await as(NEW1, `select public.take_alert_digest()`)
+r = await as(NEW1, `select public.alert_digest()`)
 check('digest is still server only', /permission denied/.test(r.error || ''), r)
 
 // Contact form ---------------------------------------------------------------------------
@@ -580,6 +590,17 @@ r = await db.query(`select id from public.contact_messages where id = $1`, [ques
 check('admin deletes a message', r.rows.length === 0, r.rows)
 
 // Two-step sign-in for staff --------------------------------------------------------------
+// Undoing a wrong vouch (20261109): the poster's live jobs leave the board, and come back if vouched again
+const liveFromEmp = async who => (await as(who, `select id from public.jobs where status = 'published' and employer_id = $1`, [EMP])).rows?.length
+const liveBefore = await liveFromEmp(OTHER)
+r = await as(ADMIN, `update public.vouches set status = 'declined' where user_id = $1 returning status`, [EMP])
+check('church admin withdraws a vouch', r.rows?.[0]?.status === 'declined', r)
+check('withdrawn vouch hides the poster’s live jobs', liveBefore > 0 && await liveFromEmp(OTHER) === 0 && await liveFromEmp(null) === 0, { liveBefore })
+r = await as(EMP, `select id from public.jobs where status = 'published'`)
+check('the poster still sees their own posts', r.rows?.length === liveBefore, r)
+await as(ADMIN, `update public.vouches set status = 'vouched' where user_id = $1`, [EMP])
+check('vouching again brings the jobs back', await liveFromEmp(OTHER) === liveBefore, {})
+
 // Parked in supabase/later/ for now; these checks run once that migration is moved back into migrations/
 if (migration.includes('two_step_passed')) {
 const oneStep = (uid, sql, params) => as(uid, sql, params, 'aal1')
