@@ -471,6 +471,10 @@ check('carers available: own and other church', r.rows?.[0]?.own_church === true
 r = await as(OTHER, `select * from public.pastoral_carers_available($1)`, [CHURCH3])
 check('carers available: none at a church without carers', r.rows?.[0]?.own_church === false && r.rows[0].other_church === true, r)
 await as(OTHER, `delete from public.pastoral_requests`)
+r = await as(null, `select * from public.pastoral_carers_available($1)`, [CHURCH])
+check('logged-out visitors cannot ask whether a church has carers', /permission denied/.test(r.error || ''), r)
+r = await as(null, `select * from public.carer_requests()`)
+check('logged-out visitors cannot call the carer list', /permission denied/.test(r.error || ''), r)
 
 // Editable profile and job matches ---------------------------------------------------------
 const setProfile = (who, args) => as(who, `select public.update_my_profile($1, $2, $3, $4, $5, $6, $7, $8)`, args)
