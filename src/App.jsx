@@ -38,6 +38,7 @@ const defaultDemo = {
   prefs: {}, // the demo persona's profile details and job preferences, same keys as public.profiles
   seenMatches: [], // matching job ids already shown as new
   contactMessages: SAMPLE_CONTACT_MESSAGES,
+  rejections: [], // past rejections in the demo, newest first: { employer_id, company, reason, created_at }
   churches: SAMPLE_CHURCHES // partner churches; admins can add, rename and remove them in the demo
 }
 
@@ -73,6 +74,8 @@ const CARE_STATUS = { open: 'Waiting for a pastoral carer', taken: 'A pastoral c
 // Must match the pastoral_requests.share_with check in the 20261106 migration: who the member lets see their request
 const CARE_SHARING = { own_church: "My church's care team", other_church: 'A carer from another church' }
 const EMPTY_CARE = { church: '', name: '', kind: 'prayer', note: '', consent: false, shareWith: 'own_church' }
+// Must match the jobs.reject_reason check in the 20261110 migration
+const REJECT_REASONS = { incomplete: 'Incomplete information', misleading: 'Misleading content', suspected_scam: 'Suspected scam', other: 'Another reason' }
 // Must match the contact_messages.topic check in the 20261105 migration
 const CONTACT_TOPICS = { question: 'General question', safety: 'Safety concern', partnership: 'Church or partner enquiry', account: 'Help with my account', other: 'Something else' }
 const EMPTY_CONTACT = { name: '', email: '', topic: 'question', message: '', website: '' } // website: a trap field people never see, only bots fill in
@@ -144,6 +147,7 @@ function getSavedDemo() {
       prefs: value.prefs && typeof value.prefs === 'object' ? value.prefs : {},
       seenMatches: Array.isArray(value.seenMatches) ? value.seenMatches : [],
       contactMessages: Array.isArray(value.contactMessages) ? value.contactMessages : SAMPLE_CONTACT_MESSAGES,
+      rejections: Array.isArray(value.rejections) ? value.rejections : [],
       churches: Array.isArray(value.churches) ? value.churches : [...SAMPLE_CHURCHES, ...(Array.isArray(value.addedChurches) ? value.addedChurches : [])]
     }
   } catch { return defaultDemo }
@@ -201,7 +205,7 @@ export default function App() {
   const [jobs, setJobs] = useState(supabase ? [] : SAMPLE_JOBS)
   const [session, setSession] = useState(null)
   const [authReady, setAuthReady] = useState(!supabase) // the saved sign-in has been read
-  const [server, setServer] = useState({ myJobs: [], queue: [], reports: [], posterVouches: {}, myVouch: null, vouchRequests: [], members: [], applications: [], interested: [], interestCounts: {}, churchSuggestions: [], supportRequests: [], volunteerRequests: [], churchOverview: [], pendingMembers: [], joinedMembers: [], pastoral: [], carerRequests: [], matches: [], contactMessages: [] })
+  const [server, setServer] = useState({ myJobs: [], queue: [], reports: [], posterVouches: {}, myVouch: null, vouchRequests: [], members: [], applications: [], interested: [], interestCounts: {}, churchSuggestions: [], supportRequests: [], volunteerRequests: [], churchOverview: [], pendingMembers: [], joinedMembers: [], pastoral: [], carerRequests: [], matches: [], contactMessages: [], rejectionHistory: [] })
   const [serverChurches, setChurches] = useState([])
   const [vouchForm, setVouchForm] = useState(EMPTY_VOUCH)
   const [applyForm, setApplyForm] = useState(EMPTY_APPLY)
@@ -209,6 +213,8 @@ export default function App() {
   const [memberFilter, setMemberFilter] = useState('all')
   const [showSignIn, setShowSignIn] = useState(false)
   const [verifying, setVerifying] = useState(null)
+  const [rejecting, setRejecting] = useState(null) // { job, reason, note }
+  const [finishing, setFinishing] = useState(null) // mentor marking a request done: { request, comment }
   const [profile, setProfile] = useState({})
   const [providers, setProviders] = useState({ google: false, email: false }) // sign-in methods switched on in Supabase
   const [authForm, setAuthForm] = useState(EMPTY_AUTH)
@@ -268,6 +274,12 @@ export default function App() {
     : demo.vouchQueue.find(m => m.id === DEMO_ME) || null
   const isEmployer = myVouch?.status === 'vouched' // vouched posters get an employer dashboard
   const posterVouched = job => (supabase ? server.posterVouches[job.employerId] : myVouch?.status) === 'vouched'
+  // Earlier rejections of this poster or the same company name: { previous, last_reason, last_at } or nothing
+  const rejectionsFor = job => {
+    if (supabase) return server.rejectionHistory.find(h => h.job_id === job.id)
+    const past = demo.rejections.filter(x => x.employer_id === job.employerId || x.company.trim().toLowerCase() === job.company.trim().toLowerCase())
+    return past.length ? { previous: past.length, last_reason: past[0].reason, last_at: past[0].created_at } : null
+  }
   const scanJob = job => scanPost(`${job.title} ${job.salary} ${job.description}`, job.directEmail)
   const adminChurch = churches.find(c => c.id === profile.church_id)?.name
   const vouchRows = supabase
@@ -381,14 +393,15 @@ export default function App() {
     uid ? api.myPastoral() : [],
     uid && isCarer ? api.carerRequests() : [],
     uid ? api.myMatches() : [],
-    uid && canModerate ? api.contactMessages() : []
-  ]).then(([live, mine, queue, reports, posters, myVouch, vouchRequests, members, applications, interested, interestCounts, churchSuggestions, supportRequests, volunteerRequests, churchOverview, pendingMembers, joinedMembers, pastoral, carerRequests, matches, contactMessages]) => {
+    uid && canModerate ? api.contactMessages() : [],
+    uid && canModerate ? api.rejectionHistory() : []
+  ]).then(([live, mine, queue, reports, posters, myVouch, vouchRequests, members, applications, interested, interestCounts, churchSuggestions, supportRequests, volunteerRequests, churchOverview, pendingMembers, joinedMembers, pastoral, carerRequests, matches, contactMessages, rejectionHistory]) => {
     setJobs(live.map(toJob))
     setServer({
       myJobs: mine.map(toJob), queue: queue.map(toJob), reports, myVouch,
       posterVouches: Object.fromEntries(posters.map(p => [p.user_id, p.status])),
       vouchRequests: vouchRequests.filter(v => v.user_id !== uid), // admins can't vouch for themselves
-      members, applications, interested, interestCounts, churchSuggestions, supportRequests, volunteerRequests, churchOverview, pendingMembers, joinedMembers, pastoral, carerRequests, matches, contactMessages
+      members, applications, interested, interestCounts, churchSuggestions, supportRequests, volunteerRequests, churchOverview, pendingMembers, joinedMembers, pastoral, carerRequests, matches, contactMessages, rejectionHistory
     })
   }).catch(err => notify(`Could not load from the server: ${err.message}`))
 
@@ -697,8 +710,13 @@ export default function App() {
   }
   const cancelSupport = r => updateSupport(r, { status: 'cancelled' }, 'Request cancelled.', () => api.cancelSupport(r.id))
   const takeSupport = r => updateSupport(r, { status: 'taken', volunteer_id: DEMO_ME }, `You took ${r.display_name}'s request. Email them to arrange a time.`, () => api.takeSupport(r.id))
-  const finishSupport = (r, isDone) => updateSupport(r, isDone ? { status: 'done' } : { status: 'open', volunteer_id: null },
-    isDone ? 'Marked as done. Thank you for volunteering.' : 'Handed back to the open list.', () => api.finishSupport(r.id, isDone))
+  const finishSupport = (r, isDone, comment = '') => updateSupport(r, isDone ? { status: 'done', outcome_note: comment.trim() || null } : { status: 'open', volunteer_id: null },
+    isDone ? 'Marked as done. Thank you for volunteering.' : 'Handed back to the open list.', () => api.finishSupport(r.id, isDone, comment.trim() || null))
+  const confirmFinish = e => {
+    e.preventDefault()
+    finishSupport(finishing.request, true, finishing.comment)
+    setFinishing(null)
+  }
 
   // Profile details and job preferences: only you see the preferences
   const saveProfile = form => {
@@ -875,10 +893,24 @@ export default function App() {
     done()
   }
 
-  const rejectJob = id => {
-    const done = () => notify('Post rejected and removed from the queue.')
-    if (supabase) return api.reviewJob(id, 'rejected', null).then(() => { refresh(); done() }).catch(fail)
-    updateDraft(id, { status: 'rejected' })
+  const rejectJob = e => {
+    e.preventDefault()
+    const { job, reason } = rejecting
+    const note = rejecting.note.trim() || null
+    if (!reason) return
+    const done = () => { setRejecting(null); notify(`Post rejected: ${REJECT_REASONS[reason].toLowerCase()}. The poster sees why.`) }
+    if (supabase) return api.rejectJob(job.id, reason, note).then(() => { refresh(); done() }).catch(fail)
+    updateDemo({
+      drafts: demo.drafts.map(d => d.id === job.id ? { ...d, status: 'rejected', reject_reason: reason, reject_note: note } : d),
+      rejections: [{ employer_id: job.employerId, company: job.company, reason, created_at: new Date().toISOString() }, ...demo.rejections]
+    })
+    done()
+  }
+
+  const markFilled = job => {
+    const done = () => notify('Marked as hired. The job has left the board. Congratulations!')
+    if (supabase) return api.markFilled(job.id).then(() => { refresh(); done() }).catch(fail)
+    updateDraft(job.id, { status: 'filled', filled_at: new Date().toISOString() })
     done()
   }
 
@@ -1536,11 +1568,22 @@ export default function App() {
                         {interestCount(d)} {interestCount(d) === 1 ? 'person' : 'people'} interested · names are never shared
                       </div>
                     )}
+                    {d.status === 'rejected' && d.rejectReason && (
+                      <div className="audit-line"><AlertTriangle size={14}/> Not approved: {REJECT_REASONS[d.rejectReason]}{d.rejectNote ? `. ${d.rejectNote}` : ''}</div>
+                    )}
+                    {d.status === 'filled' && (
+                      <div className="audit-line"><CheckCircle2 size={14}/> Filled{d.filledAt ? ` on ${new Date(d.filledAt).toLocaleDateString()}` : ''} · off the board. To hire again, post it again.</div>
+                    )}
                     <PostTracker vouch={myVouch?.status} status={d.status} daysLeft={d.daysLeft}/>
                   </div>
-                  <button className="secondary-button" onClick={() => setRemoving(d)}>
-                    Remove post
-                  </button>
+                  <div className="draft-actions">
+                    {d.status === 'published' && d.daysLeft > 0 && (
+                      <button className="primary-button" onClick={() => markFilled(d)}><CheckCircle2 size={16}/> Mark as hired</button>
+                    )}
+                    <button className="secondary-button" onClick={() => setRemoving(d)}>
+                      Remove post
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
@@ -1594,7 +1637,7 @@ export default function App() {
                   {r.mine ? <>
                     <button type="button" className="reject-small" onClick={() => finishSupport(r, false)}>Hand back</button>
                     <a className="outline-small" href={`mailto:${r.email}?subject=${encodeURIComponent(`Your ${SITE_NAME} career support request`)}`}><Mail size={15}/> Email</a>
-                    <button type="button" className="approve-small" onClick={() => finishSupport(r, true)}><Check size={15}/> Done</button>
+                    <button type="button" className="approve-small" onClick={() => setFinishing({ request: r, comment: '' })}><Check size={15}/> Done</button>
                   </> : <button type="button" className="approve-small" onClick={() => takeSupport(r)}><HandHeart size={15}/> I'll take this</button>}
                 </QueueCard>
               ))}
@@ -1768,7 +1811,8 @@ export default function App() {
                   vouched={posterVouched(j)}
                   scan={scanJob(j)}
                   onView={() => setSelectedJob(j)}
-                  onReject={() => rejectJob(j.id)}
+                  history={rejectionsFor(j)}
+                  onReject={() => setRejecting({ job: j, reason: '', note: '' })}
                   onConfirm={() => setVerifying({ job: j, note: '', flagsChecked: false })}
                 />
               ))}
@@ -2507,6 +2551,45 @@ export default function App() {
         </form>
       </Modal>
     )}
+
+    {rejecting && (
+      <Modal onClose={() => setRejecting(null)} title={`Reject: ${rejecting.job.title}`}>
+        <form className="booking-form" onSubmit={rejectJob}>
+          <p>The poster sees the reason and your note. The rejection is also kept, so moderators are warned if this poster or company posts again.</p>
+          <label>
+            Reason
+            <select required value={rejecting.reason} onChange={e => setRejecting({ ...rejecting, reason: e.target.value })}>
+              <option value="">Choose a reason</option>
+              {Object.entries(REJECT_REASONS).map(([id, label]) => <option key={id} value={id}>{label}</option>)}
+            </select>
+          </label>
+          <label>
+            Note for the poster (optional)
+            <textarea rows={3} maxLength={400} placeholder="e.g. No contact name or company address. Add them and post again." value={rejecting.note} onChange={e => setRejecting({ ...rejecting, note: e.target.value })}/>
+          </label>
+          <div className="modal-actions">
+            <button type="button" className="secondary-button" onClick={() => setRejecting(null)}>Cancel</button>
+            <button type="submit" className="primary-button" disabled={!rejecting.reason}><X size={16}/> Reject post</button>
+          </div>
+        </form>
+      </Modal>
+    )}
+
+    {finishing && (
+      <Modal onClose={() => setFinishing(null)} title={`Done: ${finishing.request.display_name}`}>
+        <form className="booking-form" onSubmit={confirmFinish}>
+          <p>Add a short summary of the help you gave (optional). Only admins see it, for our reports. Don't include anything private.</p>
+          <label>
+            Summary
+            <textarea rows={3} maxLength={500} placeholder="e.g. Reviewed CV over email; suggested a shorter summary and clearer job titles." value={finishing.comment} onChange={e => setFinishing({ ...finishing, comment: e.target.value })}/>
+          </label>
+          <div className="modal-actions">
+            <button type="button" className="secondary-button" onClick={() => setFinishing(null)}>Cancel</button>
+            <button type="submit" className="primary-button"><Check size={16}/> Mark as done</button>
+          </div>
+        </form>
+      </Modal>
+    )}
   </div>
 }
 
@@ -2644,7 +2727,7 @@ function JobCard({ job, saved, tracked, interested, onSave, onOpen, onInterest, 
 }
 
 
-function ReviewCard({ job, vouched, scan, onView, onReject, onConfirm }) {
+function ReviewCard({ job, vouched, scan, history, onView, onReject, onConfirm }) {
   const ready = vouched && !scan.blocked.length
   return (
     <article className={`rc ${scan.blocked.length ? 'bad' : vouched ? '' : 'pending'}`}>
@@ -2662,6 +2745,11 @@ function ReviewCard({ job, vouched, scan, onView, onReject, onConfirm }) {
       </div>
 
       <PublishChecks vouched={vouched} scan={scan}/>
+      {history && (
+        <ul className="pub-checks">
+          <li className="bad"><AlertTriangle size={15}/> Rejected before: {history.previous} time{history.previous == 1 ? '' : 's'}, most recently for {(REJECT_REASONS[history.last_reason] || 'another reason').toLowerCase()} on {new Date(history.last_at).toLocaleDateString()}. Check this one carefully.</li>
+        </ul>
+      )}
 
       <div className="rc-foot">
         <div className="rc-actions">
@@ -2799,8 +2887,8 @@ function PostTracker({ vouch, status, daysLeft }) {
   const live = status === 'published' && daysLeft > 0
   const steps = [
     { label: 'Church vouch', state: vouch === 'vouched' ? 'done' : vouch === 'declined' ? 'bad' : 'current', note: vouch === 'vouched' ? 'Confirmed' : vouch === 'declined' ? 'Declined, ask again' : vouch === 'pending' ? 'Waiting for your church' : 'Not requested yet' },
-    { label: 'Employer check', state: status === 'published' ? 'done' : status === 'rejected' ? 'bad' : vouch === 'vouched' && status === 'pending' ? 'current' : '', note: status === 'published' ? 'Checked with the employer' : status === 'rejected' ? 'Not approved' : status === 'draft' ? 'After you submit' : 'A moderator calls the employer' },
-    { label: 'Live', state: live ? 'done' : status === 'published' ? 'bad' : '', note: live ? `${daysLeft} days left` : status === 'published' ? 'Ended after 30 days' : 'For 30 days' }
+    { label: 'Employer check', state: status === 'published' || status === 'filled' ? 'done' : status === 'rejected' ? 'bad' : vouch === 'vouched' && status === 'pending' ? 'current' : '', note: status === 'published' || status === 'filled' ? 'Checked with the employer' : status === 'rejected' ? 'Not approved' : status === 'draft' ? 'After you submit' : 'A moderator calls the employer' },
+    { label: 'Live', state: live || status === 'filled' ? 'done' : status === 'published' ? 'bad' : '', note: status === 'filled' ? 'Filled: someone was hired' : live ? `${daysLeft} days left` : status === 'published' ? 'Ended after 30 days' : 'For 30 days' }
   ]
   return (
     <ol className="post-tracker" aria-label="Post progress">

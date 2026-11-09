@@ -336,6 +336,7 @@ button:active:not(:disabled){transform:translateY(1px)}
 .draft-card h3{font-size:18px;margin:12px 0 6px}
 .draft-card p{font-size:14px;color:var(--muted);margin:0}
 .draft-card small{display:block;margin-top:6px;font-size:14px;font-weight:600;color:var(--fg)}
+.draft-actions{display:flex;flex-direction:column;gap:8px;flex-shrink:0}
 .draft-desc{margin-top:12px;max-width:620px;font-size:14px;color:var(--fg-2);white-space:pre-wrap}
 .audit-line{display:flex;align-items:center;gap:6px;margin-top:10px;font-size:13px;color:var(--success)}
 

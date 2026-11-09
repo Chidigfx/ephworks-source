@@ -43,7 +43,10 @@ export function toJob(row) {
     sponsorship: row.sponsorship || 'Required work authorisation must be in place before any employment begins.',
     description: row.description,
     responsibilities: row.responsibilities || [],
-    requirements: row.requirements || []
+    requirements: row.requirements || [],
+    rejectReason: row.reject_reason || null,
+    rejectNote: row.reject_note || null,
+    filledAt: row.filled_at || null
   }
 }
 
@@ -120,6 +123,11 @@ export const api = {
   submitJob: job => run(supabase.from('jobs').insert(job).select().single()),
   deleteJob: id => changed(supabase.from('jobs').delete().eq('id', id), 'You can only remove your own posts.'),
   reviewJob: (id, status, verification_note) => changed(supabase.from('jobs').update({ status, verification_note }).eq('id', id), 'This post is no longer in the queue.'),
+  // Rejecting needs one of the REJECT_REASONS; every rejection is kept for the moderators' history (see 20261110 migration)
+  rejectJob: (id, reject_reason, reject_note) => changed(supabase.from('jobs').update({ status: 'rejected', reject_reason, reject_note }).eq('id', id), 'This post is no longer in the queue.'),
+  rejectionHistory: () => run(supabase.rpc('rejection_history')),
+  // The poster (or a moderator) marks a live job as filled; it leaves the board
+  markFilled: id => changed(supabase.from('jobs').update({ status: 'filled' }).eq('id', id), 'This post is no longer live.'),
   reports: () => run(supabase.from('reports').select('*, jobs(title)').order('created_at', { ascending: false })),
   fileReport: (job_id, reason) => run(supabase.from('reports').insert({ job_id, reason })),
   // People management: the server checks who may change whom (see 20261029 migration)
@@ -141,7 +149,8 @@ export const api = {
   cancelSupport: request => run(supabase.rpc('cancel_support_request', { request })),
   volunteerRequests: () => run(supabase.rpc('volunteer_requests')),
   takeSupport: request => run(supabase.rpc('take_support_request', { request })),
-  finishSupport: (request, done) => run(supabase.rpc('finish_support_request', { request, done })),
+  finishSupport: (request, done, comment = null) => run(supabase.rpc('finish_support_request', { request, done, comment })),
+  supportOutcomes: () => run(supabase.rpc('support_outcomes')), // admins only, for reports
   // Church management (admins); the server refuses to remove a church anyone depends on
   churchOverview: () => run(supabase.rpc('church_overview')),
   addChurch: (church_name, church_emirate) => run(supabase.rpc('add_church', { church_name, church_emirate })),
