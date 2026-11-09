@@ -675,6 +675,8 @@ body{background:radial-gradient(60vw 50vw at 0% 0%,#bae6fd 0,transparent 60%),ra
 .booking-form .apply-role:has(input:focus-visible){outline:2px solid var(--primary);outline-offset:2px}
 .booking-form .apply-role input{position:absolute;opacity:0;width:1px;min-height:0;height:1px}
 .apply-role span{font-size:13px;font-weight:400;color:var(--fg-2);line-height:1.5}
+.apply-roles.care-sharing{grid-template-columns:repeat(2,minmax(0,1fr))}
+.care-sharing-note{grid-column:1/-1;margin:0;font-size:13px;color:var(--fg-2)}
 .people-stats{list-style:none;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px;margin:0 0 20px;padding:0}
 .people-stats li{padding:16px 18px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius)}
 .people-stats b{display:block;font:700 24px/1.1 var(--heading);color:var(--fg)}
@@ -682,7 +684,8 @@ body{background:radial-gradient(60vw 50vw at 0% 0%,#bae6fd 0,transparent 60%),ra
 .member-select{min-height:36px;max-width:100%;padding:0 10px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface);color:var(--fg);font-size:13px;font-weight:600}
 .queue-actions{flex-wrap:wrap;justify-content:flex-end}
 @media (max-width:760px){
-  .apply-roles{grid-template-columns:1fr}
+  .apply-roles,
+  .apply-roles.care-sharing{grid-template-columns:1fr}
   .people-stats{grid-template-columns:repeat(3,minmax(0,1fr))}
   .member-select{flex:1 1 100%;font-size:16px;min-height:44px}
 }
