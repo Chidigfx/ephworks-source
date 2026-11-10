@@ -73,6 +73,9 @@ const CARE_KINDS = { prayer: 'Prayer', talk: 'Someone to talk to', other: 'Somet
 const CARE_STATUS = { open: 'Waiting for a pastoral carer', taken: 'A pastoral carer will email you', closed: 'Closed' }
 // Must match the pastoral_requests.share_with check in the 20261106 migration: who the member lets see their request
 const CARE_SHARING = { own_church: "My church's care team", other_church: 'A carer from another church' }
+const CARE_SHARING_HINTS = { own_church: 'A pastoral carer at the church you chose above.',
+  other_church: 'A carer at a different partner church. Your own church is not told, and the carer does not see which church you are from.'
+}
 const EMPTY_CARE = { church: '', name: '', kind: 'prayer', note: '', consent: false, shareWith: 'own_church' }
 // Must match the jobs.reject_reason check in the 20261110 migration
 const REJECT_REASONS = { incomplete: 'Incomplete information', misleading: 'Misleading content', suspected_scam: 'Suspected scam', other: 'Another reason' }
@@ -225,6 +228,7 @@ export default function App() {
   const [twoStep, setTwoStep] = useState({ level: null, factorId: null }) // this session's sign-in level and confirmed authenticator
   const [showTwoStep, setShowTwoStep] = useState(false)
   const [careForm, setCareForm] = useState(EMPTY_CARE)
+  const [careAvailable, setCareAvailable] = useState(null) // { own_church, other_church } for the chosen church, null until known
   const [contactForm, setContactForm] = useState(EMPTY_CONTACT)
   const [matchOnly, setMatchOnly] = useState(false) // job feed shows only jobs matching your profile
   const [unsubscribed, setUnsubscribed] = useState(null) // result of an email unsubscribe link: null while working, then true or false
@@ -445,6 +449,22 @@ export default function App() {
   }, [uid, waitingFor])
 
   useEffect(() => { document.querySelector('.work-tabs .active')?.scrollIntoView({ block: 'nearest', inline: 'center' }) }, [page])
+
+ // Which sharing options have a carer right now, so a request never goes to nobody
+  useEffect(() => {
+    setCareAvailable(null)
+    if (!careForm.church) return
+    if (!supabase) {
+      const carers = demo.members.filter(m => m.role === 'pastoral_carer' && !m.suspended)
+      return setCareAvailable({
+        own_church: carers.some(m => m.church_id === careForm.church),
+        other_church: carers.some(m => m.church_id !== careForm.church)
+      })
+    }
+    let stale = false
+    api.carersAvailable(careForm.church).then(a => !stale && setCareAvailable(a)).catch(() => {})
+    return () => { stale = true }
+  }, [careForm.church, demo.members])
 
   // Unsubscribe link from a job-alert email: /unsubscribe?token=…
   useEffect(() => {
@@ -780,7 +800,7 @@ export default function App() {
     if (supabase && needsSignIn()) return
     const { church, name, kind, note, shareWith } = careForm
     const row = { church_id: church, display_name: (name || account.name).trim(), kind, note: note.trim() || null, may_contact: true, share_with: shareWith }
-    const done = () => { setCareForm(EMPTY_CARE); notify(`Sent to a pastoral carer at ${churchName(church)}. Only they will see it.`) }
+    const done = () => { setCareForm(EMPTY_CARE); notify(shareWith === 'other_church' ? 'Sent to pastoral carers at other partner churches. Your own church won’t be told.' : `Sent to a pastoral carer at ${churchName(church)}. Only they will see it.`) }
     const already = 'You already have a request open. Delete it first if you want to send a new one.'
     if (supabase) return api.requestPastoral(row).then(() => { refresh(); done() }).catch(err => notify(/one_open_pastoral_request/.test(err.message) ? already : err.message))
     if (myCare.some(r => r.status !== 'closed')) return notify(already)
@@ -800,7 +820,7 @@ export default function App() {
   }
   const takeCare = r => updateCare(r, { status: 'taken', carer_id: DEMO_ME }, `You took ${r.display_name}'s request. Email them, and keep what they share confidential.`, () => api.takePastoral(r.id))
   const finishCare = (r, closed) => updateCare(r, closed ? { status: 'closed' } : { status: 'open', carer_id: null },
-    closed ? 'Request closed.' : 'Handed back to your church’s open list.', () => api.finishPastoral(r.id, closed))
+    closed ? 'Request closed.' : 'Handed back to the open list.', () => api.finishPastoral(r.id, closed))
 
   // Church management (admins)
   const refreshChurches = () => { refresh(); api.churches().then(setChurches) }
@@ -1689,7 +1709,7 @@ export default function App() {
         </>}
 
         {page === 'carerQueue' && <>
-          <PageHeading eyebrow="Pastoral care" title="Pastoral requests" desc={`Members of ${churchName(carerChurch) || 'your church'} asking for prayer or someone to talk to. Keep what you hear confidential, and never connect it to jobs or vouching.`}/>
+          <PageHeading eyebrow="Pastoral care" title="Pastoral requests" desc={`Members of ${churchName(carerChurch) || 'your church'}, and members of other churches who asked for a carer outside their own, asking for prayer or someone to talk to. Keep what you hear confidential, and never connect it to jobs or vouching.`}/>
           {carerQueue.length ? (
             <div className="review-list">
               {[...carerQueue].sort((a, b) => b.mine - a.mine).map(r => (
@@ -1699,7 +1719,7 @@ export default function App() {
                   title={`${CARE_KINDS[r.kind]} · ${r.display_name}`}
                   status={r.mine ? 'Yours' : 'Open'}
                   tone={r.mine ? 'ok' : 'pending'}
-                  sub={new Date(r.created_at).toLocaleDateString()}
+                  sub={`${r.share_with === 'other_church' ? 'From another church' : 'From your church'} · ${new Date(r.created_at).toLocaleDateString()}`}
                   note={r.note}
                   footNote={r.mine ? <><Mail size={15}/> {r.email}</> : <><LockKeyhole size={15}/> Email shown once you take it</>}
                 >
@@ -1711,9 +1731,8 @@ export default function App() {
                 </QueueCard>
               ))}
             </div>
-          ) : <Empty icon={HandHeart} title="No requests right now" description="When a member of your church asks for pastoral care, it shows up here."/>}
+          ) : <Empty icon={HandHeart} title="No requests right now" description="New requests for pastoral care show up here."/>}
         </>}
-
         {page === 'unsubscribe' && <div className="page-narrow">
           <PageHeading
             eyebrow="Job alert emails"
@@ -1731,10 +1750,10 @@ export default function App() {
         </div>}
 
         {page === 'care' && <div className="page-narrow">
-          <PageHeading eyebrow="Pastoral care" title="Someone from your church to pray with you" desc="Ask for prayer or someone to talk to. Your request goes only to a pastoral carer at the church you choose."/>
+          <PageHeading eyebrow="Pastoral care" title="Someone to pray with you" desc="Ask for prayer or someone to talk to. You choose who sees your request: a pastoral carer at your own church, or one at another partner church."/>
           <VerseCard/>
           <ul className="care-promises">
-            <li><LockKeyhole size={18} aria-hidden="true"/><span><strong>Confidential.</strong> Only a pastoral carer at your church sees your request. Employers, moderators and admins never do.</span></li>
+            <li><LockKeyhole size={18} aria-hidden="true"/><span><strong>Confidential.</strong> Only the pastoral carers you choose can see your request. Employers, moderators and admins never do.</span></li>
             <li><ShieldCheck size={18} aria-hidden="true"/><span><strong>Separate from jobs.</strong> Asking, or not asking, never affects the jobs you see, your church vouch or your posts.</span></li>
             <li><X size={18} aria-hidden="true"/><span><strong>Yours to delete.</strong> Delete a request at any time and it is erased, not hidden.</span></li>
           </ul>
@@ -1742,7 +1761,7 @@ export default function App() {
             <form className="form-panel booking-form" onSubmit={askForCare}>
               <label>
                 Your church
-                <select required value={careForm.church} onChange={e => setCareForm({ ...careForm, church: e.target.value })}>
+                <select required value={careForm.church} onChange={e => setCareForm({ ...careForm, church: e.target.value, consent: false })}>
                   <option value="">Choose your church</option>
                   {churches.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                 </select>
@@ -1761,11 +1780,26 @@ export default function App() {
                 Anything you’d like them to know (optional)
                 <textarea rows={3} maxLength={500} placeholder="Share only what you’re comfortable with." value={careForm.note} onChange={e => setCareForm({ ...careForm, note: e.target.value })}/>
               </label>
-              <label className="check-label">
+              <fieldset className="apply-roles care-sharing">
+                <legend>Who should see your request?</legend>
+                {Object.entries(CARE_SHARING).map(([key, label]) => {
+                  const noCarer = careAvailable?.[key] === false
+                  return (
+                    <label key={key} className={`apply-role ${careForm.shareWith === key ? 'selected' : ''} ${noCarer ? 'unavailable' : ''}`}>
+                      <input type="radio" name="care-share" value={key} disabled={noCarer} checked={careForm.shareWith === key} onChange={() => setCareForm({ ...careForm, shareWith: key, consent: false })}/>
+                      <strong>{label}</strong>
+                      <span>{CARE_SHARING_HINTS[key]}</span>
+                      {noCarer && <small className="care-none">No carer available here yet</small>}
+                    </label>
+                  )
+                })}
+                <p className="care-sharing-note">You can’t change this after sending. You can delete the request and send a new one at any time.</p>
+              </fieldset>
+               <label className="check-label">
                 <input type="checkbox" checked={careForm.consent} onChange={e => setCareForm({ ...careForm, consent: e.target.checked })}/>
-                <span>A pastoral carer from my church may email me at my sign-in address. Only they will see it.</span>
+                <span>A pastoral carer {careForm.shareWith === 'other_church' ? 'from another partner church' : 'from my church'} may email me at my sign-in address. Only they will see it.</span>
               </label>
-              <button className="primary-button" type="submit" disabled={!careForm.consent || !careForm.church}><Send size={16}/> Send request</button>
+              <button className="primary-button" type="submit" disabled={!careForm.consent || !careForm.church || careAvailable?.[careForm.shareWith] === false}><Send size={16}/> Send request</button>
             </form>
           )}
           {myCare.length > 0 && (
@@ -1776,7 +1810,7 @@ export default function App() {
                   <HandHeart size={19}/>
                   <div>
                     <strong>{CARE_KINDS[r.kind]} · {churchName(r.church_id)}</strong>
-                    <small>{CARE_STATUS[r.status]} · {new Date(r.created_at).toLocaleDateString()}</small>
+                    <small>{CARE_STATUS[r.status]} · Shared with {CARE_SHARING[r.share_with || 'own_church']} · {new Date(r.created_at).toLocaleDateString()}</small>
                   </div>
                   <button type="button" className="outline-small" onClick={() => deleteCare(r)}>Delete</button>
                 </div>
