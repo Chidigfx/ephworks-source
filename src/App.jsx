@@ -228,6 +228,7 @@ export default function App() {
   const [twoStep, setTwoStep] = useState({ level: null, factorId: null }) // this session's sign-in level and confirmed authenticator
   const [showTwoStep, setShowTwoStep] = useState(false)
   const [careForm, setCareForm] = useState(EMPTY_CARE)
+  const [careAvailable, setCareAvailable] = useState(null) // { own_church, other_church } for the chosen church, null until known
   const [contactForm, setContactForm] = useState(EMPTY_CONTACT)
   const [matchOnly, setMatchOnly] = useState(false) // job feed shows only jobs matching your profile
   const [unsubscribed, setUnsubscribed] = useState(null) // result of an email unsubscribe link: null while working, then true or false
@@ -448,6 +449,22 @@ export default function App() {
   }, [uid, waitingFor])
 
   useEffect(() => { document.querySelector('.work-tabs .active')?.scrollIntoView({ block: 'nearest', inline: 'center' }) }, [page])
+
+ // Which sharing options have a carer right now, so a request never goes to nobody
+  useEffect(() => {
+    setCareAvailable(null)
+    if (!careForm.church) return
+    if (!supabase) {
+      const carers = demo.members.filter(m => m.role === 'pastoral_carer' && !m.suspended)
+      return setCareAvailable({
+        own_church: carers.some(m => m.church_id === careForm.church),
+        other_church: carers.some(m => m.church_id !== careForm.church)
+      })
+    }
+    let stale = false
+    api.carersAvailable(careForm.church).then(a => !stale && setCareAvailable(a)).catch(() => {})
+    return () => { stale = true }
+  }, [careForm.church, demo.members])
 
   // Unsubscribe link from a job-alert email: /unsubscribe?token=…
   useEffect(() => {
@@ -803,7 +820,7 @@ export default function App() {
   }
   const takeCare = r => updateCare(r, { status: 'taken', carer_id: DEMO_ME }, `You took ${r.display_name}'s request. Email them, and keep what they share confidential.`, () => api.takePastoral(r.id))
   const finishCare = (r, closed) => updateCare(r, closed ? { status: 'closed' } : { status: 'open', carer_id: null },
-    closed ? 'Request closed.' : 'Handed back to your church’s open list.', () => api.finishPastoral(r.id, closed))
+    closed ? 'Request closed.' : 'Handed back to the open list.', () => api.finishPastoral(r.id, closed))
 
   // Church management (admins)
   const refreshChurches = () => { refresh(); api.churches().then(setChurches) }
@@ -1691,7 +1708,7 @@ export default function App() {
           </>}
         </>}
 
-                {page === 'carerQueue' && <>
+        {page === 'carerQueue' && <>
           <PageHeading eyebrow="Pastoral care" title="Pastoral requests" desc={`Members of ${churchName(carerChurch) || 'your church'}, and members of other churches who asked for a carer outside their own, asking for prayer or someone to talk to. Keep what you hear confidential, and never connect it to jobs or vouching.`}/>
           {carerQueue.length ? (
             <div className="review-list">
@@ -1736,7 +1753,7 @@ export default function App() {
           <PageHeading eyebrow="Pastoral care" title="Someone to pray with you" desc="Ask for prayer or someone to talk to. You choose who sees your request: a pastoral carer at your own church, or one at another partner church."/>
           <VerseCard/>
           <ul className="care-promises">
-           <li><LockKeyhole size={18} aria-hidden="true"/><span><strong>Confidential.</strong> Only the pastoral carers you choose can see your request. Employers, moderators and admins never do.</span></li>
+            <li><LockKeyhole size={18} aria-hidden="true"/><span><strong>Confidential.</strong> Only the pastoral carers you choose can see your request. Employers, moderators and admins never do.</span></li>
             <li><ShieldCheck size={18} aria-hidden="true"/><span><strong>Separate from jobs.</strong> Asking, or not asking, never affects the jobs you see, your church vouch or your posts.</span></li>
             <li><X size={18} aria-hidden="true"/><span><strong>Yours to delete.</strong> Delete a request at any time and it is erased, not hidden.</span></li>
           </ul>
@@ -1744,7 +1761,7 @@ export default function App() {
             <form className="form-panel booking-form" onSubmit={askForCare}>
               <label>
                 Your church
-                <select required value={careForm.church} onChange={e => setCareForm({ ...careForm, church: e.target.value })}>
+                <select required value={careForm.church} onChange={e => setCareForm({ ...careForm, church: e.target.value, consent: false })}>
                   <option value="">Choose your church</option>
                   {churches.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                 </select>
@@ -1765,20 +1782,24 @@ export default function App() {
               </label>
               <fieldset className="apply-roles care-sharing">
                 <legend>Who should see your request?</legend>
-                {Object.entries(CARE_SHARING).map(([key, label]) => (
-                  <label key={key} className={`apply-role ${careForm.shareWith === key ? 'selected' : ''}`}>
-                    <input type="radio" name="care-share" value={key} checked={careForm.shareWith === key} onChange={() => setCareForm({ ...careForm, shareWith: key })}/>
-                    <strong>{label}</strong>
-                    <span>{CARE_SHARING_HINTS[key]}</span>
-                  </label>
-                ))}
+                {Object.entries(CARE_SHARING).map(([key, label]) => {
+                  const noCarer = careAvailable?.[key] === false
+                  return (
+                    <label key={key} className={`apply-role ${careForm.shareWith === key ? 'selected' : ''} ${noCarer ? 'unavailable' : ''}`}>
+                      <input type="radio" name="care-share" value={key} disabled={noCarer} checked={careForm.shareWith === key} onChange={() => setCareForm({ ...careForm, shareWith: key, consent: false })}/>
+                      <strong>{label}</strong>
+                      <span>{CARE_SHARING_HINTS[key]}</span>
+                      {noCarer && <small className="care-none">No carer available here yet</small>}
+                    </label>
+                  )
+                })}
                 <p className="care-sharing-note">You can’t change this after sending. You can delete the request and send a new one at any time.</p>
               </fieldset>
                <label className="check-label">
                 <input type="checkbox" checked={careForm.consent} onChange={e => setCareForm({ ...careForm, consent: e.target.checked })}/>
-                                <span>A pastoral carer {careForm.shareWith === 'other_church' ? 'from another partner church' : 'from my church'} may email me at my sign-in address. Only they will see it.</span>
+                <span>A pastoral carer {careForm.shareWith === 'other_church' ? 'from another partner church' : 'from my church'} may email me at my sign-in address. Only they will see it.</span>
               </label>
-              <button className="primary-button" type="submit" disabled={!careForm.consent || !careForm.church}><Send size={16}/> Send request</button>
+              <button className="primary-button" type="submit" disabled={!careForm.consent || !careForm.church || careAvailable?.[careForm.shareWith] === false}><Send size={16}/> Send request</button>
             </form>
           )}
           {myCare.length > 0 && (
@@ -1789,7 +1810,7 @@ export default function App() {
                   <HandHeart size={19}/>
                   <div>
                     <strong>{CARE_KINDS[r.kind]} · {churchName(r.church_id)}</strong>
-                          <small>{CARE_STATUS[r.status]} · Shared with {CARE_SHARING[r.share_with || 'own_church']} · {new Date(r.created_at).toLocaleDateString()}</small>
+                    <small>{CARE_STATUS[r.status]} · Shared with {CARE_SHARING[r.share_with || 'own_church']} · {new Date(r.created_at).toLocaleDateString()}</small>
                   </div>
                   <button type="button" className="outline-small" onClick={() => deleteCare(r)}>Delete</button>
                 </div>

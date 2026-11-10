@@ -677,6 +677,9 @@ body{background:radial-gradient(60vw 50vw at 0% 0%,#bae6fd 0,transparent 60%),ra
 .apply-role span{font-size:13px;font-weight:400;color:var(--fg-2);line-height:1.5}
 .apply-roles.care-sharing{grid-template-columns:repeat(2,minmax(0,1fr))}
 .care-sharing-note{grid-column:1/-1;margin:0;font-size:13px;color:var(--fg-2)}
+.booking-form .apply-role.unavailable{opacity:.6;cursor:not-allowed}
+.booking-form .apply-role.unavailable:hover{border-color:var(--border)}
+.care-none{font-size:13px;font-weight:600;color:var(--warn-text)}
 .people-stats{list-style:none;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px;margin:0 0 20px;padding:0}
 .people-stats li{padding:16px 18px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius)}
 .people-stats b{display:block;font:700 24px/1.1 var(--heading);color:var(--fg)}
