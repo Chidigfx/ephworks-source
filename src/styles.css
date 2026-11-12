@@ -181,6 +181,10 @@ button:active:not(:disabled){transform:translateY(1px)}
 .company-icon.blue{background:var(--primary-50);color:var(--primary-hover)}
 .company-icon.rose{background:#fff1f2;color:#be123c}
 .company-icon.large{width:60px;height:60px;font-size:18px;margin:20px 0 16px}
+.drawer-title{display:flex;align-items:center;gap:16px;margin:8px 0 4px}
+.drawer-title .company-icon.large{margin:0;width:56px;height:56px;border-radius:14px}
+.drawer-title h2{margin:0 0 4px;line-height:1.2}
+.drawer-title .drawer-company{margin:0}
 .disclaimer-foot{display:flex;align-items:flex-start;gap:10px;margin-top:16px;padding:16px 0;font-size:13px;color:var(--muted);line-height:1.6}
 .disclaimer-foot svg{color:var(--primary);margin-top:2px}
 .empty{padding:48px 24px;text-align:center;background:var(--surface);border:1px dashed var(--border);border-radius:var(--radius);color:var(--muted)}
@@ -395,12 +399,24 @@ button:active:not(:disabled){transform:translateY(1px)}
 .apply-panel h4 svg{color:var(--primary)}
 .apply-panel p{font-size:14px;margin-bottom:16px}
 .apply-actions{display:flex;gap:10px;flex-wrap:wrap}
-.apply-locked{display:flex;flex-wrap:wrap;align-items:center;gap:10px 12px;padding:14px 16px;background:var(--surface);border:1px solid var(--primary-200);border-radius:var(--radius-sm);font-size:14px;color:var(--fg-2);line-height:1.5}
-.apply-locked>svg{color:var(--primary);flex-shrink:0}
-.apply-locked>span{flex:1 1 220px}
+.apply-panel.apply-locked{display:flex;flex-direction:column;align-items:center;gap:10px;padding:28px 24px;text-align:center}
+.apply-locked-icon{display:grid;place-items:center;width:48px;height:48px;border-radius:50%;background:var(--surface);border:1px solid var(--primary-200);color:var(--primary)}
+.apply-panel.apply-locked h4{margin:4px 0 0;font-size:18px}
+.apply-panel.apply-locked p{max-width:360px;margin:0;color:var(--fg-2);line-height:1.55}
+.apply-panel.apply-locked .primary-button{max-width:320px;margin-top:6px}
+.apply-panel.apply-locked small{font-size:13px;color:var(--muted)}
+.apply-panel.apply-locked .primary-button{box-shadow:0 6px 16px -10px rgba(3,105,161,.55)}
+.apply-panel.apply-locked p,.apply-panel.apply-locked small{text-wrap:balance}
+@media(max-width:760px){
+.apply-panel.apply-locked{gap:8px;padding:24px 18px 20px}
+.apply-locked-icon{width:44px;height:44px}
+.apply-panel.apply-locked p{font-size:15px}
+.apply-panel.apply-locked .primary-button{max-width:none;min-height:48px;margin-top:8px;font-size:15px}
+}
 .track-row{margin-top:12px}
-.drawer-footer-actions{display:flex;justify-content:space-between;padding-top:16px;border-top:1px solid var(--border)}
-.drawer-footer-actions button{display:inline-flex;align-items:center;gap:8px;min-height:40px;padding:0 10px;border-radius:var(--radius-sm);font-size:14px;font-weight:600;color:var(--fg-2)}
+.drawer-footer-actions{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;padding-top:16px;border-top:1px solid var(--border)}
+.drawer-footer-actions button{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:44px;padding:0 8px;border-radius:var(--radius-sm);font-size:14px;font-weight:600;color:var(--fg-2);white-space:nowrap}
+.drawer-footer-actions button svg{flex-shrink:0}
 .drawer-footer-actions button:hover{background:var(--subtle)}
 .drawer-footer-actions .danger-link{color:var(--danger-text)}
 .drawer-footer-actions .danger-link:hover{background:var(--danger-50)}
@@ -442,6 +458,9 @@ button:active:not(:disabled){transform:translateY(1px)}
   .draft-card{flex-wrap:wrap}
   .drawer-header{padding:12px 16px}
   .drawer-body{padding:20px 20px 96px}
+  .drawer-body h2{font-size:22px}
+  .drawer-title{gap:14px}
+  .drawer-title .company-icon.large{width:48px;height:48px;font-size:15px;border-radius:12px}
   .footer{flex-direction:column;align-items:flex-start;padding-bottom:96px}
   .job-drawer{border-left:0}
 }
@@ -456,7 +475,9 @@ body{background:radial-gradient(60vw 50vw at 0% 0%,#bae6fd 0,transparent 60%),ra
 .company-icon,.feature-icon,.empty-symbol{box-shadow:inset 0 0 0 1px rgba(3,105,161,.08)}
 .primary-button,.hero-button,.open-job,.apply-button-primary,.support-action-btn,.approve-small{background:linear-gradient(135deg,var(--primary),var(--primary-hover));box-shadow:0 8px 20px -8px rgba(3,105,161,.6)}
 .primary-button:hover,.hero-button:hover,.open-job:hover,.apply-button-primary:hover,.support-action-btn:hover,.approve-small:hover{background:var(--primary-hover)}
-.dialog,.job-drawer,.more-sheet{background:rgba(255,255,255,.92);-webkit-backdrop-filter:var(--blur);backdrop-filter:var(--blur)}
+.dialog,.more-sheet{background:rgba(255,255,255,.92);-webkit-backdrop-filter:var(--blur);backdrop-filter:var(--blur)}
+/* the job page stays solid: on phones it covers the whole screen and see-through text behind it reads as ghost text */
+.job-drawer{background:var(--surface)}
 .drawer-header{background:rgba(255,255,255,.85);-webkit-backdrop-filter:var(--blur);backdrop-filter:var(--blur)}
 .overlay{background:rgba(15,23,42,.4);-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px)}
 .toast-banner{background:rgba(15,23,42,.88);-webkit-backdrop-filter:var(--blur);backdrop-filter:var(--blur)}
@@ -537,7 +558,7 @@ body{background:radial-gradient(60vw 50vw at 0% 0%,#bae6fd 0,transparent 60%),ra
 @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}*,*::before,*::after{animation-duration:.001ms!important;transition-duration:.001ms!important}}
 
 /* ===== Job card (.jc) - scoped to the card, uses the current theme tokens ===== */
-.jc{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;box-shadow:0 1px 2px rgba(15,23,42,.04);transition:transform var(--ease),box-shadow var(--ease),border-color var(--ease)}
+.jc{container:jobcard/inline-size;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;box-shadow:0 1px 2px rgba(15,23,42,.04);transition:transform var(--ease),box-shadow var(--ease),border-color var(--ease)}
 .jc:hover{transform:translateY(-2px);border-color:var(--primary-200);box-shadow:0 18px 40px -18px rgba(3,105,161,.35)}
 .jc-top{display:flex;align-items:center;gap:10px;padding:10px 14px 10px 22px;background:var(--primary-50);border-bottom:1px solid var(--primary-100)}
 .jc-check{display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:600;color:var(--primary-hover)}
@@ -562,12 +583,21 @@ body{background:radial-gradient(60vw 50vw at 0% 0%,#bae6fd 0,transparent 60%),ra
 .jc-open{display:inline-flex;align-items:center;gap:8px;background:linear-gradient(135deg,var(--primary),var(--primary-hover));color:#fff;padding:11px 18px;border-radius:var(--radius-sm);font-size:14px;font-weight:600;white-space:nowrap;box-shadow:0 8px 20px -8px rgba(3,105,161,.6);transition:gap var(--ease),background var(--ease)}
 .jc-open:hover{background:var(--primary-hover);gap:12px}
 @media(max-width:760px){
-.jc-top{padding-left:16px}
-.jc-body{grid-template-columns:auto minmax(0,1fr);padding:18px 16px 14px}
-.jc-pay{grid-column:1/-1;text-align:left;display:flex;align-items:baseline;gap:8px}
+/* slim header band: the 44px save tap target overlaps the padding instead of stretching the band */
+.jc-top{padding:8px 6px 8px 16px}
+.jc .jc-save{margin:-8px 0 -8px auto}
+.jc-body{gap:12px 14px;padding:16px 16px 14px}
+.jc-mono{width:46px;height:46px;border-radius:12px;font-size:15px}
 .jc-id h3{font-size:17px}
-.jc-foot{flex-direction:column;align-items:stretch;margin:0 16px;padding-bottom:16px}
+.jc-foot{flex-direction:column;align-items:stretch;gap:14px;margin:0 16px;padding:14px 0 16px}
+/* stacked footer: the countdown sits at the right edge, under the salary, so the tag row spans the card */
+.jc-facts .jc-life{margin-left:auto;padding-right:0}
 .jc-open{justify-content:center}
+}
+/* only narrow cards move the salary under the title; wider ones keep it on the right, so no gap is left there */
+@container jobcard (max-width:440px){
+.jc-body{grid-template-columns:auto minmax(0,1fr)}
+.jc-pay{grid-column:1/-1;text-align:left;display:flex;align-items:baseline;gap:8px}
 }
 
 /* ===== Review card (.rc) - moderator queue only, same arrangement as .jc ===== */

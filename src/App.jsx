@@ -2309,13 +2309,17 @@ export default function App() {
           <div className="drawer-body">
             <div className="badge-row">
               <span className="tag-badge verified"><ShieldCheck size={13}/> Checked with the employer</span>
-              <span className="tag-badge expiry"><Clock3 size={13}/> Expires in {selectedJob.daysLeft} days (30d purge)</span>
-              <span className="tag-badge secure"><Scale size={13}/> Zero candidate fees guaranteed</span>
+              <span className="tag-badge expiry"><Clock3 size={13}/> {selectedJob.daysLeft} {selectedJob.daysLeft === 1 ? 'day' : 'days'} left</span>
+              <span className="tag-badge secure"><Scale size={13}/> No fees for candidates</span>
             </div>
 
-            <div className={`company-icon large ${selectedJob.hue}`}>{selectedJob.initials}</div>
-            <h2>{selectedJob.title}</h2>
-            <p className="drawer-company">{selectedJob.company} · {selectedJob.emirate}, UAE · Verified Employer</p>
+            <div className="drawer-title">
+              <div className={`company-icon large ${selectedJob.hue}`} aria-hidden="true">{selectedJob.initials}</div>
+              <div>
+                <h2>{selectedJob.title}</h2>
+                <p className="drawer-company">{selectedJob.company} · {selectedJob.emirate}, UAE</p>
+              </div>
+            </div>
 
             <div className="detail-grid">
               <div><span>Monthly salary</span><strong>{selectedJob.salary}</strong></div>
@@ -2349,64 +2353,74 @@ export default function App() {
             </div>
 
             {/* Direct Apply to Employer Panel (MOHRE Safe Noticeboard) */}
-            <div className="apply-panel">
-              <h4><Mail size={18}/> Apply Direct to Employer</h4>
-              <p>
-                In compliance with UAE MOHRE regulations, Ephworks is a community noticeboard. We do not store your CV or shortlist candidates. You connect and apply straight to the hiring company:
-              </p>
-              {canApply && selectedJob.directEmail ? (
-                <div className="apply-actions">
-                  <a href={`mailto:${selectedJob.directEmail}?subject=Application: ${selectedJob.title}`} className="apply-button-primary">
-                    <Mail size={16}/> Email CV to {selectedJob.directEmail}
-                  </a>
-                  {selectedJob.directPortal && (
-                    <a href={selectedJob.directPortal} target="_blank" rel="noopener noreferrer" className="apply-portal-link">
-                      <ExternalLink size={16}/> Official Career Portal
+            {canApply ? (
+              <div className="apply-panel">
+                <h4><Mail size={18}/> Apply Direct to Employer</h4>
+                <p>
+                  In compliance with UAE MOHRE regulations, Ephworks is a community noticeboard. We do not store your CV or shortlist candidates. You connect and apply straight to the hiring company:
+                </p>
+                {selectedJob.directEmail ? (
+                  <div className="apply-actions">
+                    <a href={`mailto:${selectedJob.directEmail}?subject=Application: ${selectedJob.title}`} className="apply-button-primary">
+                      <Mail size={16}/> Email CV to {selectedJob.directEmail}
                     </a>
-                  )}
+                    {selectedJob.directPortal && (
+                      <a href={selectedJob.directPortal} target="_blank" rel="noopener noreferrer" className="apply-portal-link">
+                        <ExternalLink size={16}/> Official Career Portal
+                      </a>
+                    )}
+                  </div>
+                ) : <Warning>The employer’s contact details couldn’t load. Close this and try again.</Warning>}
+                <div className="track-row">
+                  <button
+                    type="button"
+                    className={`${interestedIds.includes(selectedJob.id) ? 'secondary-button' : 'primary-button'} full`}
+                    aria-pressed={interestedIds.includes(selectedJob.id)}
+                    onClick={() => toggleInterest(selectedJob.id)}
+                  >
+                    <Heart size={16} fill={interestedIds.includes(selectedJob.id) ? 'currentColor' : 'none'}/> {interestedIds.includes(selectedJob.id) ? 'You’re interested' : 'I’m interested'}
+                  </button>
+                  <button
+                    type="button"
+                    className="secondary-button full"
+                    onClick={() => toggleTrack(selectedJob.id)}
+                  >
+                    <CheckCheck size={16}/> {demo.tracked.includes(selectedJob.id) ? 'Application marked as sent' : 'Mark as applied (Track in my list)'}
+                  </button>
                 </div>
-              ) : (
-                <div className="apply-locked">
-                  <LockKeyhole size={18} aria-hidden="true"/>
-                  {!session ? <>
-                    <span><strong>Members apply here.</strong> Sign in to see how to apply. New here? Ask a member who knows you for their referral code.</span>
-                    <button type="button" className="primary-button" onClick={() => setShowSignIn(true)}>Sign in or join</button>
-                  </> : <span>{joinStatus === 'declined'
-                    ? 'Your request to join was not approved, so applying is switched off.'
-                    : joinStatus ? 'You can apply once a moderator approves your account. We’ll let you know.'
-                    : 'The employer’s contact details couldn’t load. Close this and try again.'}</span>}
+                <div className="law-notice">
+                  <LockKeyhole size={14}/> Ephworks never charges fees or retains candidate CVs.
                 </div>
-              )}
-              <div className="track-row">
-                <button
-                  type="button"
-                  className={`${interestedIds.includes(selectedJob.id) ? 'secondary-button' : 'primary-button'} full`}
-                  aria-pressed={interestedIds.includes(selectedJob.id)}
-                  onClick={() => toggleInterest(selectedJob.id)}
-                >
-                  <Heart size={16} fill={interestedIds.includes(selectedJob.id) ? 'currentColor' : 'none'}/> {interestedIds.includes(selectedJob.id) ? 'You’re interested' : 'I’m interested'}
-                </button>
-                <button
-                  type="button"
-                  className="secondary-button full"
-                  onClick={() => toggleTrack(selectedJob.id)}
-                >
-                  <CheckCheck size={16}/> {demo.tracked.includes(selectedJob.id) ? 'Application marked as sent' : 'Mark as applied (Track in my list)'}
-                </button>
               </div>
-              <div className="law-notice">
-                <LockKeyhole size={14}/> Ephworks never charges fees or retains candidate CVs.
+            ) : (
+              // Visitors and accounts still waiting: one clear next step, no contact details (20261112 migration)
+              <div className="apply-panel apply-locked">
+                <span className="apply-locked-icon" aria-hidden="true"><LockKeyhole size={22}/></span>
+                {!session ? <>
+                  <h4>Sign in to apply</h4>
+                  <p>Applying is for Ephworks members. Once you’re signed in, you’ll see how to contact this employer directly.</p>
+                  <button type="button" className="primary-button full" onClick={() => setShowSignIn(true)}>Sign in or join</button>
+                  <small>New here? Ask a member who knows you for their referral code.</small>
+                </> : joinStatus === 'declined' ? <>
+                  <h4>Applying is switched off</h4>
+                  <p>Your request to join was not approved. If you think this is a mistake, <button type="button" className="link-button" onClick={() => { setSelectedJob(null); openContact('account') }}>send us a message</button>.</p>
+                </> : <>
+                  <h4>Almost there</h4>
+                  <p>You can apply once a moderator approves your account. Until then you can keep browsing jobs.</p>
+                </>}
               </div>
-            </div>
+            )}
 
             <div className="drawer-footer-actions">
-              <button onClick={() => toggleSave(selectedJob.id)}>
-                <Bookmark size={16} fill={demo.saved.includes(selectedJob.id) ? 'currentColor' : 'none'}/>
-                {demo.saved.includes(selectedJob.id) ? 'Saved' : 'Save role'}
+              <button type="button" aria-pressed={demo.saved.includes(selectedJob.id)} aria-label={demo.saved.includes(selectedJob.id) ? 'Saved. Remove from saved roles' : 'Save role'} onClick={() => toggleSave(selectedJob.id)}>
+                <Bookmark size={18} fill={demo.saved.includes(selectedJob.id) ? 'currentColor' : 'none'}/>
+                {demo.saved.includes(selectedJob.id) ? 'Saved' : 'Save'}
               </button>
-              <button className="link-button" onClick={() => { setSelectedJob(null); go('jobScams') }}>How to spot a job scam</button>
-              <button className="danger-link" onClick={() => setShowReport(true)}>
-                <Flag size={16}/> Report to Safety Team
+              <button type="button" aria-label="How to spot a job scam" onClick={() => { setSelectedJob(null); go('jobScams') }}>
+                <ShieldAlert size={18}/> Scam tips
+              </button>
+              <button type="button" className="danger-link" aria-label="Report this job to the safety team" onClick={() => setShowReport(true)}>
+                <Flag size={18}/> Report
               </button>
             </div>
           </div>
