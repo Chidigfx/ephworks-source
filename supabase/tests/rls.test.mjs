@@ -476,6 +476,27 @@ check('logged-out visitors cannot ask whether a church has carers', /permission 
 r = await as(null, `select * from public.carer_requests()`)
 check('logged-out visitors cannot call the carer list', /permission denied/.test(r.error || ''), r)
 
+// A request is only accepted when a carer can receive it (20261111)
+const careTo = share => `insert into public.pastoral_requests (church_id, display_name, kind, may_contact, share_with) values ($1, 'Omar', 'prayer', true, '${share}') returning id`
+const noCarer = /No pastoral carer is available/
+r = await as(OTHER, careTo('own_church'), [CHURCH3])
+check('own_church refused at a church with no carer', noCarer.test(r.error || ''), r)
+r = await as(OTHER, `select id from public.pastoral_requests`)
+check('nothing is saved when a request is refused', r.rows?.length === 0, r)
+r = await as(OTHER, careTo('other_church'), [CHURCH3])
+check('other_church accepted when another church has a carer', r.rows?.length === 1, r)
+await as(OTHER, `delete from public.pastoral_requests`)
+await db.exec(`update public.profiles set suspended = true where id = '${CARER2}'`)
+r = await as(OTHER, careTo('other_church'), [CHURCH])
+check('a suspended carer does not count', noCarer.test(r.error || ''), r)
+r = await as(OTHER, `select * from public.pastoral_carers_available($1)`, [CHURCH])
+check('form and server agree when the only other carer is suspended', r.rows?.[0]?.other_church === false, r)
+await db.exec(`update public.profiles set suspended = false where id = '${CARER2}'`)
+r = await as(CARER, careTo('own_church'), [CHURCH])
+check('a carer cannot be the only carer for their own request', noCarer.test(r.error || ''), r)
+r = await as(OTHER, `select public.pastoral_carer_exists($1, 'own_church', $2)`, [CHURCH, OTHER])
+check('carer check helper is not callable from the app', !!r.error, r)
+
 // Editable profile and job matches ---------------------------------------------------------
 const setProfile = (who, args) => as(who, `select public.update_my_profile($1, $2, $3, $4, $5, $6, $7, $8)`, args)
 r = await as(NEW1, `update public.profiles set role = 'admin' where id = $1 returning id`, [NEW1])
