@@ -762,6 +762,13 @@ export default function App() {
 
   // Contact form: opened from any "message us" button with the right topic, filled in for signed-in members
   const openContact = topic => { setContactForm(f => ({ ...f, topic: CONTACT_TOPICS[topic] ? topic : 'question' })); go('contact') }
+  // No member to invite them: ask the team for a code through Contact us (an admin checks, then shares a church admin's code)
+  const askForCode = () => {
+    setShowSignIn(false)
+    setSelectedJob(null)
+    setContactForm(f => ({ ...f, topic: 'account', message: f.message || `I’d like to join ${SITE_NAME}, but I don’t know a member who can give me a referral code.\n\nMy church: \nHow I heard about ${SITE_NAME}: ` }))
+    go('contact')
+  }
   const sendContact = e => {
     e.preventDefault()
     const { name, email, topic, message, website } = contactForm
@@ -1145,7 +1152,7 @@ export default function App() {
           : (
             <form className="notice join-code" onSubmit={submitCode}>
               <KeyRound size={17} className="notice-icon" aria-hidden="true"/>
-              <span><strong>Enter your referral code to join.</strong> Ask the member who invited you for their code. Until a moderator approves you, you can browse jobs.</span>
+              <span><strong>Enter your referral code to join.</strong> Ask the member who invited you for their code. Until a moderator approves you, you can browse jobs. No code? <button type="button" className="link-button" onClick={askForCode}>Ask us for one</button>.</span>
               <input aria-label="Referral code" placeholder="EPH-XXXXXX" maxLength={10} required value={codeInput} onChange={e => setCodeInput(e.target.value)}/>
               <button className="primary-button" type="submit">Send code</button>
             </form>
@@ -2400,7 +2407,7 @@ export default function App() {
                   <h4>Sign in to apply</h4>
                   <p>Applying is for Ephworks members. Once you’re signed in, you’ll see how to contact this employer directly.</p>
                   <button type="button" className="primary-button full" onClick={() => setShowSignIn(true)}>Sign in or join</button>
-                  <small>New here? Ask a member who knows you for their referral code.</small>
+                  <small>New here? Ask a member who knows you for their referral code, or <button type="button" className="link-button" onClick={askForCode}>ask us for one</button>.</small>
                 </> : joinStatus === 'declined' ? <>
                   <h4>Applying is switched off</h4>
                   <p>Your request to join was not approved. If you think this is a mistake, <button type="button" className="link-button" onClick={() => { setSelectedJob(null); openContact('account') }}>send us a message</button>.</p>
@@ -2531,7 +2538,7 @@ export default function App() {
             <button type="button" role="tab" aria-selected={authForm.mode === 'signup'} className={authForm.mode === 'signup' ? 'active' : ''} onClick={() => setAuthMode('signup')}>Create account</button>
           </div>
         )}
-        {authForm.mode === 'signup' && <p>{SITE_NAME} is for people invited by a member. You need their referral code, and a moderator approves every new account.</p>}
+        {authForm.mode === 'signup' && <p>{SITE_NAME} is for people invited by a member. You need their referral code, and a moderator approves every new account. Don’t know a member? <button type="button" className="link-button" onClick={askForCode}>Ask us for a code</button>.</p>}
         {authForm.mode === 'reset' && <p>We’ll email you a link to choose a new password.</p>}
         {providers.email && (
           <form className="booking-form auth-form" onSubmit={submitAuth}>
