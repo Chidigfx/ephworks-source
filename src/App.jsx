@@ -251,6 +251,8 @@ export default function App() {
   const workLabel = isAdmin ? 'Admin' : canModerate ? 'Moderation' : isChurchAdmin ? 'Church admin' : isCarer ? 'Pastoral care' : 'Volunteer'
   // Signed in but not let in yet ('pending' or 'declined'): browsing only, until a moderator or admin approves the account
   const joinStatus = supabase && uid && profile.status !== 'approved' ? profile.status : null
+  // Employer contact details, and so applying, are for approved members only (20261112 migration)
+  const canApply = !supabase || Boolean(session && !joinStatus && !profile.suspended)
 
   // Real-time scam detection for the employer post form
   const draftSalary = salaryText(draftForm)
@@ -2352,16 +2354,29 @@ export default function App() {
               <p>
                 In compliance with UAE MOHRE regulations, Ephworks is a community noticeboard. We do not store your CV or shortlist candidates. You connect and apply straight to the hiring company:
               </p>
-              <div className="apply-actions">
-                <a href={`mailto:${selectedJob.directEmail}?subject=Application: ${selectedJob.title}`} className="apply-button-primary">
-                  <Mail size={16}/> Email CV to {selectedJob.directEmail}
-                </a>
-                {selectedJob.directPortal && (
-                  <a href={selectedJob.directPortal} target="_blank" rel="noopener noreferrer" className="apply-portal-link">
-                    <ExternalLink size={16}/> Official Career Portal
+              {canApply && selectedJob.directEmail ? (
+                <div className="apply-actions">
+                  <a href={`mailto:${selectedJob.directEmail}?subject=Application: ${selectedJob.title}`} className="apply-button-primary">
+                    <Mail size={16}/> Email CV to {selectedJob.directEmail}
                   </a>
-                )}
-              </div>
+                  {selectedJob.directPortal && (
+                    <a href={selectedJob.directPortal} target="_blank" rel="noopener noreferrer" className="apply-portal-link">
+                      <ExternalLink size={16}/> Official Career Portal
+                    </a>
+                  )}
+                </div>
+              ) : (
+                <div className="apply-locked">
+                  <LockKeyhole size={18} aria-hidden="true"/>
+                  {!session ? <>
+                    <span><strong>Members apply here.</strong> Sign in to see how to apply. New here? Ask a member who knows you for their referral code.</span>
+                    <button type="button" className="primary-button" onClick={() => setShowSignIn(true)}>Sign in or join</button>
+                  </> : <span>{joinStatus === 'declined'
+                    ? 'Your request to join was not approved, so applying is switched off.'
+                    : joinStatus ? 'You can apply once a moderator approves your account. We’ll let you know.'
+                    : 'The employer’s contact details couldn’t load. Close this and try again.'}</span>}
+                </div>
+              )}
               <div className="track-row">
                 <button
                   type="button"

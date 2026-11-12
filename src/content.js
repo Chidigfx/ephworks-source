@@ -62,7 +62,7 @@ export const INFO_PAGES = [
           ['Live for 30 days', 'Posts end after 30 days so the board never fills with old jobs.']
         ] }
       ] },
-      { note: 'Church vouching confirms identity and good character, not faith. Anyone can browse and apply for jobs.' },
+      { note: 'Church vouching confirms identity and good character, not faith. Anyone can browse jobs; approved members apply.' },
       { cta: [['Post a job', 'post'], ['How we review jobs', 'jobReview']] }
     ]
   },
@@ -193,8 +193,8 @@ export const INFO_PAGES = [
     blocks: [
       { faq: [
         [`Is ${SITE_NAME} free?`, 'Yes, for everyone, always. Job seekers never pay and employers never pay to post.'],
-        ['Do I need to belong to a church to find work?', 'No. Anyone can browse jobs and apply to employers directly. Only people who post jobs are vouched for by their church.'],
-        [`How do I join ${SITE_NAME}?`, 'Ask a member who knows you for their referral code, then create an account with your email or Google. A moderator checks with that member and approves you. Until then you can browse jobs.'],
+        ['Do I need to belong to a church to find work?', 'Anyone can browse jobs. To apply, you need an approved account: ask a member who knows you for their referral code. People who post jobs are also vouched for by their church.'],
+        [`How do I join ${SITE_NAME}?`, 'Ask a member who knows you for their referral code, then create an account with your email or Google. A moderator checks with that member and approves you. Until then you can browse jobs, and once you’re approved you can apply.'],
         ['What is pastoral care?', 'You can ask a pastoral carer at your church for prayer or someone to talk to. Only that carer sees your request, it is never linked to jobs, and you can delete it at any time.'],
         [`Does ${SITE_NAME} store my CV?`, 'No. You apply to the employer directly by their email or careers page.'],
         ['How are jobs checked?', 'Fee wording is blocked, the poster is vouched for by their church, and a moderator confirms the job with the employer.'],

@@ -17,7 +17,7 @@ What we keep, where it's kept, who can see it and for how long. Everything below
 | **Profile extras**: display name, phone (optional) | Phone: moderators and admins only | Until the member changes or removes it |
 | **Job preferences**: emirates, work type, keywords, minimum pay, email alerts on/off | Only the member. Employers never see who a job matched. | Until changed. Alert emails can be stopped with one click. |
 | **Church vouch**: church, name given, note, yes/no, who decided | The member and their church's admin. Moderators see only yes/no. | Same as the account |
-| **Jobs posted** | Live jobs: everyone. Waiting or rejected jobs: the poster and moderators. | Live for 30 days, then hidden. The record stays until deleted. |
+| **Jobs posted** | Live jobs: everyone. The employer's email and careers link: approved members, the poster and moderators only. Waiting or rejected jobs: the poster and moderators. | Live for 30 days, then hidden. The record stays until deleted. |
 | **"I'm interested"** | The member. Employers see a count, never names. | Until the member removes it, or the job is deleted |
 | **Reports about a job** | Moderators | Kept after it's resolved |
 | **Rejected jobs**: reason, note, company, who rejected | The poster sees the reason on their post. Moderators see a count and the last reason when the same poster or company posts again. | Kept, even if the post is edited or deleted, until the account is deleted |

@@ -395,6 +395,9 @@ button:active:not(:disabled){transform:translateY(1px)}
 .apply-panel h4 svg{color:var(--primary)}
 .apply-panel p{font-size:14px;margin-bottom:16px}
 .apply-actions{display:flex;gap:10px;flex-wrap:wrap}
+.apply-locked{display:flex;flex-wrap:wrap;align-items:center;gap:10px 12px;padding:14px 16px;background:var(--surface);border:1px solid var(--primary-200);border-radius:var(--radius-sm);font-size:14px;color:var(--fg-2);line-height:1.5}
+.apply-locked>svg{color:var(--primary);flex-shrink:0}
+.apply-locked>span{flex:1 1 220px}
 .track-row{margin-top:12px}
 .drawer-footer-actions{display:flex;justify-content:space-between;padding-top:16px;border-top:1px solid var(--border)}
 .drawer-footer-actions button{display:inline-flex;align-items:center;gap:8px;min-height:40px;padding:0 10px;border-radius:var(--radius-sm);font-size:14px;font-weight:600;color:var(--fg-2)}

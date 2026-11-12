@@ -58,10 +58,24 @@ async function run(query) {
 }
 
 // RLS makes a forbidden write match zero rows rather than error, so "nothing changed" means refused
-async function changed(query, refusal) {
-  const rows = await run(query.select())
+async function changed(query, refusal, columns) {
+  const rows = await run(query.select(columns))
   if (!rows.length) throw new Error(refusal)
   return rows[0]
+}
+
+// Everything about a job except the employer's contact details, which only approved members,
+// the poster and moderators get, through job_contacts (20261112 migration)
+const JOB_COLUMNS = 'id, employer_id, title, company, emirate, type, mode, salary, category, hours, description, responsibilities, requirements, sponsorship, status, verification_note, reviewed_by, published_at, expires_at, created_at, updated_at, reject_reason, reject_note, filled_at'
+
+// Adds direct_email and direct_portal to the jobs the server lets this person see them for
+async function withContacts(rows) {
+  if (!rows.length) return rows
+  const { data: { session } } = await supabase.auth.getSession()
+  if (!session) return rows
+  const { data } = await supabase.rpc('job_contacts', { ids: rows.map(r => r.id) })
+  const contact = new Map((data || []).map(c => [c.id, c]))
+  return rows.map(r => ({ ...r, ...contact.get(r.id) }))
 }
 
 export const api = {
@@ -117,17 +131,17 @@ export const api = {
   vouchRequests: () => run(supabase.from('vouches').select('*').order('created_at', { ascending: false })),
   decideVouch: (user_id, status) => changed(supabase.from('vouches').update({ status }).eq('user_id', user_id), 'Only this church’s admin can decide this request.'),
   posterVouches: () => run(supabase.rpc('pending_poster_vouches')),
-  liveJobs: () => run(supabase.from('jobs').select('*').eq('status', 'published').gt('expires_at', new Date().toISOString()).order('published_at', { ascending: false })),
-  myJobs: uid => run(supabase.from('jobs').select('*').eq('employer_id', uid).order('created_at', { ascending: false })),
-  pendingJobs: () => run(supabase.from('jobs').select('*').eq('status', 'pending').order('created_at')),
-  submitJob: job => run(supabase.from('jobs').insert(job).select().single()),
-  deleteJob: id => changed(supabase.from('jobs').delete().eq('id', id), 'You can only remove your own posts.'),
-  reviewJob: (id, status, verification_note) => changed(supabase.from('jobs').update({ status, verification_note }).eq('id', id), 'This post is no longer in the queue.'),
+  liveJobs: () => run(supabase.from('jobs').select(JOB_COLUMNS).eq('status', 'published').gt('expires_at', new Date().toISOString()).order('published_at', { ascending: false })).then(withContacts),
+  myJobs: uid => run(supabase.from('jobs').select(JOB_COLUMNS).eq('employer_id', uid).order('created_at', { ascending: false })).then(withContacts),
+  pendingJobs: () => run(supabase.from('jobs').select(JOB_COLUMNS).eq('status', 'pending').order('created_at')).then(withContacts),
+  submitJob: job => run(supabase.from('jobs').insert(job).select(JOB_COLUMNS).single()).then(row => ({ ...row, direct_email: job.direct_email, direct_portal: job.direct_portal })),
+  deleteJob: id => changed(supabase.from('jobs').delete().eq('id', id), 'You can only remove your own posts.', JOB_COLUMNS),
+  reviewJob: (id, status, verification_note) => changed(supabase.from('jobs').update({ status, verification_note }).eq('id', id), 'This post is no longer in the queue.', JOB_COLUMNS),
   // Rejecting needs one of the REJECT_REASONS; every rejection is kept for the moderators' history (see 20261110 migration)
-  rejectJob: (id, reject_reason, reject_note) => changed(supabase.from('jobs').update({ status: 'rejected', reject_reason, reject_note }).eq('id', id), 'This post is no longer in the queue.'),
+  rejectJob: (id, reject_reason, reject_note) => changed(supabase.from('jobs').update({ status: 'rejected', reject_reason, reject_note }).eq('id', id), 'This post is no longer in the queue.', JOB_COLUMNS),
   rejectionHistory: () => run(supabase.rpc('rejection_history')),
   // The poster (or a moderator) marks a live job as filled; it leaves the board
-  markFilled: id => changed(supabase.from('jobs').update({ status: 'filled' }).eq('id', id), 'This post is no longer live.'),
+  markFilled: id => changed(supabase.from('jobs').update({ status: 'filled' }).eq('id', id), 'This post is no longer live.', JOB_COLUMNS),
   reports: () => run(supabase.from('reports').select('*, jobs(title)').order('created_at', { ascending: false })),
   fileReport: (job_id, reason) => run(supabase.from('reports').insert({ job_id, reason })),
   // People management: the server checks who may change whom (see 20261029 migration)

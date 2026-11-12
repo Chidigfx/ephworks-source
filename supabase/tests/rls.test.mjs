@@ -671,6 +671,40 @@ check('admins see the mentor comment for reports', r.rows?.[0]?.outcome_note ===
 r = await as(VOL, `select * from public.support_outcomes()`)
 check('support outcomes are admins only', r.rows?.length === 0, r)
 
+// Employer contact details for approved members only (20261112) -----------------------------
+// This file's setup grants every table to the API roles after the migrations, which would undo the
+// column rule, so apply that migration again here, as on Supabase where nothing re-grants it.
+await db.exec(readFileSync(new URL('20261112000000_job_contact_members_only.sql', dir), 'utf8'))
+const liveJob = (await db.query(`select id from public.jobs where status = 'published' and employer_id = $1 limit 1`, [EMP])).rows[0].id
+r = await as(null, `select id, title, company, salary from public.jobs where id = $1`, [liveJob])
+check('visitors still browse live jobs', r.rows?.length === 1, r)
+for (const [who, label] of [[null, 'visitors'], [NEW3, 'waiting accounts'], [OTHER, 'approved members']]) {
+  r = await as(who, `select direct_email from public.jobs where id = $1`, [liveJob])
+  check(`${label} cannot read contact details from the jobs table`, /permission denied/.test(r.error || ''), r)
+}
+r = await as(null, `select * from public.job_contacts(array[$1]::uuid[])`, [liveJob])
+check('visitors cannot ask for contact details', /permission denied/.test(r.error || ''), r)
+r = await as(NEW3, `select * from public.job_contacts(array[$1]::uuid[])`, [liveJob])
+check('waiting accounts get no contact details', r.rows?.length === 0, r)
+r = await as(OTHER, `select direct_email from public.job_contacts(array[$1]::uuid[])`, [liveJob])
+check('approved members get the contact details of a live job', r.rows?.[0]?.direct_email === 'hr@cedarlane.test', r)
+r = await as(EMP, `insert into public.jobs (title, company, emirate, type, salary, direct_email, description) values ('Receptionist', 'Cedar Lane', 'Dubai', 'Full-time', 'AED 4,000', 'front@cedarlane.test', 'Welcome visitors and answer the phone for a busy design office.') returning id`)
+const waitingJob = r.rows?.[0]?.id
+check('posting still works without reading contact columns back', !!waitingJob, r)
+r = await as(OTHER, `select * from public.job_contacts(array[$1]::uuid[])`, [waitingJob])
+check('approved members get nothing for a job that is not live', r.rows?.length === 0, r)
+r = await as(EMP, `select direct_email from public.job_contacts(array[$1]::uuid[])`, [waitingJob])
+check('the poster gets their own job’s contact details', r.rows?.[0]?.direct_email === 'front@cedarlane.test', r)
+r = await as(MOD, `select direct_email from public.job_contacts(array[$1]::uuid[])`, [waitingJob])
+check('moderators get contact details to check a job', r.rows?.[0]?.direct_email === 'front@cedarlane.test', r)
+await db.exec(`update public.profiles set suspended = true where id = '${OTHER}'`)
+r = await as(OTHER, `select * from public.job_contacts(array[$1]::uuid[])`, [liveJob])
+check('suspended members get no contact details', r.rows?.length === 0, r)
+await db.exec(`update public.profiles set suspended = false where id = '${OTHER}'`)
+r = await db.query(`select column_name from information_schema.columns where table_schema = 'public' and table_name = 'jobs'
+  except select column_name from information_schema.column_privileges where table_schema = 'public' and table_name = 'jobs' and grantee = 'anon' and privilege_type = 'SELECT'`)
+check('every job column except the contact details stays readable', r.rows.map(c => c.column_name).sort().join() === 'direct_email,direct_portal', r.rows)
+
 // Parked in supabase/later/ for now; these checks run once that migration is moved back into migrations/
 if (migration.includes('two_step_passed')) {
 const oneStep = (uid, sql, params) => as(uid, sql, params, 'aal1')
