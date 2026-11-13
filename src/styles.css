@@ -398,7 +398,8 @@ button:active:not(:disabled){transform:translateY(1px)}
 .apply-panel h4{display:flex;align-items:center;gap:8px;margin:0 0 6px;font-size:16px}
 .apply-panel h4 svg{color:var(--primary)}
 .apply-panel p{font-size:14px;margin-bottom:16px}
-.apply-actions{display:flex;gap:10px;flex-wrap:wrap}
+.apply-actions{display:grid;gap:10px}
+.apply-email{min-height:48px;font-size:15px}
 .apply-panel.apply-locked{display:flex;flex-direction:column;align-items:center;gap:10px;padding:28px 24px;text-align:center}
 .apply-locked-icon{display:grid;place-items:center;width:48px;height:48px;border-radius:50%;background:var(--surface);border:1px solid var(--primary-200);color:var(--primary)}
 .apply-panel.apply-locked h4{margin:4px 0 0;font-size:18px}

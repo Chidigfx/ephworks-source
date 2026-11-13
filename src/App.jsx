@@ -2368,12 +2368,12 @@ export default function App() {
                 </p>
                 {selectedJob.directEmail ? (
                   <div className="apply-actions">
-                    <a href={`mailto:${selectedJob.directEmail}?subject=Application: ${selectedJob.title}`} className="apply-button-primary">
-                      <Mail size={16}/> Email CV to {selectedJob.directEmail}
+                    <a href={`mailto:${selectedJob.directEmail}?subject=Application: ${selectedJob.title}`} className="apply-button-primary apply-email" aria-label={`Email your CV to ${selectedJob.company}`}>
+                      <Mail size={18} aria-hidden="true"/> Email your CV
                     </a>
                     {selectedJob.directPortal && (
                       <a href={selectedJob.directPortal} target="_blank" rel="noopener noreferrer" className="apply-portal-link">
-                        <ExternalLink size={16}/> Official Career Portal
+                        <ExternalLink size={16} aria-hidden="true"/> Apply on the company website
                       </a>
                     )}
                   </div>
