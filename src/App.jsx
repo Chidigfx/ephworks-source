@@ -68,7 +68,7 @@ const APPLY_ROLES = [
   ['church_admin', 'Church admin', 'Confirm which members of your church can post jobs. Only a yes/no is stored.']
 ]
 const APP_STATUS = { pending: 'Waiting for review', approved: 'Approved', declined: 'Declined' }
-const EMPTY_APPLY = { role: 'volunteer', church: NO_CHURCH, name: '', note: '', agreed: false }
+const EMPTY_APPLY = { role: 'volunteer', church: NO_CHURCH, name: '', phone: '', organisation: '', qualification: '', pastor: '', note: '', agreed: false }
 const EMPTY_AUTH = { mode: 'signin', name: '', email: '', password: '', code: '' } // mode: signin | signup | reset
 // Must match the pastoral_requests.kind check in the 20261102 migration
 const CARE_KINDS = { prayer: 'Prayer', talk: 'Someone to talk to', other: 'Something else' }
@@ -861,11 +861,12 @@ export default function App() {
   const submitApplication = e => {
     e.preventDefault()
     if (supabase && needsSignIn()) return
-    const { role: appRole, church, name, note } = applyForm
+    const { role: appRole, church, name, note, phone, organisation, qualification, pastor } = applyForm
     const listed = appRole === 'church_admin' && churches.find(c => c.id === church.id)
     const send = suggestion => {
       if (appRole === 'church_admin' && !listed && !suggestion) return
-      const row = { role: appRole, church_id: listed ? listed.id : null, church_suggestion_id: suggestion?.id || null, display_name: name.trim() || account.name, note: note.trim() }
+      const row = { role: appRole, church_id: listed ? listed.id : null, church_suggestion_id: suggestion?.id || null, display_name: name.trim() || account.name, note: note.trim(), phone: phone.trim(),
+        ...(appRole === 'volunteer' ? { organisation: organisation.trim(), qualification: qualification.trim() } : { pastor_name: pastor.trim() }) }
       const already = 'You already have an application for this role waiting for review.'
       const done = () => { setApplyForm(EMPTY_APPLY); notify(`Application sent. An admin will contact you for a short check before approving you as ${ROLE_LABELS[appRole]}${suggestion ? `, and add ${suggestion.name} as a partner church` : ''}.`) }
       if (supabase) return api.apply(row).then(() => { refresh(); done() }).catch(err => notify(/one_open_application/.test(err.message) ? already : err.message))
@@ -1027,17 +1028,17 @@ export default function App() {
       <div className="filters">
         <label className="search-box">
           <Search size={19}/>
-          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search verified jobs, companies, or skills" aria-label="Search opportunities"/>
+          <input name="search" value={search} onChange={e => setSearch(e.target.value)} placeholder="Search verified jobs, companies, or skills" aria-label="Search opportunities"/>
         </label>
         <label className="select-box">
           <span>Filter by emirate</span>
-          <select value={emirate} onChange={e => setEmirate(e.target.value)}>
+          <select name="emirate" value={emirate} onChange={e => setEmirate(e.target.value)}>
             {['All emirates', ...EMIRATES].map(x => <option key={x}>{x}</option>)}
           </select>
         </label>
         <label className="select-box">
           <span>Employment type</span>
-          <select value={workType} onChange={e => setWorkType(e.target.value)}>
+          <select name="work-type" value={workType} onChange={e => setWorkType(e.target.value)}>
             {['Any work type', ...WORK_TYPES, ...WORK_SETTINGS].map(x => <option key={x}>{x}</option>)}
           </select>
         </label>
@@ -1095,7 +1096,7 @@ export default function App() {
           {!supabase && (
             <label className="demo-select">
               <span>Demo view</span>
-              <select value={accountRole} onChange={e => setRole(e.target.value)}>
+              <select name="account-role" value={accountRole} onChange={e => setRole(e.target.value)}>
                 {Object.entries(PERSONAS).map(([key, label]) => <option key={key} value={key}>{label}</option>)}
               </select>
             </label>
@@ -1155,7 +1156,7 @@ export default function App() {
             <form className="notice join-code" onSubmit={submitCode}>
               <KeyRound size={17} className="notice-icon" aria-hidden="true"/>
               <span><strong>Enter your referral code to join.</strong> Ask the member who invited you for their code. Until a moderator approves you, you can browse jobs. No code? <button type="button" className="link-button" onClick={askForCode}>Ask us for one</button>.</span>
-              <input aria-label="Referral code" placeholder="EPH-XXXXXX" maxLength={10} required value={codeInput} onChange={e => setCodeInput(e.target.value)}/>
+              <input name="code-input" aria-label="Referral code" placeholder="EPH-XXXXXX" maxLength={10} required value={codeInput} onChange={e => setCodeInput(e.target.value)}/>
               <button className="primary-button" type="submit">Send code</button>
             </form>
           ))}
@@ -1193,12 +1194,12 @@ export default function App() {
                   <label className="hs-field">
                     <Search size={18}/>
                     <span className="sr-only">Job title, company or skill</span>
-                    <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Job title, company or skill"/>
+                    <input name="search" value={search} onChange={e => setSearch(e.target.value)} placeholder="Job title, company or skill"/>
                   </label>
                   <label className="hs-field hs-select">
                     <MapPin size={18}/>
                     <span className="sr-only">Emirate</span>
-                    <select value={emirate} onChange={e => setEmirate(e.target.value)}>
+                    <select name="emirate" value={emirate} onChange={e => setEmirate(e.target.value)}>
                       {['All emirates', ...EMIRATES].map(x => <option key={x}>{x}</option>)}
                     </select>
                   </label>
@@ -1440,7 +1441,7 @@ export default function App() {
                     <ChurchPicker label="Your church" churches={churches} value={vouchForm.church} onChange={church => setVouchForm({ ...vouchForm, church })}/>
                     <label>
                       Note for your church admin (optional)
-                      <input maxLength={300} placeholder="e.g. How the admin knows you and the company you hire for" value={vouchForm.note} onChange={e => setVouchForm({ ...vouchForm, note: e.target.value })}/>
+                      <input name="note" maxLength={300} placeholder="e.g. How the admin knows you and the company you hire for" value={vouchForm.note} onChange={e => setVouchForm({ ...vouchForm, note: e.target.value })}/>
                     </label>
                     {mySuggestions.map(c => <p key={c.id} className="audit-line waiting"><Clock3 size={14}/> We're checking {c.name} ({c.emirate}). You can ask them to vouch once it's added.</p>)}
                     <button className="primary-button" type="submit"><Send size={16}/> {vouchForm.church.id || !vouchForm.church.name.trim() ? (myVouch ? 'Send request again' : 'Request church vouch') : 'Suggest this church'}</button>
@@ -1456,28 +1457,28 @@ export default function App() {
                   <h2 className="wizard-title">What's the job?</h2>
                   <label>
                     Job title
-                    <input maxLength={95} placeholder="e.g. Office Coordinator" value={draftForm.title} onChange={e => setDraft({ title: e.target.value })}/>
+                    <input name="title" maxLength={95} placeholder="e.g. Office Coordinator" value={draftForm.title} onChange={e => setDraft({ title: e.target.value })}/>
                   </label>
                   <label>
                     Company name
-                    <input maxLength={95} placeholder="e.g. Cedar Lane Services" value={draftForm.company} onChange={e => setDraft({ company: e.target.value })}/>
+                    <input name="company" maxLength={95} placeholder="e.g. Cedar Lane Services" value={draftForm.company} onChange={e => setDraft({ company: e.target.value })}/>
                   </label>
                   <div className="form-two form-three">
                     <label>
                       Emirate
-                      <select value={draftForm.emirate} onChange={e => setDraft({ emirate: e.target.value })}>
+                      <select name="emirate" value={draftForm.emirate} onChange={e => setDraft({ emirate: e.target.value })}>
                         {EMIRATES.map(x => <option key={x}>{x}</option>)}
                       </select>
                     </label>
                     <label>
                       Work type
-                      <select value={draftForm.type} onChange={e => setDraft({ type: e.target.value })}>
+                      <select name="type" value={draftForm.type} onChange={e => setDraft({ type: e.target.value })}>
                         {WORK_TYPES.map(x => <option key={x}>{x}</option>)}
                       </select>
                     </label>
                     <label>
                       Work setting
-                      <select value={draftForm.mode} onChange={e => setDraft({ mode: e.target.value })}>
+                      <select name="mode" value={draftForm.mode} onChange={e => setDraft({ mode: e.target.value })}>
                         {WORK_SETTINGS.map(x => <option key={x}>{x}</option>)}
                       </select>
                     </label>
@@ -1489,11 +1490,11 @@ export default function App() {
                   <div className="form-two">
                     <label>
                       Monthly pay from (AED)
-                      <input type="number" inputMode="numeric" min={1} max={999999} placeholder="5000" value={draftForm.payFrom} onChange={e => setDraft({ payFrom: e.target.value })}/>
+                      <input name="pay-from" type="number" inputMode="numeric" min={1} max={999999} placeholder="5000" value={draftForm.payFrom} onChange={e => setDraft({ payFrom: e.target.value })}/>
                     </label>
                     <label>
                       Up to (AED, optional)
-                      <input type="number" inputMode="numeric" min={1} max={999999} placeholder="7000" value={draftForm.payTo} onChange={e => setDraft({ payTo: e.target.value })}/>
+                      <input name="pay-to" type="number" inputMode="numeric" min={1} max={999999} placeholder="7000" value={draftForm.payTo} onChange={e => setDraft({ payTo: e.target.value })}/>
                     </label>
                   </div>
                   {draftSalary && <p className="wizard-hint">Shown as <strong>{draftSalary} per month</strong>.</p>}
@@ -1504,7 +1505,7 @@ export default function App() {
                   <h2 className="wizard-title">Describe the job</h2>
                   <label>
                     What the job involves
-                    <textarea rows={7} maxLength={1600} placeholder="Day-to-day tasks, who they'd work with, hours, and what you're looking for." value={draftForm.description} onChange={e => setDraft({ description: e.target.value })}/>
+                    <textarea name="description" rows={7} maxLength={1600} placeholder="Day-to-day tasks, who they'd work with, hours, and what you're looking for." value={draftForm.description} onChange={e => setDraft({ description: e.target.value })}/>
                   </label>
                   <small className="wizard-hint">{draftForm.description.length} / 1600</small>
                   {draftScan.blocked.length > 0 && (
@@ -1521,11 +1522,11 @@ export default function App() {
                   <p className="wizard-hint">Candidates apply to you directly. Ephworks never sees or stores their CVs.</p>
                   <label>
                     Application email
-                    <input type="email" maxLength={254} placeholder="careers@company.ae" value={draftForm.email} onChange={e => setDraft({ email: e.target.value })}/>
+                    <input name="email" type="email" maxLength={254} placeholder="careers@company.ae" value={draftForm.email} onChange={e => setDraft({ email: e.target.value })}/>
                   </label>
                   <label>
                     Careers page (optional)
-                    <input type="url" maxLength={500} placeholder="https://company.ae/careers" value={draftForm.portal} onChange={e => setDraft({ portal: e.target.value })}/>
+                    <input name="portal" type="url" maxLength={500} placeholder="https://company.ae/careers" value={draftForm.portal} onChange={e => setDraft({ portal: e.target.value })}/>
                   </label>
                 </>}
 
@@ -1791,24 +1792,25 @@ export default function App() {
             <form className="form-panel booking-form" onSubmit={askForCare}>
               <label>
                 Your church
-                <select required value={careForm.church} onChange={e => setCareForm({ ...careForm, church: e.target.value, consent: false })}>
+                <small>We ask even if you choose a carer from another church, so your request is kept away from your own church.</small>
+                <select name="church" required value={careForm.church} onChange={e => setCareForm({ ...careForm, church: e.target.value, consent: false })}>
                   <option value="">Choose your church</option>
                   {churches.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                 </select>
               </label>
               <label>
                 Your name
-                <input maxLength={80} placeholder={account.guest ? 'Full name' : account.name} value={careForm.name} onChange={e => setCareForm({ ...careForm, name: e.target.value })}/>
+                <input name="name" maxLength={80} placeholder={account.guest ? 'Full name' : account.name} value={careForm.name} onChange={e => setCareForm({ ...careForm, name: e.target.value })}/>
               </label>
               <label>
                 What would help?
-                <select value={careForm.kind} onChange={e => setCareForm({ ...careForm, kind: e.target.value })}>
+                <select name="kind" value={careForm.kind} onChange={e => setCareForm({ ...careForm, kind: e.target.value })}>
                   {Object.entries(CARE_KINDS).map(([key, label]) => <option key={key} value={key}>{label}</option>)}
                 </select>
               </label>
               <label>
                 Anything you’d like them to know (optional)
-                <textarea rows={3} maxLength={500} placeholder="Share only what you’re comfortable with." value={careForm.note} onChange={e => setCareForm({ ...careForm, note: e.target.value })}/>
+                <textarea name="note" rows={3} maxLength={500} placeholder="Share only what you’re comfortable with." value={careForm.note} onChange={e => setCareForm({ ...careForm, note: e.target.value })}/>
               </label>
               <fieldset className="apply-roles care-sharing">
                 <legend>Who should see your request?</legend>
@@ -1826,7 +1828,7 @@ export default function App() {
                 <p className="care-sharing-note">You can’t change this after sending. You can delete the request and send a new one at any time.</p>
               </fieldset>
                <label className="check-label">
-                <input type="checkbox" checked={careForm.consent} onChange={e => setCareForm({ ...careForm, consent: e.target.checked })}/>
+                <input name="consent" type="checkbox" checked={careForm.consent} onChange={e => setCareForm({ ...careForm, consent: e.target.checked })}/>
                 <span>A pastoral carer {careForm.shareWith === 'other_church' ? 'from another partner church' : 'from my church'} may email me at my sign-in address. Only they will see it.</span>
               </label>
               <button className="primary-button" type="submit" disabled={!careForm.consent || !careForm.church || careAvailable?.[careForm.shareWith] === false}><Send size={16}/> Send request</button>
@@ -1935,36 +1937,36 @@ export default function App() {
           <InfoPage
             page={infoPage}
             onGo={go}
-            onAction={action => action.startsWith('contact:') ? openContact(action.slice(8)) : action.startsWith('apply:') ? applyFor(action.slice(6)) : go(action)}
+            onAction={action => action.startsWith('https://') ? window.open(action, '_blank', 'noopener,noreferrer') : action.startsWith('contact:') ? openContact(action.slice(8)) : action.startsWith('apply:') ? applyFor(action.slice(6)) : go(action)}
             roles={SAMPLE_VOLUNTEER}
             contactForm={
               <form className="form-panel booking-form contact-form" onSubmit={sendContact}>
                 <div className="form-two">
                   <label>
                     Your name
-                    <input required minLength={2} maxLength={80} autoComplete="name" value={contactForm.name} onChange={e => setContactForm({ ...contactForm, name: e.target.value })}/>
+                    <input name="name" required minLength={2} maxLength={80} autoComplete="name" value={contactForm.name} onChange={e => setContactForm({ ...contactForm, name: e.target.value })}/>
                   </label>
                   <label>
                     Your email
-                    <input type="email" required maxLength={254} autoComplete="email" value={contactForm.email} onChange={e => setContactForm({ ...contactForm, email: e.target.value })}/>
+                    <input name="email" type="email" required maxLength={254} autoComplete="email" value={contactForm.email} onChange={e => setContactForm({ ...contactForm, email: e.target.value })}/>
                     <small>We reply to this address.</small>
                   </label>
                 </div>
                 <label>
                   What is it about?
-                  <select value={contactForm.topic} onChange={e => setContactForm({ ...contactForm, topic: e.target.value })}>
+                  <select name="topic" value={contactForm.topic} onChange={e => setContactForm({ ...contactForm, topic: e.target.value })}>
                     {Object.entries(CONTACT_TOPICS).map(([key, label]) => <option key={key} value={key}>{label}</option>)}
                   </select>
                 </label>
                 {contactForm.topic === 'safety' && <Warning tone="strong">If you are in danger or have lost money, call the police on 999 first. To report a job, you can also open it and tap Report.</Warning>}
                 <label>
                   Your message
-                  <textarea required minLength={10} maxLength={2000} rows={6} value={contactForm.message} onChange={e => setContactForm({ ...contactForm, message: e.target.value })}/>
+                  <textarea name="message" required minLength={10} maxLength={2000} rows={6} value={contactForm.message} onChange={e => setContactForm({ ...contactForm, message: e.target.value })}/>
                   <small>{contactForm.message.length} / 2000</small>
                 </label>
                 <label className="trap-field" aria-hidden="true">
                   Leave this empty
-                  <input tabIndex={-1} autoComplete="off" value={contactForm.website} onChange={e => setContactForm({ ...contactForm, website: e.target.value })}/>
+                  <input name="website" tabIndex={-1} autoComplete="off" value={contactForm.website} onChange={e => setContactForm({ ...contactForm, website: e.target.value })}/>
                 </label>
                 <button className="primary-button" type="submit"><Send size={16}/> Send message</button>
                 <p className="sign-in-note">We only use these details to reply to you. <button type="button" className="link-button" onClick={() => go('privacy')}>Privacy</button></p>
@@ -1996,14 +1998,33 @@ export default function App() {
             )}
             <label>
               Your name
-              <input maxLength={80} placeholder={account.guest ? 'Full name' : account.name} value={applyForm.name} onChange={e => setApplyForm({ ...applyForm, name: e.target.value })}/>
+              <input name="name" maxLength={80} placeholder={account.guest ? 'Full name' : account.name} value={applyForm.name} onChange={e => setApplyForm({ ...applyForm, name: e.target.value })}/>
             </label>
             <label>
-              About you
-              <textarea required rows={4} minLength={10} maxLength={600} placeholder="Your job or experience, and how people in the community know you." value={applyForm.note} onChange={e => setApplyForm({ ...applyForm, note: e.target.value })}/>
+              Mobile number
+              <input name="phone" type="tel" autoComplete="tel" required pattern="[+]?[0-9 \-]{7,20}" title="Numbers and spaces, with + for the country code" maxLength={20} placeholder="+971 50 123 4567" value={applyForm.phone} onChange={e => setApplyForm({ ...applyForm, phone: e.target.value })}/>
+            </label>
+            {applyForm.role === 'volunteer' ? <>
+              <label>
+                Your church or organisation
+                <input name="organisation" autoComplete="organization" required minLength={2} maxLength={120} placeholder="e.g. St. Luke’s Dubai, or the company you work for" value={applyForm.organisation} onChange={e => setApplyForm({ ...applyForm, organisation: e.target.value })}/>
+              </label>
+              <label>
+                Highest qualification
+                <input name="qualification" required minLength={2} maxLength={120} placeholder="e.g. BSc Business, CIPD Level 5" value={applyForm.qualification} onChange={e => setApplyForm({ ...applyForm, qualification: e.target.value })}/>
+              </label>
+            </> : (
+              <label>
+                Your pastor’s name
+                <input name="pastor" required minLength={2} maxLength={80} placeholder="So we can confirm the church with them" value={applyForm.pastor} onChange={e => setApplyForm({ ...applyForm, pastor: e.target.value })}/>
+              </label>
+            )}
+            <label>
+              {applyForm.role === 'volunteer' ? 'Your experience' : 'About you'}
+              <textarea name="note" required rows={4} minLength={10} maxLength={600} placeholder={applyForm.role === 'volunteer' ? 'Your work experience in HR or hiring, and how people in the community know you.' : 'Your role at the church, and how people in the community know you.'} value={applyForm.note} onChange={e => setApplyForm({ ...applyForm, note: e.target.value })}/>
             </label>
             <label className="check-label">
-              <input type="checkbox" required checked={applyForm.agreed} onChange={e => setApplyForm({ ...applyForm, agreed: e.target.checked })}/>
+              <input name="agreed" type="checkbox" required checked={applyForm.agreed} onChange={e => setApplyForm({ ...applyForm, agreed: e.target.checked })}/>
               <span>I agree to a short check before I'm approved, and I will never ask job seekers for money.</span>
             </label>
             <button className="primary-button" type="submit"><Send size={16}/> Send application</button>
@@ -2046,11 +2067,11 @@ export default function App() {
           <div className="filters">
             <label className="search-box">
               <Search size={19}/>
-              <input value={memberSearch} onChange={e => setMemberSearch(e.target.value)} placeholder="Search by name or email" aria-label="Search people"/>
+              <input name="member-search" value={memberSearch} onChange={e => setMemberSearch(e.target.value)} placeholder="Search by name or email" aria-label="Search people"/>
             </label>
             <label className="select-box">
               <span>Show</span>
-              <select value={memberFilter} onChange={e => setMemberFilter(e.target.value)}>
+              <select name="member-filter" value={memberFilter} onChange={e => setMemberFilter(e.target.value)}>
                 <option value="all">Everyone</option>
                 {Object.entries(ROLE_LABELS).map(([key, label]) => <option key={key} value={key}>{label}</option>)}
                 <option value="suspended">Suspended</option>
@@ -2115,8 +2136,8 @@ export default function App() {
                     title={a.display_name}
                     status={APP_STATUS[a.status]}
                     tone={a.status === 'approved' ? 'ok' : a.status === 'declined' ? 'bad' : 'pending'}
+                    note={[[a.phone && `Phone: ${a.phone}`, a.organisation && `Church or organisation: ${a.organisation}`, a.qualification && `Qualification: ${a.qualification}`, a.pastor_name && `Pastor: ${a.pastor_name}`].filter(Boolean).join('\n'), a.note].filter(Boolean).join('\n\n')}
                     sub={[`Wants to be ${ROLE_LABELS[a.role]}`, churchName(a.church_id || newChurch?.church_id) || (newChurch && `${newChurch.name} (new church)`), applicant?.email, new Date(a.created_at).toLocaleDateString()].filter(Boolean).join(' · ')}
-                    note={a.note}
                     footNote={pending && blocked && <><LockKeyhole size={15}/> {blocked}</>}
                   >
                     {pending && !blocked && <>
@@ -2385,7 +2406,7 @@ export default function App() {
               <div className="apply-panel">
                 <h4><Mail size={18}/> Apply Direct to Employer</h4>
                 <p>
-                  In compliance with UAE MOHRE regulations, Ephworks is a community noticeboard. We do not store your CV or shortlist candidates. You connect and apply straight to the hiring company:
+                  Ephworks is a community noticeboard, not a recruitment agency. We don’t store your CV or shortlist candidates. You apply straight to the hiring company:
                 </p>
                 {selectedJob.directEmail ? (
                   <div className="apply-actions">
@@ -2463,7 +2484,7 @@ export default function App() {
         <form onSubmit={bookSupportSession} className="booking-form">
           <label>
             Support service needed
-            <select
+            <select name="service"
               value={selectedSupportService}
               onChange={e => { setSelectedSupportService(e.target.value); setSupportForm({ ...supportForm, service: e.target.value }) }}
             >
@@ -2474,11 +2495,11 @@ export default function App() {
           </label>
           <label>
             Your name
-            <input value={supportForm.name} onChange={e => setSupportForm({ ...supportForm, name: e.target.value })} required/>
+            <input name="name" value={supportForm.name} onChange={e => setSupportForm({ ...supportForm, name: e.target.value })} required/>
           </label>
           <label>
             Preferred session time
-            <select value={supportForm.preferredTime} onChange={e => setSupportForm({ ...supportForm, preferredTime: e.target.value })}>
+            <select name="preferred-time" value={supportForm.preferredTime} onChange={e => setSupportForm({ ...supportForm, preferredTime: e.target.value })}>
               <option>Weekday evening (after 6 pm)</option>
               <option>Saturday morning</option>
               <option>Sunday afternoon</option>
@@ -2487,7 +2508,7 @@ export default function App() {
           </label>
           <label>
             What specific help do you need most? (optional)
-            <textarea
+            <textarea name="note"
               rows={3}
               placeholder="e.g. Preparing for customer service interviews, formatting my UAE CV, or changing industries."
               value={supportForm.note}
@@ -2495,7 +2516,7 @@ export default function App() {
             />
           </label>
           <label className="check-label">
-            <input type="checkbox" checked={supportForm.consent} onChange={e => setSupportForm({ ...supportForm, consent: e.target.checked })}/>
+            <input name="consent" type="checkbox" checked={supportForm.consent} onChange={e => setSupportForm({ ...supportForm, consent: e.target.checked })}/>
             <span>A volunteer mentor may email me at my sign-in address to arrange this. Only the mentor who takes my request sees it.</span>
           </label>
           <div className="modal-actions">
@@ -2540,7 +2561,7 @@ export default function App() {
         <p>Our safety team follows up on every flag directly with the reporter and employer within 24 hours.</p>
         <label className="form-label">
           Reason for report
-          <select value={reportReason} onChange={e => setReportReason(e.target.value)}>
+          <select name="report-reason" value={reportReason} onChange={e => setReportReason(e.target.value)}>
             {REPORT_REASONS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
           </select>
         </label>
@@ -2566,24 +2587,24 @@ export default function App() {
             {authForm.mode === 'signup' && (
               <label>
                 Full name
-                <input required minLength={2} maxLength={80} autoComplete="name" value={authForm.name} onChange={e => setAuthForm({ ...authForm, name: e.target.value })}/>
+                <input name="name" required minLength={2} maxLength={80} autoComplete="name" value={authForm.name} onChange={e => setAuthForm({ ...authForm, name: e.target.value })}/>
               </label>
             )}
             <label>
               Email
-              <input type="email" required maxLength={254} autoComplete="email" value={authForm.email} onChange={e => setAuthForm({ ...authForm, email: e.target.value })}/>
+              <input name="email" type="email" required maxLength={254} autoComplete="email" value={authForm.email} onChange={e => setAuthForm({ ...authForm, email: e.target.value })}/>
             </label>
             {authForm.mode !== 'reset' && (
               <label>
                 Password
-                <input type="password" required minLength={authForm.mode === 'signup' ? 8 : undefined} autoComplete={authForm.mode === 'signup' ? 'new-password' : 'current-password'} value={authForm.password} onChange={e => setAuthForm({ ...authForm, password: e.target.value })}/>
+                <input name="password" type="password" required minLength={authForm.mode === 'signup' ? 8 : undefined} autoComplete={authForm.mode === 'signup' ? 'new-password' : 'current-password'} value={authForm.password} onChange={e => setAuthForm({ ...authForm, password: e.target.value })}/>
                 {authForm.mode === 'signup' && <small>At least 8 characters.</small>}
               </label>
             )}
             {authForm.mode === 'signup' && (
               <label>
                 Referral code
-                <input required maxLength={10} placeholder="EPH-XXXXXX" autoComplete="off" value={authForm.code} onChange={e => setAuthForm({ ...authForm, code: e.target.value })}/>
+                <input name="code" required maxLength={10} placeholder="EPH-XXXXXX" autoComplete="off" value={authForm.code} onChange={e => setAuthForm({ ...authForm, code: e.target.value })}/>
                 <small>From the member who invited you.</small>
               </label>
             )}
@@ -2610,7 +2631,7 @@ export default function App() {
         <form className="booking-form" onSubmit={saveNewPassword}>
           <label>
             New password
-            <input type="password" required minLength={8} autoComplete="new-password" value={newPassword} onChange={e => setNewPassword(e.target.value)}/>
+            <input name="new-password" type="password" required minLength={8} autoComplete="new-password" value={newPassword} onChange={e => setNewPassword(e.target.value)}/>
             <small>At least 8 characters.</small>
           </label>
           <div className="modal-actions">
@@ -2626,14 +2647,14 @@ export default function App() {
           <PublishChecks vouched={posterVouched(verifying.job)} scan={scanJob(verifying.job)}/>
           {scanJob(verifying.job).flags.length > 0 && (
             <label className="check-label">
-              <input type="checkbox" checked={verifying.flagsChecked} onChange={e => setVerifying({ ...verifying, flagsChecked: e.target.checked })}/>
+              <input name="flags-checked" type="checkbox" checked={verifying.flagsChecked} onChange={e => setVerifying({ ...verifying, flagsChecked: e.target.checked })}/>
               <span>I checked each warning above with {verifying.job.company} and the job is genuine.</span>
             </label>
           )}
           <p>How did you confirm this job with {verifying.job.company}? Job seekers see this note on the listing.</p>
           <label>
             Verification record
-            <textarea rows={3} required maxLength={400} placeholder="e.g. Called their HR manager on 26 Oct: role, salary and no candidate fees confirmed." value={verifying.note} onChange={e => setVerifying({ ...verifying, note: e.target.value })}/>
+            <textarea name="note" rows={3} required maxLength={400} placeholder="e.g. Called their HR manager on 26 Oct: role, salary and no candidate fees confirmed." value={verifying.note} onChange={e => setVerifying({ ...verifying, note: e.target.value })}/>
           </label>
           <div className="modal-actions">
             <button type="button" className="secondary-button" onClick={() => setVerifying(null)}>Cancel</button>
@@ -2649,14 +2670,14 @@ export default function App() {
           <p>The poster sees the reason and your note. The rejection is also kept, so moderators are warned if this poster or company posts again.</p>
           <label>
             Reason
-            <select required value={rejecting.reason} onChange={e => setRejecting({ ...rejecting, reason: e.target.value })}>
+            <select name="reason" required value={rejecting.reason} onChange={e => setRejecting({ ...rejecting, reason: e.target.value })}>
               <option value="">Choose a reason</option>
               {Object.entries(REJECT_REASONS).map(([id, label]) => <option key={id} value={id}>{label}</option>)}
             </select>
           </label>
           <label>
             Note for the poster (optional)
-            <textarea rows={3} maxLength={400} placeholder="e.g. No contact name or company address. Add them and post again." value={rejecting.note} onChange={e => setRejecting({ ...rejecting, note: e.target.value })}/>
+            <textarea name="note" rows={3} maxLength={400} placeholder="e.g. No contact name or company address. Add them and post again." value={rejecting.note} onChange={e => setRejecting({ ...rejecting, note: e.target.value })}/>
           </label>
           <div className="modal-actions">
             <button type="button" className="secondary-button" onClick={() => setRejecting(null)}>Cancel</button>
@@ -2672,7 +2693,7 @@ export default function App() {
           <p>Add a short summary of the help you gave (optional). Only admins see it, for our reports. Don't include anything private.</p>
           <label>
             Summary
-            <textarea rows={3} maxLength={500} placeholder="e.g. Reviewed CV over email; suggested a shorter summary and clearer job titles." value={finishing.comment} onChange={e => setFinishing({ ...finishing, comment: e.target.value })}/>
+            <textarea name="comment" rows={3} maxLength={500} placeholder="e.g. Reviewed CV over email; suggested a shorter summary and clearer job titles." value={finishing.comment} onChange={e => setFinishing({ ...finishing, comment: e.target.value })}/>
           </label>
           <div className="modal-actions">
             <button type="button" className="secondary-button" onClick={() => setFinishing(null)}>Cancel</button>
@@ -2739,7 +2760,7 @@ function TwoStepDialog({ factorId, onDone, onClose, onError }) {
       <form className="booking-form" onSubmit={submit}>
         <label>
           6-digit code
-          <input inputMode="numeric" autoComplete="one-time-code" maxLength={6} required value={code} onChange={e => setCode(e.target.value.replace(/\D/g, ''))}/>
+          <input name="code" inputMode="numeric" autoComplete="one-time-code" maxLength={6} required value={code} onChange={e => setCode(e.target.value.replace(/\D/g, ''))}/>
         </label>
         <div className="modal-actions">
           <button type="button" className="secondary-button" onClick={onClose}>Later</button>
@@ -3011,7 +3032,7 @@ function ChurchPicker({ label, churches, value, onChange }) {
     <div className="church-picker">
       <label>
         {label}
-        <input autoComplete="off" maxLength={95} placeholder="Start typing your church's name" value={value.name} onChange={e => onChange({ ...value, id: '', name: e.target.value })}/>
+        <input name="name" autoComplete="off" maxLength={95} placeholder="Start typing your church's name" value={value.name} onChange={e => onChange({ ...value, id: '', name: e.target.value })}/>
       </label>
       {matches.length > 0 && (
         <div className="church-matches" aria-label="Partner churches">
@@ -3023,7 +3044,7 @@ function ChurchPicker({ label, churches, value, onChange }) {
           <p>{matches.length ? 'Not one of these?' : 'Not a partner church yet.'} We'll add <strong>{value.name.trim()}</strong> after a quick check.</p>
           <label>
             Emirate
-            <select value={value.emirate} onChange={e => onChange({ ...value, emirate: e.target.value })}>
+            <select name="emirate" value={value.emirate} onChange={e => onChange({ ...value, emirate: e.target.value })}>
               <option value="">Choose emirate</option>
               {EMIRATES.map(x => <option key={x}>{x}</option>)}
             </select>
@@ -3040,8 +3061,8 @@ function AddChurchForm({ onAdd }) {
   const [emirate, setEmirate] = useState('')
   return (
     <form className="plain-card add-church" onSubmit={e => { e.preventDefault(); onAdd(name, emirate); setName(''); setEmirate('') }}>
-      <input aria-label="Church name" maxLength={95} placeholder="Church name" value={name} onChange={e => setName(e.target.value)}/>
-      <select aria-label="Emirate" value={emirate} onChange={e => setEmirate(e.target.value)}>
+      <input name="name" aria-label="Church name" maxLength={95} placeholder="Church name" value={name} onChange={e => setName(e.target.value)}/>
+      <select name="emirate" aria-label="Emirate" value={emirate} onChange={e => setEmirate(e.target.value)}>
         <option value="">Emirate</option>
         {EMIRATES.map(x => <option key={x}>{x}</option>)}
       </select>
@@ -3067,8 +3088,8 @@ function ChurchAdminCard({ church, onSave, onRemove }) {
       footNote={inUse && !editing && <><LockKeyhole size={15}/> In use, so it can be renamed but not removed</>}
     >
       {editing ? <>
-        <input className="member-select church-name-edit" aria-label="Church name" maxLength={95} value={name} onChange={e => setName(e.target.value)}/>
-        <select className="member-select" aria-label="Emirate" value={emirate} onChange={e => setEmirate(e.target.value)}>
+        <input name="name" className="member-select church-name-edit" aria-label="Church name" maxLength={95} value={name} onChange={e => setName(e.target.value)}/>
+        <select name="emirate" className="member-select" aria-label="Emirate" value={emirate} onChange={e => setEmirate(e.target.value)}>
           <option value="">Emirate</option>
           {EMIRATES.map(x => <option key={x}>{x}</option>)}
         </select>
@@ -3103,7 +3124,7 @@ function ChurchRequestCard({ suggestion, churches, suggester, onDecide }) {
       note={pending && similar.length > 0 && <>Similar partner churches: {similar.map(c => <button key={c.id} type="button" className="link-button" onClick={() => onDecide(suggestion, true, c.name)}>Same as {c.name}</button>)}</>}
     >
       {pending && <>
-        <input className="member-select church-name-edit" aria-label="Church name to add" maxLength={95} value={name} onChange={e => setName(e.target.value)}/>
+        <input name="name" className="member-select church-name-edit" aria-label="Church name to add" maxLength={95} value={name} onChange={e => setName(e.target.value)}/>
         <button type="button" className="reject-small" onClick={() => onDecide(suggestion, false)}><X size={15}/> Decline</button>
         <button type="button" className="approve-small" disabled={name.trim().length < 2} onClick={() => onDecide(suggestion, true, name)}><Check size={15}/> Add church</button>
       </>}
@@ -3124,7 +3145,7 @@ function ProfileForm({ prefs, onSave }) {
       <legend>{legend}</legend>
       {values.map(v => (
         <label key={v} className={form[key].includes(v) ? 'on' : ''}>
-          <input type="checkbox" checked={form[key].includes(v)} onChange={() => toggle(key, v)}/>{v}
+          <input name={key} value={v} type="checkbox" checked={form[key].includes(v)} onChange={() => toggle(key, v)}/>{v}
         </label>
       ))}
     </fieldset>
@@ -3135,12 +3156,12 @@ function ProfileForm({ prefs, onSave }) {
       <div className="form-two">
         <label>
           Name
-          <input maxLength={80} autoComplete="name" value={form.display_name} onChange={e => setForm({ ...form, display_name: e.target.value })}/>
+          <input name="display_name" maxLength={80} autoComplete="name" value={form.display_name} onChange={e => setForm({ ...form, display_name: e.target.value })}/>
           <small>Shown to mentors, carers and staff instead of your sign-in name.</small>
         </label>
         <label>
           Phone (optional)
-          <input type="tel" maxLength={20} placeholder="+971 50 123 4567" autoComplete="tel" value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })}/>
+          <input name="phone" type="tel" maxLength={20} placeholder="+971 50 123 4567" autoComplete="tel" value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })}/>
           <small>Only moderators and admins see it, to check your account.</small>
         </label>
       </div>
@@ -3152,16 +3173,16 @@ function ProfileForm({ prefs, onSave }) {
       <div className="form-two">
         <label>
           Keywords
-          <input maxLength={200} placeholder="e.g. accountant, driver, receptionist" value={form.keywords} onChange={e => setForm({ ...form, keywords: e.target.value })}/>
+          <input name="keywords" maxLength={200} placeholder="e.g. accountant, driver, receptionist" value={form.keywords} onChange={e => setForm({ ...form, keywords: e.target.value })}/>
           <small>Separate with commas. A job matches if it mentions any of them.</small>
         </label>
         <label>
           Minimum monthly pay (AED, optional)
-          <input type="number" inputMode="numeric" min={1} max={999999} placeholder="5000" value={form.min_pay} onChange={e => setForm({ ...form, min_pay: e.target.value })}/>
+          <input name="min_pay" type="number" inputMode="numeric" min={1} max={999999} placeholder="5000" value={form.min_pay} onChange={e => setForm({ ...form, min_pay: e.target.value })}/>
         </label>
       </div>
       <label className="check-label">
-        <input type="checkbox" checked={form.alerts_email} onChange={e => setForm({ ...form, alerts_email: e.target.checked })}/>
+        <input name="alerts_email" type="checkbox" checked={form.alerts_email} onChange={e => setForm({ ...form, alerts_email: e.target.checked })}/>
         <span>Also email me once a day when new jobs match.</span>
       </label>
       <button className="primary-button" type="submit"><Check size={16}/> Save profile</button>
@@ -3212,11 +3233,11 @@ function MemberCard({ member, you, churches, canManage, onSave, onSuspend }) {
       footNote={!manageable && <><LockKeyhole size={15}/> {locked}</>}
     >
       {manageable && <>
-        <select className="member-select" aria-label={`Role for ${member.name}`} value={nextRole} onChange={e => setNextRole(e.target.value)}>
+        <select name="next-role" className="member-select" aria-label={`Role for ${member.name}`} value={nextRole} onChange={e => setNextRole(e.target.value)}>
           {options.map(r => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
         </select>
         {CHURCH_ROLES.includes(nextRole) && (
-          <select className="member-select" aria-label={`Church for ${member.name}`} value={church} onChange={e => setChurch(e.target.value)}>
+          <select name="church" className="member-select" aria-label={`Church for ${member.name}`} value={church} onChange={e => setChurch(e.target.value)}>
             <option value="">Choose church</option>
             {churches.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>

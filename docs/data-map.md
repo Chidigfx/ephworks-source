@@ -21,7 +21,7 @@ What we keep, where it's kept, who can see it and for how long. Everything below
 | **"I'm interested"** | The member. Employers see a count, never names. | Until the member removes it, or the job is deleted |
 | **Reports about a job** | Moderators | Kept after it's resolved |
 | **Rejected jobs**: reason, note, company, who rejected | The poster sees the reason on their post. Moderators see a count and the last reason when the same poster or company posts again. | Kept, even if the post is edited or deleted, until the account is deleted |
-| **Role applications**: volunteer or church admin | The applicant and admins | Same as the account |
+| **Role applications**: volunteer or church admin, with phone number, church or organisation, qualification (volunteers) or pastor's name (church admins) | The applicant and admins | Same as the account |
 | **Career support requests**: CV review, practice interview, LinkedIn help | The member and volunteer mentors. The email is shown only to the mentor who takes it. The mentor's summary when it's done: admins only, for reports. | Kept after it's done or cancelled |
 | **Pastoral care requests**: kind, name given, note, church, who should see it | Only the member and the carers they chose: their own church's, or another church's. Admins, moderators, church admins and employers can't see them. | The member can erase one at any time |
 | **Contact form messages**: name, email, topic, message | Admins see all messages; moderators see safety concerns only. | Until staff delete them |

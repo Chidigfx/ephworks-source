@@ -3,7 +3,7 @@
 // steps [[title, text]], cards [[title, text, icon, [buttonLabel, action]?]], stats [[value, label]],
 // split { paragraphs, image, alt, aside } (text beside a photo), columns [{ title, icon, steps | list, tone }],
 // faq [[question, answer]], roles (volunteer roles), cta [[label, action]].
-// Actions: a page id, 'apply:<role>', or 'mail'. Icons are names from ICONS in App.jsx.
+// Actions: a page id, 'apply:<role>', 'contact:<topic>', or an https:// link (opens in a new tab). Icons are names from ICONS in App.jsx.
 // Page options: hero (photo for the page banner, or 'plain' for a photo-free banner), doc (render as a document card).
 import { SITE_NAME } from './data'
 
@@ -207,10 +207,11 @@ export const INFO_PAGES = [
         ['Someone asked me to pay for a job. What do I do?', 'Do not pay. It is illegal to charge job seekers. Report the job and tell us what happened.'],
         ['How do I post a job?', 'Tap Post a job. Your church vouches for you, then a moderator checks the post with you before it goes live.'],
         ["My church isn't listed. What now?", 'Type its name and choose Suggest this church. We check it and add it.'],
+        ['Where can I learn my rights at work in the UAE?', 'The Ministry of Human Resources and Emiratisation (MOHRE) explains UAE labour law, contracts and how to raise a complaint. Use the button below to open its official website.'],
         ['How long do jobs stay up?', '30 days. Then they end, so the board stays fresh.'],
         ['How do I delete my account?', 'Send us a message from the Contact us page, choosing "Help with my account", and we will delete it.']
       ] },
-      { cta: [['Contact us', 'contact']] }
+      { cta: [['Contact us', 'contact'], ['Your rights at work (MOHRE)', 'https://www.mohre.gov.ae']] }
     ]
   },
   {
