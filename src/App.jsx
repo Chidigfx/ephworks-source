@@ -14,6 +14,8 @@ import { supabase, api, toJob, captchaKey } from './supabase'
 import { scanPost } from './scam'
 import { verseOfDay } from './verses'
 
+const HOME_JOBS = 6 // newest jobs shown on Home; the rest are on the Jobs page
+
 const icons = {
   briefcase: BriefcaseBusiness, bookmark: Bookmark, sparkles: LifeBuoy,
   heart: HeartHandshake, users: UsersRound, shield: ShieldCheck,
@@ -1182,12 +1184,12 @@ export default function App() {
             <div className="hero-inner">
               <div className="hero-copy">
                 <div className="hero-chips">
-                  <p className="glass-chip"><span className="status-dot"/> A private job board for UAE church communities</p>
+                  <p className="glass-chip"><span className="status-dot"/> A free job noticeboard for UAE church communities</p>
                   <p className="free-chip"><HeartHandshake size={16} aria-hidden="true"/> Free for everyone, always</p>
                 </div>
                 <h1>Find work through people who <em>know you.</em></h1>
-                <p className="hero-lede">Every job here has been checked with the employer. Every member is vouched for by their church. Nobody will ask you for money.</p>
-                <form className="hero-search" role="search" onSubmit={e => { e.preventDefault(); document.getElementById('opp-list')?.scrollIntoView({ behavior: 'smooth' }) }}>
+                <p className="hero-lede">Every job here has been checked with the employer. Every employer who posts is vouched for by their church. Any post asking you for money is blocked.</p>
+                <form className="hero-search" role="search" onSubmit={e => { e.preventDefault(); go('opportunities') }}>
                   <label className="hs-field">
                     <Search size={18}/>
                     <span className="sr-only">Job title, company or skill</span>
@@ -1203,17 +1205,11 @@ export default function App() {
                   <button className="hero-button" type="submit"><Search size={17}/> Search jobs</button>
                 </form>
                 <button className="glass-link" onClick={() => go('career')}>Get free help with your CV <ArrowRight size={16}/></button>
+                {supabase && !session && <p className="hero-join">Joining is by invitation: ask a member for their referral code. <button type="button" onClick={askForCode}>Don’t know a member?</button></p>}
               </div>
               <div className="hero-float">
-                <div className="glass-card float-card">
-                  <span className="float-icon"><ShieldCheck size={22}/></span>
-                  <div>
-                    <strong>{board.length} jobs open</strong>
-                    <small>Every one checked with the employer</small>
-                  </div>
-                </div>
                 <ul className="glass-card float-list" aria-label="What we check">
-                  <li><BadgeCheck size={18}/> Members vouched for by their church</li>
+                  <li><BadgeCheck size={18}/> Employers vouched for by their church</li>
                   <li><LockKeyhole size={18}/> Fee requests blocked automatically</li>
                   <li><Clock3 size={18}/> Posts expire after 30 days</li>
                 </ul>
@@ -1222,24 +1218,41 @@ export default function App() {
           </section>
 
           <ul className="stat-row" aria-label="At a glance">
-            <li className="stat featured"><b>{board.length}</b><span>Jobs open right now</span></li>
-            <li className="stat"><b>100%</b><span>Checked with the employer</span></li>
-            <li className="stat"><b>AED 0</b><span>Free for everyone, always</span></li>
-            <li className="stat"><b>30 days</b><span>Longest a post can stay up</span></li>
+            <li className="stat featured"><b>3 checks</b><span>Before any job goes live</span></li>
+            <li className="stat"><b>Private</b><span>Employers see a count, never your name</span></li>
+            <li className="stat"><b>Free CV help</b><span>From HR volunteers</span></li>
+            <li className="stat"><b>Weekly</b><span>New jobs added</span></li>
           </ul>
-          <VerseCard/>
 
           <section id="opp-list" className="opportunity-section">
-            <SectionTitle title="Verified UAE opportunities" subtitle="Apply directly to employers · every post expires after 30 days"/>
-            {jobFeed}
+            <SectionTitle title="Latest jobs" subtitle="Checked with every employer · apply to them directly"/>
+            <div className="job-list">
+              {board.length ? board.slice(0, HOME_JOBS).map(job => (
+                <JobCard
+                  key={job.id}
+                  job={job}
+                  saved={demo.saved.includes(job.id)}
+                  tracked={demo.tracked.includes(job.id)}
+                  onSave={() => toggleSave(job.id)}
+                  onOpen={() => setSelectedJob(job)}
+                  interested={interestedIds.includes(job.id)}
+                  onInterest={() => toggleInterest(job.id)}
+                  onLearn={() => go('jobReview')}
+                  isNew={newMatchIds.includes(job.id)}
+                />
+              )) : <Empty title="No jobs live yet" description="New jobs appear here once a moderator has checked them with the employer. Check back soon." icon={BriefcaseBusiness}/>}
+            </div>
+            {board.length > 0 && <button type="button" className="secondary-button see-all" onClick={() => go('opportunities')}>{board.length > HOME_JOBS ? `See all ${board.length} jobs` : 'Search and filter jobs'} <ArrowRight size={16}/></button>}
           </section>
+          <VerseCard/>
+
           <section className="why-stage">
             <img className="stage-bg" src="/images/workday.webp" loading="lazy" decoding="async" alt="" width="896" height="1200"/>
             <div className="why-inner">
               <div className="why-head">
                 <p className="glass-chip">Three checks, every time</p>
-                <h2>Why not just use a Facebook group?</h2>
-                <p className="why-intro">Because anyone can post in a Facebook group, and some of them are not who they say they are. Here, three things have to be true first.</p>
+                <h2>Why not just use a social media group?</h2>
+                <p className="why-intro">Because anyone can post in a social media group, and some of them are not who they say they are. Here, three things have to be true first.</p>
               </div>
               <ol className="why-cards">
                 {TRUST_PILLARS.map(p => (
@@ -1258,13 +1271,21 @@ export default function App() {
             <div className="support-copy">
               <p className="eyebrow">Free volunteer support</p>
               <h2>Someone to sit down with you and fix the CV.</h2>
-              <p>Volunteers from HR and hiring teams give a free CV review, a practice interview, or a LinkedIn tidy-up. It is the part a Facebook group will never do for you.</p>
+              <p>Volunteers from HR and hiring teams give a free CV review, a practice interview, or a LinkedIn tidy-up. It is the part a social media group will never do for you.</p>
               <button className="primary-button" onClick={() => go('career')}>Get career support <ArrowRight size={16}/></button>
             </div>
             <figure className="support-photo">
               <img src="/images/mentor.webp" loading="lazy" decoding="async" alt="A volunteer mentor marking up a printed CV with a young job seeker" width="1200" height="896"/>
               <figcaption className="glass-card float-badge"><FileText size={18}/> CV review · Mock interview · LinkedIn</figcaption>
             </figure>
+          </section>
+
+          <section className="employer-band">
+            <div>
+              <h2>Hiring? Post a job for free.</h2>
+              <p>Reach people your church community already knows. Your church vouches for you, then a moderator checks the post with you before it goes live.</p>
+            </div>
+            <button type="button" className="primary-button" onClick={() => go('post')}><Plus size={17}/> Post a job</button>
           </section>
         </>}
 

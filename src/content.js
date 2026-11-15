@@ -35,6 +35,12 @@ export const INFO_PAGES = [
     lede: 'Good work, found through people you can trust.',
     blocks: [
       { cards: [
+        ['Our vision', 'A future where everyone can access meaningful work through trusted connections and genuine opportunities.', 'eye'],
+        ['Our mission', 'To connect job seekers with genuine employment opportunities and help employers find well-matched candidates through trusted employers, churches and community networks. Beginning in the UAE, we promote a safe, fair and inclusive employment experience guided by Christian values.', 'flag'],
+        ['Our purpose', 'To turn trust and community connections into meaningful opportunities, helping job seekers find work that supports their growth and enables them to provide for themselves and their families, while helping employers connect with capable, well-matched people.', 'hand']
+      ] },
+      { h: 'Our values' },
+      { cards: [
         ['Free for everyone, always', 'Job seekers never pay to browse, apply or get support. Employers never pay to post.', 'heart'],
         ['Verified people', 'Everyone who posts a job is vouched for by their church community.', 'users'],
         ['Verified jobs', 'A moderator checks every job with the employer before it goes live.', 'badge'],

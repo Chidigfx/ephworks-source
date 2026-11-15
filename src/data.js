@@ -194,24 +194,24 @@ export const SAMPLE_VOLUNTEER = [
 export const TRUST_PILLARS = [
   {
     num: '1',
-    title: 'Verified People',
+    title: 'Verified people',
     kicker: 'TRUSTED CIRCLE',
-    desc: 'Every member is vouched by their local church community, keeping out random fake agents, scammers, and scrapers.',
-    legalNote: 'Used strictly for peer trust and safety, not religious exclusion. Complies with UAE Anti-Discrimination & Data Protection laws.'
+    desc: 'Every employer is vouched for by their church, and every member joins through someone who knows them. That keeps out fake agents, scammers and scrapers.',
+    legalNote: 'Church vouching checks the person posting, never the person applying. Jobs are open to everyone, whatever their faith.'
   },
   {
     num: '2',
-    title: 'Verified Jobs',
+    title: 'Verified jobs',
     kicker: 'MODERATED NOTICEBOARD',
     desc: 'Moderators check directly with the company before any role goes live. Automatic keyword blocking stops fees, deposits, and visa charges instantly.',
-    legalNote: 'Posts expire automatically after 30 days to guarantee freshness and prevent dead zombie listings.'
+    legalNote: 'Posts come down after 30 days.'
   },
   {
     num: '3',
-    title: 'Real Support',
+    title: 'Real support',
     kicker: 'JOB-READY CONFIDENCE',
     desc: 'Volunteer CV review, mock interviews, and LinkedIn assistance from experienced professionals so people are truly prepared for the workplace.',
-    legalNote: 'Not just passive links: hands-on community care that social media groups cannot offer.'
+    legalNote: 'Free and confidential. Volunteers never charge or promise a job.'
   }
 ]
 
