@@ -10,7 +10,7 @@ import {
 } from 'lucide-react'
 import { NAV, SAMPLE_JOBS, SAMPLE_VOLUNTEER, CAREER_SUPPORT_MODULES, TRUST_PILLARS, SAMPLE_VOUCH_REQUESTS, SAMPLE_CHURCHES, SAMPLE_MEMBERS, SAMPLE_APPLICATIONS, SAMPLE_CHURCH_SUGGESTIONS, SAMPLE_SUPPORT_REQUESTS, SAMPLE_PASTORAL_REQUESTS, SAMPLE_CONTACT_MESSAGES, SITE_NAME } from './data'
 import { INFO_PAGES, INFO_GROUPS, FOOTER } from './content'
-import { supabase, api, toJob, captchaKey } from './supabase'
+import { supabase, api, toJob, captchaKey, googleClientId } from './supabase'
 import { scanPost } from './scam'
 import { verseOfDay } from './verses'
 
@@ -541,6 +541,11 @@ export default function App() {
 
   const signInWithGoogle = () => supabase.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: window.location.origin } })
     .then(({ error }) => error && fail(error))
+  // Google's button hands the sign-in to this page; Supabase checks Google's token and the nonce
+  const [googleButtonFailed, setGoogleButtonFailed] = useState(false)
+  const signInWithGoogleToken = (token, nonce) => supabase.auth.signInWithIdToken({ provider: 'google', token, nonce })
+    .then(({ error }) => { if (error) throw error; setShowSignIn(false) })
+    .catch(err => { setGoogleButtonFailed(true); fail(err) })
 
   const signOut = () => supabase.auth.signOut().then(() => notify('Signed out.'))
 
@@ -2616,7 +2621,12 @@ export default function App() {
         )}
         {providers.google && authForm.mode !== 'reset' && <>
           {providers.email && <p className="auth-or"><span>or</span></p>}
-          <button type="button" className="secondary-button full google-button" onClick={signInWithGoogle}><GoogleMark/> Continue with Google</button>
+          {googleClientId && !googleButtonFailed
+            ? <>
+                <GoogleButton onCredential={signInWithGoogleToken} onFail={() => setGoogleButtonFailed(true)}/>
+                <button type="button" className="link-button google-fallback" onClick={signInWithGoogle}>Google button not working? Continue another way</button>
+              </>
+            : <button type="button" className="secondary-button full google-button" onClick={signInWithGoogle}><GoogleMark/> Continue with Google</button>}
           {authForm.mode === 'signup' && <p className="sign-in-note">With Google, you enter your referral code after signing in.</p>}
         </>}
         {!providers.google && !providers.email && <Warning>Sign-in is being set up. Please try again soon.</Warning>}
@@ -2727,6 +2737,35 @@ const loadTurnstile = () => window.turnstile ? Promise.resolve(window.turnstile)
   s.onerror = reject
   document.head.appendChild(s)
 }))
+
+// Google's own sign-in button (Google Identity Services), loaded only when sign-in is shown. Google gives the
+// signed-in token to this page, so its screens and emails name this site; Supabase verifies the token and nonce.
+let googleScript
+const loadGoogle = () => window.google?.accounts?.id ? Promise.resolve(window.google.accounts.id) : (googleScript ||= new Promise((resolve, reject) => {
+  const s = document.createElement('script')
+  s.src = 'https://accounts.google.com/gsi/client'
+  s.async = true
+  s.onload = () => window.google?.accounts?.id ? resolve(window.google.accounts.id) : reject(new Error('Google sign-in did not load'))
+  s.onerror = () => { googleScript = null; reject(new Error('Google sign-in did not load')) }
+  document.head.appendChild(s)
+}))
+const sha256Hex = async text => [...new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text)))]
+  .map(b => b.toString(16).padStart(2, '0')).join('')
+
+function GoogleButton({ onCredential, onFail }) {
+  const ref = useRef(null)
+  useEffect(() => {
+    let gone = false
+    const nonce = crypto.randomUUID()
+    Promise.all([loadGoogle(), sha256Hex(nonce)]).then(([id, hashed]) => {
+      if (gone || !ref.current) return
+      id.initialize({ client_id: googleClientId, nonce: hashed, callback: r => r.credential ? onCredential(r.credential, nonce) : onFail(), ux_mode: 'popup', itp_support: true })
+      id.renderButton(ref.current, { type: 'standard', theme: 'outline', size: 'large', text: 'continue_with', shape: 'rectangular', logo_alignment: 'center', locale: 'en', width: Math.max(200, Math.min(400, ref.current.clientWidth || 320)) })
+    }).catch(() => !gone && onFail())
+    return () => { gone = true }
+  }, [])
+  return <div ref={ref} className="google-gis"/>
+}
 
 function Captcha({ onToken }) {
   const ref = useRef(null)

@@ -14,6 +14,9 @@ export const supabase = url && key && !configError ? createClient(url, key) : nu
 // Cloudflare Turnstile site key. When set, sign-in, sign-up and password reset show a CAPTCHA; switch on
 // Turnstile under Authentication → Attack Protection in Supabase at the same time, so the server checks it.
 export const captchaKey = clean(import.meta.env.VITE_TURNSTILE_SITE_KEY)
+// Google OAuth client ID (public). When set, sign-in shows Google's own button on this site, so Google's screens
+// and emails name Ephworks rather than the Supabase address. Unset: the redirect through Supabase is used.
+export const googleClientId = clean(import.meta.env.VITE_GOOGLE_CLIENT_ID)
 
 const DAY = 86400000
 const HUES = ['sage', 'sand', 'blue', 'rose']

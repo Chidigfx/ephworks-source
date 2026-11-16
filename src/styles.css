@@ -1149,4 +1149,6 @@ button.jc-check{cursor:pointer;text-decoration:underline dotted;text-underline-o
 .two-step-qr img{padding:8px;background:#fff;border:1px solid var(--border);border-radius:var(--radius-sm)}
 .two-step-qr small{font-size:13px;color:var(--muted)}
 .two-step-qr code{display:inline-block;margin-top:4px;padding:2px 6px;border-radius:4px;background:var(--surface-2);font-size:12px;word-break:break-all}
+.google-gis{display:flex;justify-content:center;min-height:44px}
+.google-fallback{display:block;margin:8px auto 0;font-size:13px}
 .captcha{min-height:65px}

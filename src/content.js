@@ -251,7 +251,7 @@ export const INFO_PAGES = [
       { h: 'Who can see it' },
       { p: 'Employers see a count of interested people, never names. Church admins see vouch requests sent to their church. Moderators see posts waiting for checks, and who invited each new member and their phone number if they added one. Only you see your job preferences; employers never see who a job matched. Admins see members\' names and emails, and who invited and approved each member. A pastoral-care request is seen only by you and a pastoral carer at the church you chose; admins, moderators, church admins and employers cannot see it. Messages sent through the contact form are read by admins, and safety concerns also by moderators. We never sell or share your data with advertisers.' },
       { h: 'Where it is kept' },
-      { p: 'Accounts and posts are stored with our database provider, Supabase. Saved and applied jobs stay on your own device. Fonts are loaded from Google Fonts, which receives your IP address. We use no advertising or tracking cookies.' },
+      { p: 'Accounts and posts are stored with our database provider, Supabase. Saved and applied jobs stay on your own device. Fonts are loaded from Google Fonts, which receives your IP address. The “Sign in with Google” button is loaded from Google when you open sign-in, so Google sees that visit. We use no advertising or tracking cookies.' },
       { h: 'How long we keep it' },
       { p: 'Jobs end after 30 days. You can delete a pastoral-care request yourself at any time, and it is erased. Your account is kept until you ask us to delete it.' },
       { h: 'Your rights' },
