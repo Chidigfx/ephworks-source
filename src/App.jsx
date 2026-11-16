@@ -692,7 +692,7 @@ export default function App() {
     if (supabase) {
       if (needsSignIn()) return
       return api.fileReport(selectedJob.id, reportReason)
-        .then(() => { setShowReport(false); notify('Report sent to the Ephworks Safety Team. We follow up on all flags within 24 hours.') })
+        .then(() => { setShowReport(false); notify('Report sent to the ${SITE_NAME} Safety Team. We follow up on all flags within 24 hours.') })
         .catch(err => notify(/duplicate/.test(err.message) ? 'You have already reported this role. The Safety Team has it.' : err.message))
     }
     updateDemo({
@@ -879,7 +879,7 @@ export default function App() {
   }
 
   const decideApplication = (app, approve) => {
-    const done = () => notify(approve ? `Approved. ${app.display_name} is now ${ROLE_LABELS[app.role]}; their new view appears next time they open Ephworks.` : 'Application declined.')
+    const done = () => notify(approve ? `Approved. ${app.display_name} is now ${ROLE_LABELS[app.role]}; their new view appears next time they open {SITE_NAME}.` : 'Application declined.')
     if (supabase) return api.decideApplication(app.id, approve).then(() => { refresh(); done() }).catch(fail)
     const church = app.church_id || suggestionFor(app.church_suggestion_id)?.church_id || null
     updateDemo({
@@ -1083,7 +1083,7 @@ export default function App() {
   return <div className="app-shell">
     <div className="body-area">
       <header className="topbar">
-        <button type="button" className="topbar-brand" aria-label="Ephworks home" onClick={() => go('home')}><Brand compact/></button>
+        <button type="button" className="topbar-brand" aria-label={`${SITE_NAME} home`} onClick={() => go('home')}><Brand compact/></button>
         <nav className="top-links" aria-label="Main">
           {NAV.member.map(n => (
             <button key={n.id} type="button" className={page === n.id ? 'active' : ''} aria-current={page === n.id ? 'page' : undefined} onClick={() => go(n.id)}>
@@ -1131,14 +1131,14 @@ export default function App() {
           <span className="pilot-actions">
             <button type="button" onClick={() => go('privacy')}>Privacy</button>
             {!supabase && <button type="button" onClick={() => setShowReset(true)}>Reset demo</button>}
-            {supabase && (session
-              ? <button type="button" onClick={signOut}>Sign out</button>
-              : <button type="button" onClick={() => setShowSignIn(true)}>Sign in</button>)}
+            {supabase && session && <button type="button" onClick={signOut}>Sign out</button>}
+            {/* Sign in disabled here for now: it repeats the top bar button
+            {supabase && !session && <button type="button" onClick={() => setShowSignIn(true)}>Sign in</button>} */}
           </span>
         </div>
 
         {supabase && profile.suspended && (
-          <Warning tone="strong">Your account is suspended. You can browse the noticeboard, but you can't post, vouch, report or review. Contact the Ephworks team if you think this is a mistake.</Warning>
+          <Warning tone="strong">Your account is suspended. You can browse the noticeboard, but you can't post, vouch, report or review. Contact the {SITE_NAME} team if you think this is a mistake.</Warning>
         )}
         {needsTwoStep && twoStep.level !== null && (
           <div className="notice strong two-step-notice">
@@ -1189,7 +1189,7 @@ export default function App() {
                   <p className="free-chip"><HeartHandshake size={16} aria-hidden="true"/> Free for everyone, always</p>
                 </div>
                 <h1>Find work through people who <em>know you.</em></h1>
-                <p className="hero-lede">Every job here has been checked with the employer. Every employer who posts is vouched for by their church. Any post asking you for money is blocked.</p>
+                <p className="hero-lede">Every job is checked with the employer. Everyone who posts a job is vouched for by their church admin. New accounts require approval. Any post asking for money is blocked.</p>
                 <form className="hero-search" role="search" onSubmit={e => { e.preventDefault(); go('opportunities') }}>
                   <label className="hs-field">
                     <Search size={18}/>
@@ -1210,19 +1210,29 @@ export default function App() {
               </div>
               <div className="hero-float">
                 <ul className="glass-card float-list" aria-label="What we check">
-                  <li><BadgeCheck size={18}/> Employers vouched for by their church</li>
-                  <li><LockKeyhole size={18}/> Fee requests blocked automatically</li>
-                  <li><Clock3 size={18}/> Posts expire after 30 days</li>
+                  <li><ClipboardCheck size={18}/> Jobs checked with employers</li>
+                  <li><BadgeCheck size={18}/> Job posters vouched for by church admins</li>
+                  <li><Ban size={18}/> No fee to apply</li>
                 </ul>
               </div>
             </div>
           </section>
 
           <ul className="stat-row" aria-label="At a glance">
-            <li className="stat featured"><b>3 checks</b><span>Before any job goes live</span></li>
-            <li className="stat"><b>Private</b><span>Employers see a count, never your name</span></li>
-            <li className="stat"><b>Free CV help</b><span>From HR volunteers</span></li>
-            <li className="stat"><b>Weekly</b><span>New jobs added</span></li>
+            <li className="stat featured">
+              <b>3 checks</b>                
+              <span>Before any job goes live:</span>
+              {/* Hidden for now: the three checks, named
+              <ol className="stat-checks">
+                <li>Church vouch for the poster</li>
+                <li>Fee and scam check</li>
+                <li>Confirmed with the employer</li>
+              </ol>
+              */}
+            </li>
+            <li className="stat"><b>Private</b><span>Employers see how many people clicked “I’m interested”, not who clicked. Apply directly to the employer. We never store your CV.</span></li>
+            <li className="stat"><b>Career support</b><span>Practical help with your CV, LinkedIn profile and mock interviews, plus pastoral care.</span></li>
+            <li className="stat"><b>Fresh Posts</b><span>Posts expire after 30 days, and new jobs are added weekly.</span></li>
           </ul>
 
           <section id="opp-list" className="opportunity-section">
@@ -1253,7 +1263,7 @@ export default function App() {
               <div className="why-head">
                 <p className="glass-chip">Three checks, every time</p>
                 <h2>Why not just use a social media group?</h2>
-                <p className="why-intro">Because anyone can post in a social media group, and some of them are not who they say they are. Here, three things have to be true first.</p>
+                <p className="why-intro">Social media groups can’t always confirm who is posting. {SITE_NAME} uses safeguards to help make the job search safer.</p>
               </div>
               <ol className="why-cards">
                 {TRUST_PILLARS.map(p => (
@@ -1271,8 +1281,8 @@ export default function App() {
           <section className="support-stage">
             <div className="support-copy">
               <p className="eyebrow">Free volunteer support</p>
-              <h2>Someone to sit down with you and fix the CV.</h2>
-              <p>Volunteers from HR and hiring teams give a free CV review, a practice interview, or a LinkedIn tidy-up. It is the part a social media group will never do for you.</p>
+              <h2>Someone to help you strengthen your CV.</h2>
+              <p>Our HR and hiring-team volunteers offer free CV reviews, mock interviews and LinkedIn profile feedback. It’s practical, one-to-one support that a social media group can’t provide.</p>
               <button className="primary-button" onClick={() => go('career')}>Get career support <ArrowRight size={16}/></button>
             </div>
             <figure className="support-photo">
@@ -1284,7 +1294,7 @@ export default function App() {
           <section className="employer-band">
             <div>
               <h2>Hiring? Post a job for free.</h2>
-              <p>Reach people your church community already knows. Your church vouches for you, then a moderator checks the post with you before it goes live.</p>
+              <p>Reach people through trusted church communities. Once your account is approved, your church admin vouches for you, and a moderator confirms the job details with you before the post goes live.</p>
             </div>
             <button type="button" className="primary-button" onClick={() => go('post')}><Plus size={17}/> Post a job</button>
           </section>
@@ -1370,7 +1380,7 @@ export default function App() {
           </div>
           <div className="spacer-24"/>
           <Warning>
-            Volunteer support is 100% free and confidential. Ephworks volunteers provide coaching and feedback, but never charge fees or guarantee placement.
+            Volunteer support is 100% free and confidential. {SITE_NAME} volunteers provide coaching and feedback, but never charge fees or guarantee placement.
           </Warning>
         </>}
 
@@ -1519,7 +1529,7 @@ export default function App() {
 
                 {step.key === 'apply' && <>
                   <h2 className="wizard-title">How do people apply?</h2>
-                  <p className="wizard-hint">Candidates apply to you directly. Ephworks never sees or stores their CVs.</p>
+                  <p className="wizard-hint">Candidates apply to you directly. {SITE_NAME} never sees or stores their CVs.</p>
                   <label>
                     Application email
                     <input name="email" type="email" maxLength={254} placeholder="careers@company.ae" value={draftForm.email} onChange={e => setDraft({ email: e.target.value })}/>
@@ -2406,7 +2416,7 @@ export default function App() {
               <div className="apply-panel">
                 <h4><Mail size={18}/> Apply Direct to Employer</h4>
                 <p>
-                  Ephworks is a community noticeboard, not a recruitment agency. We don’t store your CV or shortlist candidates. You apply straight to the hiring company:
+                  {SITE_NAME} is a community noticeboard, not a recruitment agency. We don’t store your CV or shortlist candidates. You apply straight to the hiring company:
                 </p>
                 {selectedJob.directEmail ? (
                   <div className="apply-actions">
@@ -2438,7 +2448,7 @@ export default function App() {
                   </button>
                 </div>
                 <div className="law-notice">
-                  <LockKeyhole size={14}/> Ephworks never charges fees or retains candidate CVs.
+                  <LockKeyhole size={14}/> {SITE_NAME} never charges fees or retains candidate CVs.
                 </div>
               </div>
             ) : (
@@ -2447,7 +2457,7 @@ export default function App() {
                 <span className="apply-locked-icon" aria-hidden="true"><LockKeyhole size={22}/></span>
                 {!session ? <>
                   <h4>Sign in to apply</h4>
-                  <p>Applying is for Ephworks members. Once you’re signed in, you’ll see how to contact this employer directly.</p>
+                  <p>Applying is for {SITE_NAME} members. Once you’re signed in, you’ll see how to contact this employer directly.</p>
                   <button type="button" className="primary-button full" onClick={() => setShowSignIn(true)}>Sign in or join</button>
                   <small>New here? Ask a member who knows you for their referral code, or <button type="button" className="link-button" onClick={askForCode}>ask us for one</button>.</small>
                 </> : joinStatus === 'declined' ? <>
@@ -2557,7 +2567,7 @@ export default function App() {
 
     {/* Report to Safety Team Modal */}
     {showReport && (
-      <Modal onClose={() => setShowReport(false)} title="Report to Ephworks Safety Team">
+      <Modal onClose={() => setShowReport(false)} title={`Report to ${SITE_NAME} Safety Team`}>
         <p>Our safety team follows up on every flag directly with the reporter and employer within 24 hours.</p>
         <label className="form-label">
           Reason for report

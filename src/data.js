@@ -1,5 +1,5 @@
 // One place for the name and contact address, so they are easy to change once confirmed
-export const SITE_NAME = 'Ephworks'
+export const SITE_NAME = 'EphWorks'
 
 // Every company, person, job, and remuneration figure below is fictional demo data.
 export const SAMPLE_JOBS = [
@@ -196,8 +196,8 @@ export const TRUST_PILLARS = [
     num: '1',
     title: 'Verified people',
     kicker: 'TRUSTED CIRCLE',
-    desc: 'Every employer is vouched for by their church, and every member joins through someone who knows them. That keeps out fake agents, scammers and scrapers.',
-    legalNote: 'Church vouching checks the person posting, never the person applying. Jobs are open to everyone, whatever their faith.'
+    desc: 'Everyone who posts a job is vouched for by their church admin, and every new account is approved by a moderator. That keeps out scammers, fake accounts and people collecting information without permission.',
+    legalNote: 'Church vouching checks the person posting a job, never the person applying. Jobs are open to everyone, whatever their faith.'
   },
   {
     num: '2',
