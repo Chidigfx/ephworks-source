@@ -87,7 +87,15 @@ export const api = {
     .then(s => ({ google: Boolean(s.external?.google), email: Boolean(s.external?.email) })).catch(() => ({ google: false, email: false })),
   // The referral code rides along in the sign-up; the server links it to the member who invited them
   signUp: ({ name, email, password, code, captchaToken }) => supabase.auth.signUp({ email, password, options: { data: { full_name: name, referral_code: code }, emailRedirectTo: window.location.origin, captchaToken } })
-    .then(({ data, error }) => { if (error) throw error; return data }),
+    .then(({ data, error }) => {
+      if (error) throw error
+      // Supabase answers a sign-up for an address that already has an account with a stand-in user that has no
+      // identities, and sends no email; say so instead of telling the person to wait for one
+      if (data.user && Array.isArray(data.user.identities) && data.user.identities.length === 0) {
+        throw new Error('An account with this email already exists. Sign in instead, or use “Forgot your password?” if you can’t remember it.')
+      }
+      return data
+    }),
   signIn: (email, password, captchaToken) => supabase.auth.signInWithPassword({ email, password, options: { captchaToken } }).then(({ error }) => { if (error) throw error }),
   sendPasswordReset: (email, captchaToken) => supabase.auth.resetPasswordForEmail(email, { redirectTo: window.location.origin, captchaToken }).then(({ error }) => { if (error) throw error }),
   // Two-step sign-in (authenticator app) for staff; the server only grants staff powers to sessions that passed it

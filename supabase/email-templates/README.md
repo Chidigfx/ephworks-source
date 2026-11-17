@@ -11,7 +11,7 @@ Supabase → **Authentication → Emails → Templates**. For each template, set
 
 | Template | Subject | File |
 | --- | --- | --- |
-| Confirm sign up | Confirm your email for EphWorks | `confirm-signup.html` |
+| Confirm sign up | Your EphWorks account is created: please confirm your email | `confirm-signup.html` |
 | Reset password | Choose a new EphWorks password | `reset-password.html` |
 | Change email address | Confirm your new email for EphWorks | `change-email.html` |
 
