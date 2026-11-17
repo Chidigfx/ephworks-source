@@ -692,7 +692,7 @@ export default function App() {
     if (supabase) {
       if (needsSignIn()) return
       return api.fileReport(selectedJob.id, reportReason)
-        .then(() => { setShowReport(false); notify('Report sent to the ${SITE_NAME} Safety Team. We follow up on all flags within 24 hours.') })
+        .then(() => { setShowReport(false); notify(`Report sent to the ${SITE_NAME} Safety Team. We follow up on all flags within 24 hours.`) })
         .catch(err => notify(/duplicate/.test(err.message) ? 'You have already reported this role. The Safety Team has it.' : err.message))
     }
     updateDemo({
@@ -708,7 +708,7 @@ export default function App() {
       ]
     })
     setShowReport(false)
-    notify('Report sent to the Ephworks Safety Team. We follow up on all flags within 24 hours.')
+    notify(`Report sent to the ${SITE_NAME} Safety Team. We follow up on all flags within 24 hours.`)
   }
 
   const openSession = id => { setSelectedSupportService(id); setSupportForm(f => ({ ...f, name: f.name || (account.guest ? '' : account.name), consent: false })); setShowSupportModal(true) }
@@ -879,7 +879,7 @@ export default function App() {
   }
 
   const decideApplication = (app, approve) => {
-    const done = () => notify(approve ? `Approved. ${app.display_name} is now ${ROLE_LABELS[app.role]}; their new view appears next time they open {SITE_NAME}.` : 'Application declined.')
+    const done = () => notify(approve ? `Approved. ${app.display_name} is now ${ROLE_LABELS[app.role]}; their new view appears next time they open ${SITE_NAME}.` : 'Application declined.')
     if (supabase) return api.decideApplication(app.id, approve).then(() => { refresh(); done() }).catch(fail)
     const church = app.church_id || suggestionFor(app.church_suggestion_id)?.church_id || null
     updateDemo({
@@ -1220,8 +1220,8 @@ export default function App() {
 
           <ul className="stat-row" aria-label="At a glance">
             <li className="stat featured">
-              <b>3 checks</b>                
-              <span>Before any job goes live:</span>
+              <b>3 checks</b>
+              <span>Before any job goes live</span>
               {/* Hidden for now: the three checks, named
               <ol className="stat-checks">
                 <li>Church vouch for the poster</li>

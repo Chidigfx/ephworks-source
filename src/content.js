@@ -51,8 +51,8 @@ export const INFO_PAGES = [
     ]
   },
   {
-    id: 'howItWorks', path: '/about/how-it-works', group: 'about', tab: `How EphWorks Works`, hero: '/images/community.webp',
-    title: `How Ephworks Works`,
+    id: 'howItWorks', path: '/about/how-it-works', group: 'about', tab: `How ${SITE_NAME} Works`, hero: '/images/community.webp',
+    title: `How ${SITE_NAME} Works`,
     lede: 'Three checks happen before any job reaches you.',
     blocks: [
       { columns: [
