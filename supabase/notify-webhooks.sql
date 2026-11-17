@@ -2,13 +2,14 @@
 -- Not a migration: it holds your project's address and secret. Run it in the SQL editor AFTER:
 --   1. Integrations → Database Webhooks → Enable (that creates supabase_functions.http_request), and
 --   2. the `notify` function is deployed with WEBHOOK_SECRET set.
--- Replace PASTE_YOUR_WEBHOOK_SECRET_HERE below with the same WEBHOOK_SECRET (keep the quotes). Safe to run again.
+-- Paste your secret in ONE place only: between the two $secret$ markers on the line marked >>>.
+-- Any characters work there, quotes and % included. Safe to run again.
 -- They then show under Integrations → Database Webhooks like ones made by hand.
 
 do $$
 declare
   url text := 'https://wotgedzrzqqocdzqjfmp.supabase.co/functions/v1/notify';
-  secret text := 'PASTE_YOUR_WEBHOOK_SECRET_HERE';
+  secret text := btrim($secret$PASTE_HERE$secret$);  -- >>> replace PASTE_HERE with your secret, nothing else
   hooks text[][] := array[
     ['profiles', 'insert or update'],
     ['vouches', 'insert or update'],
@@ -22,8 +23,8 @@ declare
   ];
   h text[];
 begin
-  if secret = 'PASTE_YOUR_WEBHOOK_SECRET_HERE' or length(secret) < 20 then
-    raise exception 'Paste your WEBHOOK_SECRET (20+ characters) into the script first.';
+  if secret = 'PASTE' || '_HERE' or length(secret) < 20 then
+    raise exception using message = 'Paste your secret (20 or more characters) on the line marked >>> first.';
   end if;
   foreach h slice 1 in array hooks loop
     execute format('drop trigger if exists %I on public.%I', 'notify_' || h[1], h[1]);
