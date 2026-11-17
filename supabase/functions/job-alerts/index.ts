@@ -29,7 +29,7 @@ Deno.serve(async req => {
   // so a failed send is retried on the next run instead of being lost
   const due = await rpc('alert_digest', {}).then(r => r.ok ? r.json() : Promise.reject(new Error(`digest query failed: ${r.status}`)))
 
-  const site = env('SITE_URL') || 'https://ephworks-source.vercel.app'
+  const site = env('SITE_URL') || 'https://www.ephworks.com'
   let sent = 0
   let failed = 0
   for (const { email, name, jobs, token, as_of } of due as { email: string, name: string, token: string, as_of: string, jobs: { title: string, company: string, emirate: string, salary: string }[] }[]) {

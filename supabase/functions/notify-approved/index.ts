@@ -24,7 +24,7 @@ Deno.serve(async req => {
   if (!user?.email) return Response.json({ sent: false, reason: 'no email for this account' }, { status: 404 })
 
   const name = user.user_metadata?.full_name || user.user_metadata?.name || 'there'
-  const site = env('SITE_URL') || 'https://ephworks-source.vercel.app'
+  const site = env('SITE_URL') || 'https://www.ephworks.com'
   const sent = await fetch('https://api.resend.com/emails', {
     method: 'POST',
     headers: { Authorization: `Bearer ${env('RESEND_API_KEY')}`, 'Content-Type': 'application/json' },
