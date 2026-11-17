@@ -126,6 +126,14 @@ const PATHS = {
   ...Object.fromEntries(INFO_PAGES.map(p => [p.id, p.path]))
 }
 const pageFor = path => Object.keys(PATHS).find(id => PATHS[id] === (path.replace(/\/+$/, '') || '/')) || 'home'
+// Links in our own emails (supabase/email-templates) come to this site, not the Supabase address:
+// /auth/confirm?token_hash=…&type=…  Read once at load, before anything rewrites the address.
+const EMAIL_LINK_TYPES = ['email', 'signup', 'recovery', 'email_change', 'invite', 'magiclink']
+const emailLink = (() => {
+  const q = new URLSearchParams(window.location.search)
+  const token = q.get('token_hash'), type = q.get('type')
+  return token && EMAIL_LINK_TYPES.includes(type) ? { token, type } : null
+})()
 
 function getSavedDraft() {
   try { return { ...EMPTY_DRAFT, ...JSON.parse(window.localStorage.getItem(DRAFT_KEY)) } } catch { return EMPTY_DRAFT }
@@ -371,6 +379,16 @@ export default function App() {
       notify(`Sign-in did not complete: ${params.get('error_description')}`)
       window.history.replaceState(null, '', window.location.pathname)
     }
+    if (emailLink) {
+      window.history.replaceState(null, '', window.location.pathname === '/auth/confirm' ? '/' : window.location.pathname)
+      supabase.auth.verifyOtp({ token_hash: emailLink.token, type: emailLink.type }).then(({ error }) => {
+        if (error) return notify(/expired|invalid|not found/i.test(error.message)
+          ? 'That link has expired or was already used. Sign in, or ask for a new link.'
+          : `That link didn’t work: ${error.message}`)
+        if (emailLink.type === 'recovery') { setNewPassword(''); return }
+        notify(emailLink.type === 'email_change' ? 'Your new email address is confirmed.' : `Email confirmed. Welcome to ${SITE_NAME}! A moderator approves new accounts next.`)
+      })
+    }
     supabase.auth.getSession().then(({ data }) => { setSession(data.session); setAuthReady(true) })
     const { data } = supabase.auth.onAuthStateChange((event, next) => {
       setSession(next)
@@ -519,11 +537,11 @@ export default function App() {
     const close = () => { setShowSignIn(false); setAuthForm(EMPTY_AUTH) }
     const newCaptcha = () => { setCaptchaToken(''); setCaptchaRound(n => n + 1) }
     const call = mode === 'reset'
-      ? api.sendPasswordReset(email, captchaToken).then(() => { close(); notify(`If ${email} has an account, a link to choose a new password is on its way.`) })
+      ? api.sendPasswordReset(email, captchaToken).then(() => { close(); notify(`If ${email} has an account, a link to choose a new password is on its way. Look in spam if it isn’t there in a few minutes.`) })
       : mode === 'signin'
         ? api.signIn(email, password, captchaToken).then(close)
         : api.signUp({ name: name.trim(), email, password, code: code.trim(), captchaToken })
-          .then(data => { close(); notify(data.session ? 'Account created. A moderator will check who invited you, then approve you. You can browse jobs meanwhile.' : `Check ${email} for a link to confirm your address. A moderator approves new accounts after that.`) })
+          .then(data => { close(); notify(data.session ? 'Account created. A moderator will check who invited you, then approve you. You can browse jobs meanwhile.' : `Check ${email} for a link to confirm your address (look in spam if it isn’t there in a few minutes). A moderator approves new accounts after that.`) })
     call.catch(fail).finally(newCaptcha)
   }
   const twoStepDone = () => {
