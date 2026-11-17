@@ -12,8 +12,8 @@ const UPDATED = '2 November 2026'
 export const INFO_PAGES = [
   // ---------- About ----------
   {
-    id: 'about', path: '/about', group: 'about', tab: 'Our story', hero: '/images/community.webp',
-    title: 'Our story',
+    id: 'about', path: '/about', group: 'about', tab: 'Our Story', hero: '/images/community.webp',
+    title: 'Our Story',
     lede: `A free job noticeboard for church communities in the UAE, so people find work through people who know them.`,
     blocks: [
       { split: {
@@ -30,29 +30,29 @@ export const INFO_PAGES = [
     ]
   },
   {
-    id: 'mission', path: '/about/mission', group: 'about', tab: 'Mission & values', hero: '/images/workday.webp',
-    title: 'Mission & values',
-    lede: 'Good work, found through people you can trust.',
+    id: 'mission', path: '/about/mission', group: 'about', tab: 'Vision & Mission', hero: '/images/workday.webp',
+    title: 'Our Vision, Mission and values',
+    lede: 'Meaningful work, found through people you can trust.',
     blocks: [
       { cards: [
-        ['Our vision', 'A future where everyone can access meaningful work through trusted connections and genuine opportunities.', 'eye'],
-        ['Our mission', 'To connect job seekers with genuine employment opportunities and help employers find well-matched candidates through trusted employers, churches and community networks. Beginning in the UAE, we promote a safe, fair and inclusive employment experience guided by Christian values.', 'flag'],
-        ['Our purpose', 'To turn trust and community connections into meaningful opportunities, helping job seekers find work that supports their growth and enables them to provide for themselves and their families, while helping employers connect with capable, well-matched people.', 'hand']
+        ['Our Vision', 'A future where everyone can access meaningful work through trusted connections and genuine opportunities.', 'eye'],
+        ['Our Mission', 'To connect job seekers with genuine employment opportunities and help employers find well-matched candidates through trusted church and community networks. Starting in the UAE, we promote a safe, fair and inclusive employment experience guided by Christian values.', 'flag'],
+        ['Our Purpose', 'To turn trusted relationships into meaningful work opportunities, helping job seekers grow and support their families while helping employers find capable, well-matched people.', 'hand']
       ] },
-      { h: 'Our values' },
+      { h: 'Our Values' },
       { cards: [
         ['Free for everyone, always', 'Job seekers never pay to browse, apply or get support. Employers never pay to post.', 'heart'],
         ['Verified people', 'Everyone who posts a job is vouched for by their church community.', 'users'],
         ['Verified jobs', 'A moderator checks every job with the employer before it goes live.', 'badge'],
-        ['Real support', 'Volunteers from HR and hiring teams help with CVs and practice interviews.', 'support'],
+        ['Real support', 'HR and hiring professionals volunteer to help with CV reviews and mock interviews.', 'support'],
         ['Privacy first', 'We keep as little about you as we can. We never store CVs or beliefs.', 'lock'],
         ['Fair to everyone', 'Church vouching confirms who someone is, never their faith. Jobs here may not require any religion.', 'scale']
       ] }
     ]
   },
   {
-    id: 'howItWorks', path: '/about/how-it-works', group: 'about', tab: `How ${SITE_NAME} works`, hero: '/images/community.webp',
-    title: `How ${SITE_NAME} works`,
+    id: 'howItWorks', path: '/about/how-it-works', group: 'about', tab: `How ${SITE_NAME} Works`, hero: '/images/community.webp',
+    title: `How ${SITE_NAME} Works`,
     lede: 'Three checks happen before any job reaches you.',
     blocks: [
       { columns: [
@@ -73,8 +73,8 @@ export const INFO_PAGES = [
     ]
   },
   {
-    id: 'community', path: '/about/community', group: 'about', tab: 'Our community', hero: '/images/mentor.webp',
-    title: 'Our community',
+    id: 'community', path: '/about/community', group: 'about', tab: 'Our Community', hero: '/images/mentor.webp',
+    title: 'Our Community',
     lede: 'Partner churches, volunteers and members looking out for each other.',
     blocks: [
       { cards: [
@@ -88,8 +88,8 @@ export const INFO_PAGES = [
     ]
   },
   {
-    id: 'partner', path: '/about/partner', group: 'about', tab: 'Partner with us', hero: '/images/workday.webp',
-    title: 'Partner with us',
+    id: 'partner', path: '/about/partner', group: 'about', tab: 'Partner With Us', hero: '/images/workday.webp',
+    title: 'Partner With Us',
     lede: 'Help more people find honest work.',
     blocks: [
       { cards: [
