@@ -684,6 +684,9 @@ body{background:radial-gradient(60vw 50vw at 0% 0%,#bee1ef 0,transparent 60%),ra
 .vouch-panel{margin-bottom:20px}
 .vouch-panel .cta-row{align-items:flex-start}
 .vouch-form .primary-button{justify-self:start}
+.vouch-place{display:grid;gap:12px;margin:0;padding:16px;border:1px solid var(--border);border-radius:var(--radius);min-width:0}
+.vouch-place legend{padding:0 6px;font-weight:600;color:var(--fg)}
+.vouch-place .wizard-hint{margin:0}
 .audit-line.waiting{color:var(--warn-text)}
 
 /* Publishing gate */

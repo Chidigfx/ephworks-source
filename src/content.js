@@ -62,7 +62,7 @@ export const INFO_PAGES = [
           ['Apply to the employer directly', `By the email or careers page on the listing. ${SITE_NAME} never sees your CV.`]
         ] },
         { title: 'If you are hiring', icon: 'briefcase', steps: [
-          ['Your church vouches for you', 'Your church admin confirms you are known to the community. Only a yes or no is stored.'],
+          ['Your church vouches for you', 'Your church admin confirms you are known to the community. They see the contact details you give them; the vouch itself is a yes or no.'],
           ['Post the job', 'A few short steps. Posts asking candidates for money are blocked automatically.'],
           ['A moderator checks it with you', 'They confirm the role, pay and contact details with your company.'],
           ['Live for 30 days', 'Posts end after 30 days so the board never fills with old jobs.']
@@ -161,7 +161,7 @@ export const INFO_PAGES = [
     lede: 'We keep as little about you as we can.',
     blocks: [
       { cards: [
-        ['What we keep', 'Your name, email and photo from sign-in, who invited you and who approved you, any phone number and job preferences you add, a yes or no church vouch, your posts, saved interest, role applications and any pastoral-care request.', 'file'],
+        ['What we keep', 'Your name, email and photo from sign-in, who invited you and who approved you, any phone number and job preferences you add, a yes or no church vouch with the contact details you give your church admin for it, your posts, saved interest, role applications and any pastoral-care request.', 'file'],
         ['What we never keep', 'Your CV, your beliefs or denomination, or payment details.', 'ban'],
         ['Who sees what', 'Employers see a count of interested people, never names. Church admins see requests sent to their church. Moderators see who invited a new member. Admins see names and emails to keep the community safe. Pastoral-care requests are seen only by a pastoral carer at your church.', 'eye']
       ] },
@@ -239,7 +239,7 @@ export const INFO_PAGES = [
         'From sign-in: your name, email address and, if you use Google, your profile photo. If you use a password, it is stored only as a secure hash',
         'Who invited you (their referral code) and which moderator or admin approved your account',
         'Anything you add to your profile: the name you want shown, a phone number, and the emirates, kinds of work, keywords and minimum pay you are looking for',
-        'A yes or no church vouch, and which partner church gave it',
+        'A yes or no church vouch, which partner church gave it, and the details you give that church’s admin with your request: your mobile number, your ministry and its leader, or someone in the church who knows you and their number. Only that church’s admin sees these details.',
         'Jobs you post, jobs you mark as interested, reports you file and role applications you send',
         'If you ask for pastoral care: the church you chose, the name you gave, what would help and any note you write',
         'If you contact us: the name, email address and message you send'

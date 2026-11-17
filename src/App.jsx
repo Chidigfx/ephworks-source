@@ -55,7 +55,10 @@ const REPORT_REASONS = [
 const VOUCH_STATUS = { pending: 'Awaiting church vouch', vouched: 'Vouched', declined: 'Declined' }
 const DEMO_ME = 'demo-me' // the demo persona's own vouch request id
 const NO_CHURCH = { id: '', name: '', emirate: '' } // a picked partner church (id) or a typed one to suggest (name + emirate)
-const EMPTY_VOUCH = { church: NO_CHURCH, note: '' }
+const EMPTY_VOUCH = { church: NO_CHURCH, note: '', name: '', phone: '', ministry: '', leader: '', refName: '', refPhone: '' }
+// What a church admin sees about a vouch request, one fact per line
+const vouchDetails = v => [v.phone && `Mobile: ${v.phone}`, v.ministry && `Ministry: ${v.ministry}${v.ministry_leader ? ` (leader: ${v.ministry_leader})` : ''}`,
+  v.reference_name && `Knows them in the church: ${v.reference_name}${v.reference_phone ? `, ${v.reference_phone}` : ''}`, v.note && `Note: ${v.note}`].filter(Boolean).join('\n')
 const ROLE_LABELS = { member: 'Member', volunteer: 'Volunteer mentor', moderator: 'Moderator', church_admin: 'Church admin', pastoral_carer: 'Pastoral carer', admin: 'Admin', super_admin: 'Super admin' }
 const CHURCH_ROLES = ['church_admin', 'pastoral_carer'] // roles that serve one church
 // Two-step sign-in for staff is built but switched off for now. To switch it on: set this to true, deploy,
@@ -65,7 +68,7 @@ const TWO_STEP_REQUIRED = false
 const TWO_STEP_ROLES = ['moderator', 'church_admin', 'pastoral_carer', 'admin', 'super_admin']
 const APPLY_ROLES = [
   ['volunteer', 'Volunteer mentor', 'Give free CV reviews, practice interviews or LinkedIn help to job seekers.'],
-  ['church_admin', 'Church admin', 'Confirm which members of your church can post jobs. Only a yes/no is stored.']
+  ['church_admin', 'Church admin', 'Confirm which members of your church can post jobs. The vouch is a simple yes or no.']
 ]
 const APP_STATUS = { pending: 'Waiting for review', approved: 'Approved', declined: 'Declined' }
 const EMPTY_APPLY = { role: 'volunteer', church: NO_CHURCH, name: '', phone: '', organisation: '', qualification: '', pastor: '', note: '', agreed: false }
@@ -299,7 +302,7 @@ export default function App() {
   const scanJob = job => scanPost(`${job.title} ${job.salary} ${job.description}`, job.directEmail)
   const adminChurch = churches.find(c => c.id === profile.church_id)?.name
   const vouchRows = supabase
-    ? server.vouchRequests.map(v => ({ id: v.user_id, name: v.display_name, church: adminChurch, requestedDate: new Date(v.created_at).toLocaleDateString(), status: v.status, note: v.note }))
+    ? server.vouchRequests.map(v => ({ id: v.user_id, name: v.display_name, church: adminChurch, requestedDate: new Date(v.created_at).toLocaleDateString(), status: v.status, note: vouchDetails(v) }))
     : demo.vouchQueue
 
   // People management. The demo persona runs the site as super admin.
@@ -596,7 +599,7 @@ export default function App() {
     notify(`Switched to ${PERSONAS[next]} demo view`)
   }
   const handleVouch = (id, status, withdrawing = false) => {
-    const done = () => notify(status === 'vouched' ? 'Member vouched. Only a yes/no is stored, never belief or denomination data.'
+    const done = () => notify(status === 'vouched' ? 'Member vouched. The vouch is a yes or no, never belief or denomination data.'
       : withdrawing ? 'Vouch withdrawn. Their live jobs are hidden until they are vouched for again.' : 'Vouch request declined.')
     if (supabase) return api.decideVouch(id, status).then(() => { refresh(); done() }).catch(fail)
     updateDemo({ vouchQueue: demo.vouchQueue.map(m => m.id === id ? { ...m, status } : m) })
@@ -608,15 +611,20 @@ export default function App() {
     e.preventDefault()
     const church = churches.find(c => c.id === vouchForm.church.id)
     if (!church) return suggestChurch(vouchForm.church).then(added => added && setVouchForm(EMPTY_VOUCH))
-    const note = vouchForm.note.trim()
+    const f = Object.fromEntries(Object.entries(vouchForm).map(([k, v]) => [k, typeof v === 'string' ? v.trim() : v]))
+    const note = f.note
+    if (Boolean(f.ministry) !== Boolean(f.leader) || Boolean(f.refName) !== Boolean(f.refPhone) || !((f.ministry && f.leader) || (f.refName && f.refPhone))) {
+      return notify('Add your ministry and its leader, or someone in the church who knows you and their number, so your church admin can place you.')
+    }
+    const details = { display_name: f.name || account.name, phone: f.phone, ministry: f.ministry || null, ministry_leader: f.leader || null, reference_name: f.refName || null, reference_phone: f.refPhone || null }
     const done = () => { setVouchForm(EMPTY_VOUCH); notify(`Request sent to ${church.name}. Their admin only confirms you are known to the community.`) }
     if (supabase) {
       if (needsSignIn()) return
-      return api.requestVouch(server.myVouch, { church_id: church.id, display_name: account.name, note: note || null })
+      return api.requestVouch(server.myVouch, { church_id: church.id, note: note || null, ...details })
         .then(() => { refresh(); done() })
         .catch(fail)
     }
-    const request = { id: DEMO_ME, name: account.name, requestedDate: 'Just now', church: church.name, status: 'pending', note: `Job poster · ${note || 'No note added.'}` }
+    const request = { id: DEMO_ME, name: details.display_name, requestedDate: 'Just now', church: church.name, status: 'pending', note: vouchDetails({ ...details, note }) }
     updateDemo({ vouchQueue: [request, ...demo.vouchQueue.filter(m => m.id !== DEMO_ME)] })
     done()
   }
@@ -1461,7 +1469,7 @@ export default function App() {
                   <div className="cta-row-body">
                     <h3 id="vouch-title">Church membership verification</h3>
                     <p>
-                      {!myVouch ? 'Before anything you post can go live, your partner church confirms you are known to the community. Only a yes/no is stored, never belief or denomination data.'
+                      {!myVouch ? 'Before anything you post can go live, your partner church confirms you are known to the community. Your church admin sees the details you give below; the vouch itself is a yes or no, never belief or denomination data.'
                         : myVouch.status === 'pending' ? `Waiting for ${myVouch.church} to confirm you. You can still write posts; they stay unpublished until then. Picked the wrong church? Send the request again below.`
                         : myVouch.status === 'vouched' ? `${myVouch.church} has vouched for you. Your posts now go straight to a moderator, who checks them with the employer.`
                         : `${myVouch.church} could not confirm you. Check you chose the right church, add a note, and ask again.`}
@@ -1472,6 +1480,37 @@ export default function App() {
                 {myVouch?.status !== 'vouched' && (
                   <form className="booking-form vouch-form" onSubmit={requestVouch}>
                     <ChurchPicker label="Your church" churches={churches} value={vouchForm.church} onChange={church => setVouchForm({ ...vouchForm, church })}/>
+                    {vouchForm.church.id && <>
+                      <label>
+                        Full name
+                        <input name="name" autoComplete="name" required minLength={2} maxLength={80} placeholder={account.name} value={vouchForm.name} onChange={e => setVouchForm({ ...vouchForm, name: e.target.value })}/>
+                      </label>
+                      <label>
+                        Mobile number
+                        <input name="phone" type="tel" autoComplete="tel" required pattern="[+]?[0-9 \-]{7,20}" title="Numbers and spaces, with + for the country code" maxLength={20} placeholder="+971 50 123 4567" value={vouchForm.phone} onChange={e => setVouchForm({ ...vouchForm, phone: e.target.value })}/>
+                      </label>
+                      <fieldset className="vouch-place">
+                        <legend>How your church can place you</legend>
+                        <p className="wizard-hint">Fill in your ministry and its leader, or someone in the church who knows you, or both.</p>
+                        <label>
+                          Ministry you serve in
+                          <input name="ministry" maxLength={120} placeholder="e.g. Welcome team, Youth, Choir" value={vouchForm.ministry} onChange={e => setVouchForm({ ...vouchForm, ministry: e.target.value })}/>
+                        </label>
+                        <label>
+                          Name of the ministry leader
+                          <input name="ministry-leader" maxLength={80} value={vouchForm.leader} onChange={e => setVouchForm({ ...vouchForm, leader: e.target.value })}/>
+                        </label>
+                        <label>
+                          Someone in the church who knows you
+                          <input name="reference-name" maxLength={80} value={vouchForm.refName} onChange={e => setVouchForm({ ...vouchForm, refName: e.target.value })}/>
+                        </label>
+                        <label>
+                          Their mobile number
+                          <input name="reference-phone" type="tel" pattern="[+]?[0-9 \-]{7,20}" title="Numbers and spaces, with + for the country code" maxLength={20} value={vouchForm.refPhone} onChange={e => setVouchForm({ ...vouchForm, refPhone: e.target.value })}/>
+                          <small>Only give a number if this person is happy to be contacted by your church admin.</small>
+                        </label>
+                      </fieldset>
+                    </>}
                     <label>
                       Note for your church admin (optional)
                       <input name="note" maxLength={300} placeholder="e.g. How the admin knows you and the company you hire for" value={vouchForm.note} onChange={e => setVouchForm({ ...vouchForm, note: e.target.value })}/>
@@ -2193,7 +2232,7 @@ export default function App() {
           <div className="rp">
             <div className="rp-head"><ShieldCheck size={16}/> Your church: {supabase ? adminChurch : SAMPLE_CHURCHES[0].name}</div>
             <ol className="rp-steps rp-two">
-              <li><b><ShieldCheck size={13}/></b><span>Only a yes or no is stored</span></li>
+              <li><b><ShieldCheck size={13}/></b><span>The vouch is a yes or no</span></li>
               <li><b><ShieldCheck size={13}/></b><span>Never faith or denomination</span></li>
             </ol>
           </div>
@@ -2211,7 +2250,7 @@ export default function App() {
                     tone={vouched ? 'ok' : declined ? 'bad' : 'pending'}
                     sub={`${m.church} · Requested ${m.requestedDate}`}
                     note={m.note}
-                    footNote={<><LockKeyhole size={15}/> Stores a yes/no vouch only</>}
+                    footNote={<><LockKeyhole size={15}/> Only you and the member see these details</>}
                   >
                     <button className="reject-small" disabled={declined} onClick={() => handleVouch(m.id, 'declined', vouched)}><X size={15}/> {vouched ? 'Withdraw vouch' : 'Decline'}</button>
                     <button className="approve-small" disabled={vouched} onClick={() => handleVouch(m.id, 'vouched')}>

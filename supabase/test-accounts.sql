@@ -63,9 +63,10 @@ declare
 begin
   perform set_config('request.jwt.claim.sub', emp::text, true);
   perform set_config('request.jwt.claims', json_build_object('sub', emp)::text, true);
-  insert into public.vouches (user_id, church_id, display_name, note)
-  values (emp, emp_church, 'Amara Okafor', 'Test account: hires for Cedar Lane Interiors (sample)')
-  on conflict (user_id) do update set church_id = excluded.church_id, display_name = excluded.display_name, note = excluded.note;
+  insert into public.vouches (user_id, church_id, display_name, note, phone, ministry, ministry_leader)
+  values (emp, emp_church, 'Amara Okafor', 'Test account: hires for Cedar Lane Interiors (sample)', '+971 50 000 0001', 'Welcome team (sample)', 'Ruth Thomas (sample)')
+  on conflict (user_id) do update set church_id = excluded.church_id, display_name = excluded.display_name, note = excluded.note,
+    phone = excluded.phone, ministry = excluded.ministry, ministry_leader = excluded.ministry_leader;
 
   perform set_config('request.jwt.claim.sub', church_admin::text, true);
   perform set_config('request.jwt.claims', json_build_object('sub', church_admin)::text, true);
