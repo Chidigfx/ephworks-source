@@ -6,11 +6,11 @@ import './styles.css'
 
 // Shown when the deployment's Supabase settings are wrong, so visitors never get a blank page
 function SetupNotice() {
-  console.error(`Ephworks setup: ${configError}. Check the environment variables and redeploy.`)
+  console.error(`EphWorks setup: ${configError}. Check the environment variables and redeploy.`)
   return (
     <main className="setup-notice">
       <img src="/logo.svg" alt="" width="56" height="56"/>
-      <h1>Ephworks is being set up</h1>
+      <h1>EphWorks is being set up</h1>
       <p>Please check back in a few minutes.</p>
     </main>
   )

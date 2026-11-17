@@ -15,7 +15,7 @@ Deno.serve(async req => {
   if (unsubscribe) {
     if (!/^[0-9a-f-]{36}$/i.test(unsubscribe)) return new Response('Invalid link', { status: 400 })
     const ok = await rpc('unsubscribe_alerts', { token: unsubscribe }).then(r => r.ok ? r.json() : false)
-    return new Response(ok ? 'You are unsubscribed from Ephworks job alerts.' : 'This link did not work.', { status: ok ? 200 : 404 })
+    return new Response(ok ? 'You are unsubscribed from EphWorks job alerts.' : 'This link did not work.', { status: ok ? 200 : 404 })
   }
 
   if (!env('WEBHOOK_SECRET') || req.headers.get('x-webhook-secret') !== env('WEBHOOK_SECRET')) {
@@ -42,7 +42,7 @@ Deno.serve(async req => {
         from: env('EMAIL_FROM'),
         to: email,
         headers: { 'List-Unsubscribe': `<${oneClick}>`, 'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click' },
-        subject: `${jobs.length} new ${jobs.length === 1 ? 'job matches' : 'jobs match'} your Ephworks profile`,
+        subject: `${jobs.length} new ${jobs.length === 1 ? 'job matches' : 'jobs match'} your EphWorks profile`,
         text: [
           `Hello ${name},`,
           '',

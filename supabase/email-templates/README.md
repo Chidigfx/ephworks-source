@@ -11,11 +11,11 @@ Supabase → **Authentication → Emails → Templates**. For each template, set
 
 | Template | Subject | File |
 | --- | --- | --- |
-| Confirm sign up | Confirm your email for Ephworks | `confirm-signup.html` |
-| Reset password | Choose a new Ephworks password | `reset-password.html` |
-| Change email address | Confirm your new email for Ephworks | `change-email.html` |
+| Confirm sign up | Confirm your email for EphWorks | `confirm-signup.html` |
+| Reset password | Choose a new EphWorks password | `reset-password.html` |
+| Change email address | Confirm your new email for EphWorks | `change-email.html` |
 
 The links use `{{ .SiteURL }}`, so **Authentication → URL Configuration → Site URL** must be `https://www.ephworks.com`.
 Deploy the app first: an older app ignores `/auth/confirm` links.
 
-Also in **SMTP Settings**, set the sender name to `Ephworks` (one capital E).
+Also in **SMTP Settings**, set the sender name to `EphWorks` (capital E and W).

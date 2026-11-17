@@ -31,17 +31,17 @@ Deno.serve(async req => {
     body: JSON.stringify({
       from: env('EMAIL_FROM'),
       to: user.email,
-      subject: 'Your Ephworks account is approved',
+      subject: 'Your EphWorks account is approved',
       text: [
         `Hello ${name},`,
         '',
-        'A moderator has approved your Ephworks account. You can now save jobs, mark your interest, post jobs and ask for career support or pastoral care.',
+        'A moderator has approved your EphWorks account. You can now save jobs, mark your interest, post jobs and ask for career support or pastoral care.',
         '',
         `Your own referral code is ${record.referral_code}. Give it only to people you know: you will be shown as the person who invited them.`,
         '',
         `Sign in: ${site}`,
         '',
-        'Ephworks is free for everyone, always. Nobody will ever ask you for money.'
+        'EphWorks is free for everyone, always. Nobody will ever ask you for money.'
       ].join('\n')
     })
   })
