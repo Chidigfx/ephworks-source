@@ -5,6 +5,25 @@
 
 const env = (name: string) => Deno.env.get(name) ?? ''
 
+// Same look as the sign-in emails in supabase/email-templates. Names come from members, so they are escaped.
+const esc = (s: unknown) => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c] as string)
+const button = (href: string, label: string) =>
+  `<p style="margin:0 0 20px"><a href="${esc(href)}" style="display:inline-block;padding:12px 22px;background:#086d96;color:#ffffff;text-decoration:none;font-weight:600;font-size:15px;border-radius:8px">${esc(label)}</a></p>`
+const layout = (site: string, title: string, body: string) => `<div style="margin:0;padding:24px 12px;background:#f3f9fc;font-family:'Open Sans',Arial,sans-serif;color:#111c2d">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;margin:0 auto;background:#ffffff;border:1px solid #dbe7eb;border-radius:12px">
+    <tr><td style="padding:28px 28px 8px"><img src="${esc(site)}/apple-touch-icon.png" width="48" height="48" alt="EphWorks" style="display:block;border:0"></td></tr>
+    <tr><td style="padding:8px 28px 8px">
+      <h1 style="margin:0 0 12px;font-size:22px;line-height:1.3;color:#111c2d">${esc(title)}</h1>
+      ${body}
+    </td></tr>
+    <tr><td style="padding:16px 28px 24px;border-top:1px solid #dbe7eb">
+      <p style="margin:0;font-size:12px;line-height:1.6;color:#475569">EphWorks · www.ephworks.com · Free for everyone, always. We will never ask you for money.</p>
+    </td></tr>
+  </table>
+</div>`
+const para = (text: string, small = false) =>
+  `<p style="margin:0 0 16px;font-size:${small ? 13 : 15}px;line-height:1.6;color:${small ? '#475569' : '#334155'}">${text}</p>`
+
 Deno.serve(async req => {
   // Only the database webhook knows this secret (set it as a custom header on the webhook)
   if (!env('WEBHOOK_SECRET') || req.headers.get('x-webhook-secret') !== env('WEBHOOK_SECRET')) {
@@ -42,7 +61,14 @@ Deno.serve(async req => {
         `Sign in: ${site}`,
         '',
         'EphWorks is free for everyone, always. Nobody will ever ask you for money.'
-      ].join('\n')
+      ].join('\n'),
+      html: layout(site, 'Your EphWorks account is approved', [
+        para(`Hello ${esc(name)},`),
+        para('A moderator has approved your EphWorks account. You can now save jobs, mark your interest, apply to employers, post jobs, and ask for career support or pastoral care.'),
+        button(site, 'Go to EphWorks'),
+        para(`Your own referral code is <b style="color:#111c2d">${esc(record.referral_code)}</b>. Give it only to people you know: you will be shown as the person who invited them.`),
+        para('Didn’t ask to join EphWorks? Reply to this email and we’ll remove the account.', true)
+      ].join('\n      '))
     })
   })
   return Response.json({ sent: sent.ok }, { status: sent.ok ? 200 : 502 })
