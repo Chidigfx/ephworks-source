@@ -1250,20 +1250,9 @@ export default function App() {
           </section>
 
           <ul className="stat-row" aria-label="At a glance">
-            <li className="stat featured">
-              <b>3 checks</b>
-              <span>Before any job goes live</span>
-              {/* Hidden for now: the three checks, named
-              <ol className="stat-checks">
-                <li>Church vouch for the poster</li>
-                <li>Fee and scam check</li>
-                <li>Confirmed with the employer</li>
-              </ol>
-              */}
-            </li>
-            <li className="stat"><b>Private</b><span>Employers see how many people clicked “I’m interested”, not who clicked. Apply directly to the employer. We never store your CV.</span></li>
-            <li className="stat"><b>Career support</b><span>Practical help with your CV, LinkedIn profile and mock interviews, plus pastoral care.</span></li>
-            <li className="stat"><b>Fresh Posts</b><span>Posts expire after 30 days, and new jobs are added weekly.</span></li>
+            <li className="stat featured"><b>New opportunities</b><span>New jobs are added every week. Listings expire after 30 days to keep the board current.</span></li>
+            <li className="stat"><b>Private</b><span>Employers see interest counts, not names. Apply directly; {SITE_NAME} never stores your CV.</span></li>
+            <li className="stat"><b>Career support</b><span>Free CV, LinkedIn and mock interview help, plus pastoral care from volunteers.</span></li>
           </ul>
 
           <section id="opp-list" className="opportunity-section">
@@ -3049,7 +3038,6 @@ function InfoPage({ page, onGo, onAction, roles, contactForm }) {
             {icon('hand')}
             <h3>{v.title}</h3>
             <p>{v.summary}</p>
-            <small><MapPin size={14}/> {v.location} · <Clock3 size={14}/> {v.commitment}</small>
           </div>
         ))}
       </div>
