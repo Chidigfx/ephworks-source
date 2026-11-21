@@ -14,16 +14,16 @@ export const INFO_PAGES = [
   {
     id: 'about', path: '/about', group: 'about', tab: 'Our Story', hero: '/images/community.webp',
     title: 'Our Story',
-    lede: `A free job noticeboard for church communities in the UAE, so people find work through people who know them.`,
+    lede: 'A free job noticeboard connecting church communities with trusted opportunities.',
     blocks: [
       { split: {
         image: '/images/mentor.webp', alt: 'A volunteer mentor going through a CV with a job seeker',
         paragraphs: [
-          `${SITE_NAME} began in October 2026 at #HACK2026. Too many people looking for work in the UAE meet fake recruiters in open social media groups, and some are asked to pay for a job that does not exist.`,
-          'So we built something smaller and safer: everyone posting a job is known to their church, every job is checked with the employer, and nobody is ever charged.'
-        ],
-        // TODO(founders): replace this with the real story: who started it, why, and the community it grew from
-        aside: 'Our founders are writing the full story of how this started and the community it grew from.'
+          `${SITE_NAME} began in Dubai, UAE, in October 2026.`,
+          'Our founding members kept hearing the same story. People searching for work online were meeting fake recruiters, and some were asked to pay for jobs that did not exist. For many job seekers, it is hard to tell which opportunities are genuine, and the cost of getting it wrong is high.',
+          `We decided to act. ${SITE_NAME} is a free job noticeboard for church communities, built on trust at every step. A church admin vouches for each person who posts a job. A moderator then checks the opportunity with the employer before it goes live. Job seekers apply straight to the employer, we never store their CV, and no one is ever asked to pay, whether they are applying or posting. Job seekers can also request CV and LinkedIn reviews, mock interviews and pastoral care.`,
+          'We believe church communities are well placed to make job searching safer. People who know one another can vouch for one another, and that care is what makes a noticeboard worth trusting. Our hope is to make the search for work safer and more personal, and, over time, to help reduce if not eradicate the harm that fake recruiters cause.'
+        ]
       } },
       { stats: [['AED 0', 'Free for everyone, always'], ['3 checks', 'Before any job goes live'], ['30 days', 'Longest a post stays up']] },
       { cta: [['Browse jobs', 'opportunities'], ['How it works', 'howItWorks']] }
@@ -51,36 +51,36 @@ export const INFO_PAGES = [
     ]
   },
   {
-    id: 'howItWorks', path: '/about/how-it-works', group: 'about', tab: `How ${SITE_NAME} Works`, hero: '/images/community.webp',
-    title: `How ${SITE_NAME} Works`,
-    lede: 'Three checks happen before any job reaches you.',
+    id: 'howItWorks', path: '/about/how-it-works', group: 'about', tab: 'How It Works', hero: '/images/community.webp',
+    title: 'How It Works',
+    lede: 'A simple process for job seekers and employers.',
     blocks: [
       { columns: [
         { title: 'If you are looking for work', icon: 'search', steps: [
           ['Find a job', 'Search by role, emirate and work type. Every listing has been checked with the employer.'],
-          ["Tap I'm interested or save it", 'The employer only sees how many people are interested, never who.'],
-          ['Apply to the employer directly', `By the email or careers page on the listing. ${SITE_NAME} never sees your CV.`]
+          ['Tap “I’m Interested” or save the job', 'When you tap “I’m Interested”, the employer sees the number of interested users, not who clicked.'],
+          ['Apply directly to the employer', `Use the email address or careers page in the job post. ${SITE_NAME} does not receive your CV through the application.`]
         ] },
         { title: 'If you are hiring', icon: 'briefcase', steps: [
-          ['Your church vouches for you', 'Your church admin confirms you are known to the community. They see the contact details you give them; the vouch itself is a yes or no.'],
-          ['Post the job', 'A few short steps. Posts asking candidates for money are blocked automatically.'],
-          ['A moderator checks it with you', 'They confirm the role, pay and contact details with your company.'],
-          ['Live for 30 days', 'Posts end after 30 days so the board never fills with old jobs.']
+          ['Your church admin vouches for you', 'The admin confirms whether they know you. Only your church admin sees the details you share, and the vouch itself is just a Yes or No.'],
+          ['Post the job in a few short steps', 'Posts asking job seekers to pay are automatically blocked.'],
+          ['A moderator reviews your post', 'They confirm the role, pay and contact details with you before it goes live.']
         ] }
       ] },
-      { note: 'Church vouching confirms identity and good character, not faith. Anyone can browse jobs; approved members apply.' },
+      { note: 'Each post stays live for 30 days, then expires.' },
+      { note: 'Church vouching confirms the person posting a job is known to their church. It is not a test of faith: anyone can browse jobs, and approved members can apply.' },
       { cta: [['Post a job', 'post'], ['How we review jobs', 'jobReview']] }
     ]
   },
   {
     id: 'community', path: '/about/community', group: 'about', tab: 'Our Community', hero: '/images/mentor.webp',
     title: 'Our Community',
-    lede: 'Partner churches, volunteers and members looking out for each other.',
+    lede: 'Partner churches, volunteers and members working together to help people find genuine job opportunities.',
     blocks: [
       { cards: [
-        ['Partner churches', 'Each church has an admin who vouches for members who want to post jobs.', 'church'],
-        ['Volunteer mentors', 'HR professionals and hiring managers who give free CV reviews and practice interviews.', 'hand'],
-        ['Members', 'People looking for work, and people who know of good jobs to share.', 'users']
+        ['Partner Churches', 'Each partner church has an admin who can vouch for people posting jobs.', 'church'],
+        ['Volunteer Mentors', 'HR professionals and hiring managers who provide free CV reviews and mock interviews.', 'hand'],
+        ['Members', 'Job seekers and community members who share job leads.', 'users']
       ] },
       { h: 'Ways to volunteer' },
       { roles: true },
@@ -90,12 +90,12 @@ export const INFO_PAGES = [
   {
     id: 'partner', path: '/about/partner', group: 'about', tab: 'Partner With Us', hero: '/images/workday.webp',
     title: 'Partner With Us',
-    lede: 'Help more people find honest work.',
+    lede: 'Help more people find genuine job opportunities.',
     blocks: [
       { cards: [
-        ['Churches', 'Become a partner church. Your church office applies as church admin and vouches for members who post jobs.', 'church', ['Apply as a church admin', 'apply:church_admin']],
-        ['Employers', 'Post jobs for free. Every post is checked with you before it goes live.', 'building', ['Post a job', 'post']],
-        ['Organisations & sponsors', 'Support the work, run a training session or offer volunteers.', 'hand', ['Send us a message', 'contact:partnership']]
+        ['Churches', 'A church representative can apply to become a church admin and vouch for members who post jobs.', 'church', ['Apply as a church admin', 'apply:church_admin']],
+        ['Employers', 'Post jobs for free. A moderator checks each job with you before it goes live.', 'building', ['Post a job', 'post']],
+        ['Organisations & Sponsors', 'Support our work, host a training session or connect us with volunteers.', 'hand', ['Send us a message', 'contact:partnership']]
       ] }
     ]
   },

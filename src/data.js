@@ -186,9 +186,9 @@ export const CAREER_SUPPORT_MODULES = [
 ]
 
 export const SAMPLE_VOLUNTEER = [
-  { title: 'CV Review Companion', group: 'Community career circle', location: 'Dubai / Online', commitment: '2 hours / month', summary: 'Help community members improve how they present their experience.' },
-  { title: 'Conversation Practice Host', group: 'Language exchange team', location: 'Online', commitment: '1 hour / week', summary: 'Support practical confidence in everyday workplace English.' },
-  { title: 'Event Welcome Volunteer', group: 'Community hospitality group', location: 'Dubai', commitment: 'One Saturday', summary: 'Welcome guests and help coordinate a friendly community meetup.' }
+  { title: 'CV Review Volunteer', summary: 'Help community members present their skills and experience clearly on their CVs.' },
+  { title: 'Mock Interview Volunteer', summary: 'Help community members practise answering questions and build confidence for interviews.' },
+  { title: 'Pastoral Care Volunteer', summary: 'Offer emotional and spiritual support to community members navigating unemployment or career transitions. Pastoral carers are appointed by our team, so send us a message if you would like to help.' }
 ]
 
 export const TRUST_PILLARS = [
