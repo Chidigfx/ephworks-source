@@ -770,6 +770,9 @@ check('a church with no church admin: admin approves directly', r.rows[0]?.role 
 r = await as(EMP, `select public.church_has_admin($1, $2)`, [CHURCH, EMP])
 check('members cannot probe which churches have admins', /permission denied/.test(r.error || ''), r)
 
+r = await db.query(`select pg_get_constraintdef(oid) as def from pg_constraint where conname = 'jobs_description_check'`)
+check('job descriptions allow up to 4,000 characters', /4000/.test(r.rows[0]?.def || ''), r.rows)
+
 // Parked in supabase/later/ for now; these checks run once that migration is moved back into migrations/
 if (migration.includes('two_step_passed')) {
 const oneStep = (uid, sql, params) => as(uid, sql, params, 'aal1')

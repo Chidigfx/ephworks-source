@@ -27,6 +27,7 @@ const demoKey = 'ephworks-local-demo-v5'
 const defaultDemo = {
   saved: [],
   tracked: [],
+  trackedAt: {}, // job id -> when it was marked as applied
   interested: [],
   role: 'member', // demo persona, a key of PERSONAS
   drafts: [], // jobs rows, same shape as public.jobs, so toJob() renders them
@@ -94,7 +95,8 @@ const EMPTY_CONTACT = { name: '', email: '', topic: 'question', message: '', web
 const EMIRATES = ['Abu Dhabi', 'Dubai', 'Sharjah', 'Ajman', 'Umm Al Quwain', 'Ras Al Khaimah', 'Fujairah']
 const WORK_TYPES = ['Full-time', 'Part-time']
 const WORK_SETTINGS = ['On-site', 'Hybrid', 'Remote']
-const EMPTY_DRAFT = { title: '', company: '', emirate: 'Dubai', type: 'Full-time', mode: 'On-site', payFrom: '', payTo: '', email: '', portal: '', description: '' }
+const EMPTY_DRAFT = { title: '', company: '', emirate: 'Dubai', type: 'Full-time', mode: 'On-site', payFrom: '', payTo: '', payHidden: false, email: '', portal: '', description: '' }
+const DESCRIPTION_MAX = 4000 // matches jobs_description_check (20261122 migration)
 const DRAFT_KEY = 'ephworks-post-draft' // unfinished post, kept on this device between visits
 // Post a job, one short step at a time. The church step only shows until the poster is vouched.
 const POST_STEPS = [
@@ -122,7 +124,10 @@ function matchesJob(p, job) {
     && (!settings.length || settings.includes(job.mode)) && (!words.length || words.some(w => w.test(text)))
     && (!p.min_pay || !Number.isFinite(pay) || pay >= Number(p.min_pay))
 }
-const salaryText = ({ payFrom, payTo }) => payFrom ? (payTo && Number(payTo) !== Number(payFrom) ? `${aed(payFrom)} – ${Number(payTo).toLocaleString('en-US')}` : aed(payFrom)) : ''
+const PAY_HIDDEN = 'Salary not disclosed'
+// "AED 5,000 per month", or the words alone when there is no figure
+const perMonth = salary => /\d/.test(salary || '') ? `${salary} per month` : salary
+const salaryText = ({ payFrom, payTo, payHidden }) => payHidden ? PAY_HIDDEN : payFrom ? (payTo && Number(payTo) !== Number(payFrom) ? `${aed(payFrom)} – ${Number(payTo).toLocaleString('en-US')}` : aed(payFrom)) : ''
 
 // Every page has its own address, so links can be shared and the back button works
 const PATHS = {
@@ -154,6 +159,7 @@ function getSavedDemo() {
       ...value,
       saved: Array.isArray(value.saved) ? value.saved : [],
       tracked: Array.isArray(value.tracked) ? value.tracked : [],
+      trackedAt: value.trackedAt && typeof value.trackedAt === 'object' ? value.trackedAt : {},
       interested: Array.isArray(value.interested) ? value.interested : [],
       drafts: Array.isArray(value.drafts) ? value.drafts : [],
       reports: Array.isArray(value.reports) ? value.reports : [],
@@ -687,9 +693,15 @@ export default function App() {
     done()
   }
 
+  // false, true (marked before dates were kept) or a short date such as "21 Nov"
+  const appliedOn = id => !demo.tracked.includes(id) ? false
+    : demo.trackedAt[id] ? new Date(demo.trackedAt[id]).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : true
+
   const toggleTrack = id => {
     const already = demo.tracked.includes(id)
-    updateDemo({ tracked: already ? demo.tracked.filter(x => x !== id) : [...demo.tracked, id] })
+    const trackedAt = { ...demo.trackedAt }
+    if (already) delete trackedAt[id]; else trackedAt[id] = new Date().toISOString()
+    updateDemo({ tracked: already ? demo.tracked.filter(x => x !== id) : [...demo.tracked, id], trackedAt })
     notify(already ? 'Application tracker removed.' : 'Marked as applied. Tracked in this browser.')
   }
 
@@ -1051,7 +1063,7 @@ export default function App() {
   const stepProblem = key => {
     const f = draftForm
     if (key === 'job') return f.title.trim().length < 3 ? 'Add a job title (at least 3 letters).' : f.company.trim().length < 2 ? 'Add the company name.' : ''
-    if (key === 'pay') return !(Number(f.payFrom) > 0) ? 'Add the monthly pay in AED.' : f.payTo && Number(f.payTo) < Number(f.payFrom) ? 'The top of the range must be at least the starting pay.' : ''
+    if (key === 'pay') return f.payHidden ? '' : !(Number(f.payFrom) > 0) ? 'Add the monthly pay in AED.' : f.payTo && Number(f.payTo) < Number(f.payFrom) ? 'The top of the range must be at least the starting pay.' : ''
     if (key === 'description') return f.description.trim().length < 20 ? 'Describe the job in at least 20 characters.' : draftScan.blocked.length ? `Remove fee wording: ${draftScan.blocked.join(', ')}.` : ''
     if (key === 'apply') return !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(f.email.trim()) ? 'Add an email where candidates can apply.' : f.portal && !/^https:\/\//.test(f.portal.trim()) ? 'The careers page must start with https://' : ''
     return ''
@@ -1108,7 +1120,7 @@ export default function App() {
             key={job.id}
             job={job}
             saved={demo.saved.includes(job.id)}
-            tracked={demo.tracked.includes(job.id)}
+            tracked={appliedOn(job.id)}
             onSave={() => toggleSave(job.id)}
             onOpen={() => setSelectedJob(job)}
             interested={interestedIds.includes(job.id)}
@@ -1280,7 +1292,7 @@ export default function App() {
                   key={job.id}
                   job={job}
                   saved={demo.saved.includes(job.id)}
-                  tracked={demo.tracked.includes(job.id)}
+                  tracked={appliedOn(job.id)}
                   onSave={() => toggleSave(job.id)}
                   onOpen={() => setSelectedJob(job)}
                   interested={interestedIds.includes(job.id)}
@@ -1432,7 +1444,7 @@ export default function App() {
                     key={job.id}
                     job={job}
                     saved={demo.saved.includes(job.id)}
-                    tracked={demo.tracked.includes(job.id)}
+                    tracked={appliedOn(job.id)}
                     onSave={() => toggleSave(job.id)}
                     onOpen={() => setSelectedJob(job)}
                     interested={interestedIds.includes(job.id)}
@@ -1568,14 +1580,18 @@ export default function App() {
                   <div className="form-two">
                     <label>
                       Monthly pay from (AED)
-                      <input name="pay-from" type="number" inputMode="numeric" min={1} max={999999} placeholder="5000" value={draftForm.payFrom} onChange={e => setDraft({ payFrom: e.target.value })}/>
+                      <input name="pay-from" type="number" inputMode="numeric" min={1} max={999999} placeholder="5000" disabled={draftForm.payHidden} value={draftForm.payFrom} onChange={e => setDraft({ payFrom: e.target.value })}/>
                     </label>
                     <label>
                       Up to (AED, optional)
-                      <input name="pay-to" type="number" inputMode="numeric" min={1} max={999999} placeholder="7000" value={draftForm.payTo} onChange={e => setDraft({ payTo: e.target.value })}/>
+                      <input name="pay-to" type="number" inputMode="numeric" min={1} max={999999} placeholder="7000" disabled={draftForm.payHidden} value={draftForm.payTo} onChange={e => setDraft({ payTo: e.target.value })}/>
                     </label>
                   </div>
-                  {draftSalary && <p className="wizard-hint">Shown as <strong>{draftSalary} per month</strong>.</p>}
+                  <label className="check-label">
+                    <input name="pay-hidden" type="checkbox" checked={draftForm.payHidden} onChange={e => setDraft({ payHidden: e.target.checked })}/>
+                    <span>Don’t show the salary. Job seekers will see “{PAY_HIDDEN}”, and jobs with a salary usually get more interest.</span>
+                  </label>
+                  {draftSalary && <p className="wizard-hint">Shown as <strong>{perMonth(draftSalary)}</strong>.</p>}
                   <p className="law-notice"><ShieldCheck size={15}/> Candidates are never charged anything: no fees, deposits or visa costs. It's the law in the UAE.</p>
                 </>}
 
@@ -1583,9 +1599,9 @@ export default function App() {
                   <h2 className="wizard-title">Describe the job</h2>
                   <label>
                     What the job involves
-                    <textarea name="description" rows={7} maxLength={1600} placeholder="Day-to-day tasks, who they'd work with, hours, and what you're looking for." value={draftForm.description} onChange={e => setDraft({ description: e.target.value })}/>
+                    <textarea name="description" rows={7} maxLength={DESCRIPTION_MAX} placeholder="Day-to-day tasks, who they'd work with, hours, and what you're looking for." value={draftForm.description} onChange={e => setDraft({ description: e.target.value })}/>
                   </label>
-                  <small className="wizard-hint">{draftForm.description.length} / 1600</small>
+                  <small className="wizard-hint">{draftForm.description.length} / {DESCRIPTION_MAX}</small>
                   {draftScan.blocked.length > 0 && (
                     <div className="auto-block-box">
                       <ShieldAlert size={22}/>
@@ -1617,7 +1633,7 @@ export default function App() {
                   <dl className="wizard-summary">
                     {[
                       ['The job', `${draftForm.title} · ${draftForm.company} · ${draftForm.emirate} · ${draftForm.type} · ${draftForm.mode}`, 'job'],
-                      ['Pay', `${draftSalary} per month`, 'pay'],
+                      ['Pay', perMonth(draftSalary), 'pay'],
                       ['Description', draftForm.description, 'description'],
                       ['Apply via', [draftForm.email, draftForm.portal].filter(Boolean).join(' · '), 'apply']
                     ].map(([label, value, key]) => (
@@ -1689,7 +1705,7 @@ export default function App() {
                   <div>
                     <h3>{d.title}</h3>
                     <p>{d.company} · {d.emirate} · {d.type} · {d.mode}</p>
-                    <small>{d.salary} / month</small>
+                    <small>{perMonth(d.salary)}</small>
                     <div className="draft-desc">{d.description}</div>
                     {d.status === 'published' && (
                       <div className="audit-line">
@@ -2551,7 +2567,7 @@ export default function App() {
                     className="secondary-button full"
                     onClick={() => toggleTrack(selectedJob.id)}
                   >
-                    <CheckCheck size={16}/> {demo.tracked.includes(selectedJob.id) ? 'Application marked as sent' : 'Mark as applied (Track in my list)'}
+                    <CheckCheck size={16}/> {demo.tracked.includes(selectedJob.id) ? `You applied${appliedOn(selectedJob.id) === true ? '' : ` on ${appliedOn(selectedJob.id)}`} · tap to undo` : 'Mark as applied (Track in my list)'}
                   </button>
                 </div>
                 <div className="law-notice">
@@ -2946,7 +2962,7 @@ function JobCard({ job, saved, tracked, interested, onSave, onOpen, onInterest, 
           ? <button type="button" className="jc-check" title="How we review jobs" onClick={onLearn}><BadgeCheck size={15}/> Checked with employer</button>
           : <span className="jc-check"><BadgeCheck size={15}/> Checked with employer</span>}
         {isNew && <span className="jc-new"><Sparkles size={13}/> New for you</span>}
-        {tracked && <span className="jc-applied"><CheckCheck size={13}/> Applied</span>}
+        {tracked && <span className="jc-applied"><CheckCheck size={13}/> Applied{tracked === true ? '' : ` ${tracked}`}</span>}
         <button
           className={`jc-save ${saved ? 'is-saved' : ''}`}
           aria-label={`${saved ? 'Remove' : 'Save'} ${job.title}`}
@@ -2964,7 +2980,7 @@ function JobCard({ job, saved, tracked, interested, onSave, onOpen, onInterest, 
           <h3>{job.title}</h3>
           <p>{job.company} <span>·</span> {job.emirate}</p>
         </div>
-        <p className="jc-pay"><b>{job.salary}</b><span>per month</span></p>
+        <p className="jc-pay"><b>{job.salary}</b>{/\d/.test(job.salary) && <span>per month</span>}</p>
       </div>
 
       <div className="jc-foot">
@@ -3094,6 +3110,7 @@ function InfoPage({ page, onGo, onAction, roles, contactForm }) {
             {icon('hand')}
             <h3>{v.title}</h3>
             <p>{v.summary}</p>
+            {v.apply && <button type="button" className="secondary-button" onClick={() => onAction(`apply:${v.apply}`)}>{v.apply === 'pastoral_carer' ? 'Apply as a carer' : 'Apply as a mentor'} <ArrowRight size={15}/></button>}
           </div>
         ))}
       </div>

@@ -705,8 +705,8 @@ body{background:radial-gradient(60vw 50vw at 0% 0%,#bee1ef 0,transparent 60%),ra
 .pub-checks .bad{color:var(--danger-text)}
 .dialog .pub-checks{margin:0}
 @media(max-width:760px){.pub-checks{margin:12px 16px 0}}
-.booking-form .check-label{display:flex;align-items:flex-start;gap:10px;font-weight:500}
-.booking-form .check-label input{width:20px;min-height:20px;height:20px;flex:none;margin-top:1px;accent-color:var(--primary)}
+.booking-form .check-label,.post-form .check-label{display:flex;align-items:flex-start;gap:10px;font-weight:500}
+.booking-form .check-label input,.post-form .check-label input{width:20px;min-height:20px;height:20px;flex:none;margin-top:1px;accent-color:var(--primary)}
 
 /* People management: apply page, people dashboard */
 .status-chip.neutral{background:var(--subtle);color:var(--fg-2)}

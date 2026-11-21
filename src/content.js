@@ -84,7 +84,7 @@ export const INFO_PAGES = [
       ] },
       { h: 'Ways to volunteer' },
       { roles: true },
-      { cta: [['Apply to volunteer', 'apply:volunteer'], ['Get career support', 'career']] }
+      { cta: [['Get career support', 'career']] }
     ]
   },
   {

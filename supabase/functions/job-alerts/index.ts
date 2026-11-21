@@ -25,7 +25,7 @@ const para = (text: string, small = false) =>
 const jobRow = (j: { title: string, company: string, emirate: string, salary: string }) =>
   `<tr><td style="padding:12px 14px;border:1px solid #dbe7eb;border-radius:8px;background:#f3f9fc">
     <p style="margin:0;font-size:15px;font-weight:600;color:#111c2d">${esc(j.title)}</p>
-    <p style="margin:2px 0 0;font-size:13px;color:#475569">${esc(j.company)} · ${esc(j.emirate)} · ${esc(j.salary)} a month</p>
+    <p style="margin:2px 0 0;font-size:13px;color:#475569">${esc(j.company)} · ${esc(j.emirate)} · ${esc(j.salary)}${/\d/.test(j.salary) ? ' a month' : ''}</p>
   </td></tr><tr><td style="height:8px"></td></tr>`
 const rpc = (name: string, body: unknown) => fetch(`${env('SUPABASE_URL')}/rest/v1/rpc/${name}`, {
   method: 'POST',
@@ -58,7 +58,7 @@ Deno.serve(async req => {
   let failed = 0
   for (const { email, name, jobs, token, as_of } of due as { email: string, name: string, token: string, as_of: string, jobs: { title: string, company: string, emirate: string, salary: string }[] }[]) {
     const oneClick = `${env('SUPABASE_URL')}/functions/v1/job-alerts?unsubscribe=${token}`
-    const lines = jobs.map(j => `- ${j.title} at ${j.company}, ${j.emirate} (${j.salary} a month)`)
+    const lines = jobs.map(j => `- ${j.title} at ${j.company}, ${j.emirate} (${j.salary}${/\d/.test(j.salary) ? ' a month' : ''})`)
     const ok = await fetch('https://api.resend.com/emails', {
       method: 'POST',
       headers: { Authorization: `Bearer ${env('RESEND_API_KEY')}`, 'Content-Type': 'application/json' },
