@@ -188,7 +188,7 @@ export const CAREER_SUPPORT_MODULES = [
 export const SAMPLE_VOLUNTEER = [
   { title: 'CV Review Volunteer', summary: 'Help community members present their skills and experience clearly on their CVs.' },
   { title: 'Mock Interview Volunteer', summary: 'Help community members practise answering questions and build confidence for interviews.' },
-  { title: 'Pastoral Care Volunteer', summary: 'Offer emotional and spiritual support to community members navigating unemployment or career transitions.' }
+  { title: 'Pastoral Care Volunteer', summary: 'Offer emotional and spiritual support to community members navigating unemployment or career transitions. Pastoral carers are appointed by our team, so send us a message if you would like to help.' }
 ]
 
 export const TRUST_PILLARS = [

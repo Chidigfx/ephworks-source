@@ -51,7 +51,7 @@ export const INFO_PAGES = [
     ]
   },
   {
-    id: 'howItWorks', path: '/about/how-it-works', group: 'about', tab: `How ${SITE_NAME} Works`, hero: '/images/community.webp',
+    id: 'howItWorks', path: '/about/how-it-works', group: 'about', tab: 'How It Works', hero: '/images/community.webp',
     title: 'How It Works',
     lede: 'A simple process for job seekers and employers.',
     blocks: [
@@ -68,6 +68,7 @@ export const INFO_PAGES = [
         ] }
       ] },
       { note: 'Each post stays live for 30 days, then expires.' },
+      { note: 'Church vouching confirms the person posting a job is known to their church. It is not a test of faith: anyone can browse jobs, and approved members can apply.' },
       { cta: [['Post a job', 'post'], ['How we review jobs', 'jobReview']] }
     ]
   },
