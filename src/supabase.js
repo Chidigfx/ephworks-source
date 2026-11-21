@@ -163,6 +163,7 @@ export const api = {
   applications: () => run(supabase.from('role_applications').select('*').order('created_at', { ascending: false })),
   apply: row => run(supabase.from('role_applications').insert(row)),
   decideApplication: (application, approve) => run(supabase.rpc('decide_application', { application, approve })),
+  confirmCarerApplication: (application, confirm) => run(supabase.rpc('confirm_carer_application', { application, confirm })),
   // Interest is per account; posters only get counts (interest_counts), never names
   myInterest: uid => run(supabase.from('job_interest').select('job_id').eq('user_id', uid)).then(rows => rows.map(r => r.job_id)),
   markInterest: job_id => run(supabase.from('job_interest').insert({ job_id })),

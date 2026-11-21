@@ -68,9 +68,12 @@ const TWO_STEP_REQUIRED = false
 const TWO_STEP_ROLES = ['moderator', 'church_admin', 'pastoral_carer', 'admin', 'super_admin']
 const APPLY_ROLES = [
   ['volunteer', 'Volunteer mentor', 'Give free CV reviews, practice interviews or LinkedIn help to job seekers.'],
-  ['church_admin', 'Church admin', 'Confirm which members of your church can post jobs. The vouch is a simple yes or no.']
+  ['church_admin', 'Church admin', 'Confirm which members of your church can post jobs. The vouch is a simple yes or no.'],
+  ['pastoral_carer', 'Pastoral carer', 'Pray with and support members of your church through job loss or a hard season. Your church admin confirms you first.']
 ]
 const APP_STATUS = { pending: 'Waiting for review', approved: 'Approved', declined: 'Declined' }
+// A carer application waits for the church admin, then for an admin
+const appStatus = a => a.role === 'pastoral_carer' && a.status === 'pending' ? (a.church_confirmed_at ? 'Church confirmed · waiting for an admin' : 'Waiting for the church admin') : APP_STATUS[a.status]
 const EMPTY_APPLY = { role: 'volunteer', church: NO_CHURCH, name: '', phone: '', organisation: '', qualification: '', pastor: '', note: '', agreed: false }
 const EMPTY_AUTH = { mode: 'signin', name: '', email: '', password: '', code: '' } // mode: signin | signup | reset
 // Must match the pastoral_requests.kind check in the 20261102 migration
@@ -464,7 +467,9 @@ export default function App() {
     return () => { document.removeEventListener('visibilitychange', recheck); window.removeEventListener('focus', recheck) }
   }, [uid])
 
-  const pendingVouches = vouchRows.filter(m => m.status === 'pending').length
+  const myChurchId = supabase ? profile.church_id : SAMPLE_CHURCHES[0].id
+  const carerApps = isChurchAdmin ? applications.filter(a => a.role === 'pastoral_carer' && a.church_id === myChurchId && a.user_id !== myId) : []
+  const pendingVouches = vouchRows.filter(m => m.status === 'pending').length + carerApps.filter(a => a.status === 'pending' && !a.church_confirmed_at).length
   const waitingFor = canModerate && queue.length ? 'review' : canModerate && pendingMembers.length ? 'joining' : isCarer && openCareRequests ? 'carerQueue' : isChurchAdmin && pendingVouches ? 'vouch' : isAdmin && pendingApplications ? 'applications' : isAdmin && pendingChurchRequests ? 'churchRequests' : isVolunteer && openMentorRequests ? 'mentoring' : null
   const landed = useRef(null)
   useEffect(() => {
@@ -893,13 +898,16 @@ export default function App() {
     e.preventDefault()
     if (supabase && needsSignIn()) return
     const { role: appRole, church, name, note, phone, organisation, qualification, pastor } = applyForm
-    const listed = appRole === 'church_admin' && churches.find(c => c.id === church.id)
+    const listed = ['church_admin', 'pastoral_carer'].includes(appRole) && churches.find(c => c.id === church.id)
+    if (appRole === 'pastoral_carer' && !listed) return notify('Choose the church where you serve.')
     const send = suggestion => {
       if (appRole === 'church_admin' && !listed && !suggestion) return
       const row = { role: appRole, church_id: listed ? listed.id : null, church_suggestion_id: suggestion?.id || null, display_name: name.trim() || account.name, note: note.trim(), phone: phone.trim(),
         ...(appRole === 'volunteer' ? { organisation: organisation.trim(), qualification: qualification.trim() } : { pastor_name: pastor.trim() }) }
       const already = 'You already have an application for this role waiting for review.'
-      const done = () => { setApplyForm(EMPTY_APPLY); notify(`Application sent. An admin will contact you for a short check before approving you as ${ROLE_LABELS[appRole]}${suggestion ? `, and add ${suggestion.name} as a partner church` : ''}.`) }
+      const done = () => { setApplyForm(EMPTY_APPLY); notify(appRole === 'pastoral_carer'
+        ? `Application sent. ${listed.name}’s church admin will confirm you serve there, then an admin will contact you for a short check.`
+        : `Application sent. An admin will contact you for a short check before approving you as ${ROLE_LABELS[appRole]}${suggestion ? `, and add ${suggestion.name} as a partner church` : ''}.`) }
       if (supabase) return api.apply(row).then(() => { refresh(); done() }).catch(err => notify(/one_open_application/.test(err.message) ? already : err.message))
       if (myApplications.some(a => a.role === appRole && a.status === 'pending')) return notify(already)
       updateDemo({ applications: [{ ...row, id: `app-${Date.now()}`, user_id: DEMO_ME, status: 'pending', created_at: new Date().toISOString() }, ...demo.applications] })
@@ -917,6 +925,15 @@ export default function App() {
       applications: demo.applications.map(a => a.id === app.id ? { ...a, status: approve ? 'approved' : 'declined', church_id: church } : a),
       members: approve ? demo.members.map(m => m.id === app.user_id ? { ...m, role: app.role, church_id: church } : m) : demo.members
     })
+    done()
+  }
+
+  // Church admin's step for pastoral carers: confirm they serve at the church, or decline
+  const confirmCarer = (app, confirm) => {
+    const done = () => notify(confirm ? `Confirmed. An admin will now check ${app.display_name} before approving them.` : 'Application declined.')
+    if (supabase) return api.confirmCarerApplication(app.id, confirm).then(() => { refresh(); done() }).catch(fail)
+    const now = new Date().toISOString()
+    updateDemo({ applications: demo.applications.map(a => a.id === app.id ? (confirm ? { ...a, church_confirmed_at: now } : { ...a, status: 'declined' }) : a) })
     done()
   }
 
@@ -1709,12 +1726,12 @@ export default function App() {
             {[
               canModerate && ['review', ClipboardCheck, 'Posts to review', queue.length, 'Check each one with the employer'],
               canModerate && ['joining', UserPlus, 'Waiting to join', pendingMembers.length, 'Check who invited them'],
-              isAdmin && ['applications', BadgeCheck, 'Role applications', pendingApplications, 'Volunteers and church admins'],
+              isAdmin && ['applications', BadgeCheck, 'Role applications', pendingApplications, 'Volunteers, church admins and carers'],
               isAdmin && ['churchRequests', HeartHandshake, 'Church requests', pendingChurchRequests, 'Churches members want added'],
               canModerate && ['inbox', Mail, 'New messages', openMessages, isAdmin ? 'From the contact form' : 'Safety concerns sent to the team'],
               canModerate && ['reports', Flag, 'Open safety reports', reportRows.filter(r => !r.resolved).length, 'Follow up within 24 hours'],
               isAdmin && ['people', UsersRound, 'Members', members.length, `${members.filter(m => m.suspended).length} suspended · ${members.filter(m => !['member', 'volunteer'].includes(m.role)).length} staff`],
-              isChurchAdmin && ['vouch', UsersRound, 'Vouch requests', pendingVouches, adminChurch || 'Your church'],
+              isChurchAdmin && ['vouch', UsersRound, 'Vouch and carer requests', pendingVouches, adminChurch || 'Your church'],
               isVolunteer && ['mentoring', HandHeart, 'Open session requests', openMentorRequests, 'Members waiting for a mentor'],
               isVolunteer && ['mentoring', CheckCircle2, 'Sessions you took', mentorQueue.filter(r => r.mine && r.status === 'taken').length, 'Email them to arrange a time'],
               isCarer && ['carerQueue', HandHeart, 'Open requests', openCareRequests, churchName(carerChurch) || 'Your church'],
@@ -2040,7 +2057,7 @@ export default function App() {
           <PageHeading
             eyebrow="Join the team"
             title={`Apply to help run ${SITE_NAME}`}
-            desc="Every role is free and unpaid. An admin checks each application, usually with a short call. Moderators and pastoral carers are appointed by the team."
+            desc="Every role is free and unpaid. An admin checks each application, usually with a short call. Moderators are appointed by the team."
           />
           {supabase && profile.suspended ? <Empty icon={Ban} title="Paused on your account" description="This is switched off while your account is suspended."/> : (
           <form className="form-panel booking-form apply-form" onSubmit={submitApplication}>
@@ -2056,6 +2073,16 @@ export default function App() {
             </fieldset>
             {applyForm.role === 'church_admin' && (
               <ChurchPicker label="Your church" churches={churches} value={applyForm.church} onChange={church => setApplyForm({ ...applyForm, church })}/>
+            )}
+            {applyForm.role === 'pastoral_carer' && (
+              <label>
+                The church where you serve
+                <select name="carer-church" required value={applyForm.church.id} onChange={e => setApplyForm({ ...applyForm, church: churches.find(c => c.id === e.target.value) || NO_CHURCH })}>
+                  <option value="">Choose a partner church</option>
+                  {churches.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+                <small>You’ll care for members of this church only. Its church admin confirms you serve there.</small>
+              </label>
             )}
             <label>
               Your name
@@ -2082,7 +2109,7 @@ export default function App() {
             )}
             <label>
               {applyForm.role === 'volunteer' ? 'Your experience' : 'About you'}
-              <textarea name="note" required rows={4} minLength={10} maxLength={600} placeholder={applyForm.role === 'volunteer' ? 'Your work experience in HR or hiring, and how people in the community know you.' : 'Your role at the church, and how people in the community know you.'} value={applyForm.note} onChange={e => setApplyForm({ ...applyForm, note: e.target.value })}/>
+              <textarea name="note" required rows={4} minLength={10} maxLength={600} placeholder={applyForm.role === 'volunteer' ? 'Your work experience in HR or hiring, and how people in the community know you.' : applyForm.role === 'pastoral_carer' ? 'How you serve at the church, and any pastoral care or counselling experience.' : 'Your role at the church, and how people in the community know you.'} value={applyForm.note} onChange={e => setApplyForm({ ...applyForm, note: e.target.value })}/>
             </label>
             <label className="check-label">
               <input name="agreed" type="checkbox" required checked={applyForm.agreed} onChange={e => setApplyForm({ ...applyForm, agreed: e.target.checked })}/>
@@ -2100,7 +2127,7 @@ export default function App() {
                   key={a.id}
                   avatar={<div className="feature-icon"><BadgeCheck size={20}/></div>}
                   title={ROLE_LABELS[a.role]}
-                  status={APP_STATUS[a.status]}
+                  status={appStatus(a)}
                   tone={a.status === 'approved' ? 'ok' : a.status === 'declined' ? 'bad' : 'pending'}
                   sub={[churchName(a.church_id) || suggestionFor(a.church_suggestion_id)?.name, `Sent ${new Date(a.created_at).toLocaleDateString()}`].filter(Boolean).join(' · ')}
                   note={a.note}
@@ -2185,9 +2212,12 @@ export default function App() {
                 const applicant = members.find(m => m.id === a.user_id)
                 const pending = a.status === 'pending'
                 const newChurch = !a.church_id && suggestionFor(a.church_suggestion_id)
+                const churchCanConfirm = a.role === 'pastoral_carer' && !a.church_confirmed_at
+                  && members.some(m => m.role === 'church_admin' && m.church_id === a.church_id && !m.suspended && m.id !== a.user_id)
                 const blocked = !applicant ? 'Account no longer exists'
                   : applicant.id === myId ? 'You can’t decide your own application'
                   : newChurch && newChurch.status !== 'approved' ? `Add ${newChurch.name} under Your work → Churches first`
+                  : churchCanConfirm ? `Waiting for ${churchName(a.church_id) || 'the church'}’s church admin to confirm`
                   : applicant.suspended ? 'Restore this account before deciding'
                   : !canManage(applicant, a.role) ? 'Only the super admin can decide this one' : null
                 return (
@@ -2195,7 +2225,7 @@ export default function App() {
                     key={a.id}
                     avatar={<div className="company-icon blue">{a.display_name.split(/\s+/).slice(0, 2).map(w => w[0]?.toUpperCase()).join('')}</div>}
                     title={a.display_name}
-                    status={APP_STATUS[a.status]}
+                    status={appStatus(a)}
                     tone={a.status === 'approved' ? 'ok' : a.status === 'declined' ? 'bad' : 'pending'}
                     note={[[a.phone && `Phone: ${a.phone}`, a.organisation && `Church or organisation: ${a.organisation}`, a.qualification && `Qualification: ${a.qualification}`, a.pastor_name && `Pastor: ${a.pastor_name}`].filter(Boolean).join('\n'), a.note].filter(Boolean).join('\n\n')}
                     sub={[`Wants to be ${ROLE_LABELS[a.role]}`, churchName(a.church_id || newChurch?.church_id) || (newChurch && `${newChurch.name} (new church)`), applicant?.email, new Date(a.created_at).toLocaleDateString()].filter(Boolean).join(' · ')}
@@ -2209,7 +2239,7 @@ export default function App() {
                 )
               })}
             </div>
-          ) : <Empty icon={BadgeCheck} title="No applications yet" description="When someone applies to volunteer or to be their church's admin, it appears here."/>}
+          ) : <Empty icon={BadgeCheck} title="No applications yet" description="When someone applies to volunteer, or to be their church's admin or pastoral carer, it appears here."/>}
         </>}
 
         {page === 'vouch' && <>
@@ -2250,6 +2280,32 @@ export default function App() {
               })}
             </div>
           ) : <Empty icon={UsersRound} title="No vouch requests" description="When members of your church ask to be vouched for, they appear here."/>}
+
+          {carerApps.length > 0 && <>
+            <div className="spacer-24"/>
+            <SectionTitle title="Pastoral carer applications" subtitle="Carers read private care requests from your church. Confirm only people you know serve there; an admin then checks them too."/>
+            <div className="review-list">
+              {carerApps.map(a => {
+                const waiting = a.status === 'pending' && !a.church_confirmed_at
+                return (
+                  <QueueCard
+                    key={a.id}
+                    avatar={<div className="company-icon sage">{a.display_name.split(/\s+/).slice(0, 2).map(w => w[0]?.toUpperCase()).join('')}</div>}
+                    title={a.display_name}
+                    status={appStatus(a)}
+                    tone={a.status === 'approved' ? 'ok' : a.status === 'declined' ? 'bad' : 'pending'}
+                    sub={`Wants to be a pastoral carer · Sent ${new Date(a.created_at).toLocaleDateString()}`}
+                    note={[[a.phone && `Phone: ${a.phone}`, a.pastor_name && `Pastor: ${a.pastor_name}`].filter(Boolean).join('\n'), a.note].filter(Boolean).join('\n\n')}
+                  >
+                    {waiting && <>
+                      <button className="reject-small" onClick={() => confirmCarer(a, false)}><X size={15}/> Decline</button>
+                      <button className="approve-small" onClick={() => confirmCarer(a, true)}><Check size={15}/> Confirm they serve here</button>
+                    </>}
+                  </QueueCard>
+                )
+              })}
+            </div>
+          </>}
         </>}
 
         {page === 'profile' && <div className="page-narrow">

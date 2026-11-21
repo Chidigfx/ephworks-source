@@ -71,7 +71,7 @@ const send = async (m: Mail) => {
 
 // ---------- What each change means, and who hears about it ----------
 const SERVICES: Record<string, string> = { 'cv-review': 'CV review', 'mock-interview': 'mock interview', 'linkedin-help': 'LinkedIn profile help' }
-const ROLES: Record<string, string> = { volunteer: 'volunteer mentor', church_admin: 'church admin' }
+const ROLES: Record<string, string> = { volunteer: 'volunteer mentor', church_admin: 'church admin', pastoral_carer: 'pastoral carer' }
 const REJECT: Record<string, string> = { incomplete: 'some information was missing', misleading: 'some details could mislead job seekers', suspected_scam: 'it looked like it might not be a genuine job', other: 'it did not meet our posting rules' }
 const changed = (rec: Row, old: Row | null, key: string) => !old || old[key] !== rec[key]
 
@@ -129,6 +129,25 @@ const handlers: Record<string, (type: string, rec: Row, old: Row | null) => Prom
 
   async role_applications(type, rec, old) {
     const role = ROLES[rec.role] || rec.role
+    // Pastoral carers: that church's admin confirms first, then an admin approves (admins step in if the church has no admin)
+    if (rec.role === 'pastoral_carer' && type === 'INSERT') {
+      const church = await churchName(rec.church_id)
+      const churchAdmins = await staff(['church_admin'], { is: rec.church_id }, rec.user_id)
+      const ask = (s: { email: string, name: string }) => mail(s, `Pastoral carer application: ${rec.display_name}`, [
+        `<b>${esc(rec.display_name)}</b> has offered to be a pastoral carer for ${esc(church)}.`,
+        'Pastoral carers read private care requests from members of the church, so please confirm only someone you know serves there.'],
+        churchAdmins.length ? ['Review carer applications', '/work/vouches'] : ['Review applications', '/work/applications'])
+      return [
+        mail(await person(rec.user_id), `We’ve received your application`, [
+          `Thank you for offering to help as a pastoral carer. ${churchAdmins.length ? `${esc(church)}’s church admin will confirm you serve there, then an admin` : 'An admin'} will contact you for a short check before approving you.`]),
+        ...toAll(churchAdmins.length ? churchAdmins : await staff(ADMINS), ask)
+      ]
+    }
+    if (rec.role === 'pastoral_carer' && type === 'UPDATE' && !old?.church_confirmed_at && rec.church_confirmed_at && rec.status === 'pending') {
+      const church = await churchName(rec.church_id)
+      return toAll(await staff(ADMINS), s => mail(s, `${church} confirmed a pastoral carer: ${rec.display_name}`, [
+        `${esc(church)}’s church admin has confirmed <b>${esc(rec.display_name)}</b> serves at the church. Their application is ready for your approval.`], ['Review applications', '/work/applications']))
+    }
     if (type === 'INSERT') {
       return [
         mail(await person(rec.user_id), `We’ve received your application`, [

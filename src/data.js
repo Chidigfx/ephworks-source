@@ -188,7 +188,7 @@ export const CAREER_SUPPORT_MODULES = [
 export const SAMPLE_VOLUNTEER = [
   { title: 'CV Review Volunteer', summary: 'Help community members present their skills and experience clearly on their CVs.' },
   { title: 'Mock Interview Volunteer', summary: 'Help community members practise answering questions and build confidence for interviews.' },
-  { title: 'Pastoral Care Volunteer', summary: 'Offer emotional and spiritual support to community members navigating unemployment or career transitions. Pastoral carers are appointed by our team, so send us a message if you would like to help.' }
+  { title: 'Pastoral Care Volunteer', summary: 'Offer emotional and spiritual support to community members navigating unemployment or career transitions. Apply below and choose Pastoral carer: your church admin confirms you, then our team checks you too.' }
 ]
 
 export const TRUST_PILLARS = [
@@ -310,7 +310,8 @@ export const SAMPLE_MEMBERS = [
 // Same shape as role_applications rows
 export const SAMPLE_APPLICATIONS = [
   { id: 'app-01', user_id: 'member-david', role: 'volunteer', church_id: null, display_name: 'David Okafor', note: 'Operations lead, happy to run mock interviews twice a month.', status: 'pending', created_at: '2026-10-25T09:00:00Z' },
-  { id: 'app-02', user_id: 'member-priya', role: 'church_admin', church_id: 'church-grace', display_name: 'Priya Nair', note: 'Church office coordinator at Grace Fellowship; I know most members by name.', status: 'pending', created_at: '2026-10-26T14:30:00Z' }
+  { id: 'app-02', user_id: 'member-priya', role: 'church_admin', church_id: 'church-grace', display_name: 'Priya Nair', note: 'Church office coordinator at Grace Fellowship; I know most members by name.', status: 'pending', created_at: '2026-10-26T14:30:00Z' },
+  { id: 'app-03', user_id: 'member-david', role: 'pastoral_carer', church_id: 'church-stluke', display_name: 'David Okafor', phone: '+971 50 000 0000', pastor_name: 'Pastor James (sample)', note: 'I lead the men’s prayer group at St. Luke’s and have walked with friends through redundancy.', status: 'pending', church_confirmed_at: null, created_at: '2026-11-20T10:00:00Z' }
 ]
 
 // Same shape as church_suggestions rows
