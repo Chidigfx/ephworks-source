@@ -2037,24 +2037,24 @@ export default function App() {
               <form className="form-panel booking-form contact-form" onSubmit={sendContact}>
                 <div className="form-two">
                   <label>
-                    Your name
+                    Your Name
                     <input name="name" required minLength={2} maxLength={80} autoComplete="name" value={contactForm.name} onChange={e => setContactForm({ ...contactForm, name: e.target.value })}/>
                   </label>
                   <label>
-                    Your email
+                    Your Email
                     <input name="email" type="email" required maxLength={254} autoComplete="email" value={contactForm.email} onChange={e => setContactForm({ ...contactForm, email: e.target.value })}/>
-                    <small>We reply to this address.</small>
+                    <small>We’ll send our reply to this email address.</small>
                   </label>
                 </div>
                 <label>
-                  What is it about?
+                  What Is It About?
                   <select name="topic" value={contactForm.topic} onChange={e => setContactForm({ ...contactForm, topic: e.target.value })}>
                     {Object.entries(CONTACT_TOPICS).map(([key, label]) => <option key={key} value={key}>{label}</option>)}
                   </select>
                 </label>
                 {contactForm.topic === 'safety' && <Warning tone="strong">If you are in danger or have lost money, call the police on 999 first. To report a job, you can also open it and tap Report.</Warning>}
                 <label>
-                  Your message
+                  Your Message
                   <textarea name="message" required minLength={10} maxLength={2000} rows={6} value={contactForm.message} onChange={e => setContactForm({ ...contactForm, message: e.target.value })}/>
                   <small>{contactForm.message.length} / 2000</small>
                 </label>
@@ -2063,7 +2063,7 @@ export default function App() {
                   <input name="website" tabIndex={-1} autoComplete="off" value={contactForm.website} onChange={e => setContactForm({ ...contactForm, website: e.target.value })}/>
                 </label>
                 <button className="primary-button" type="submit"><Send size={16}/> Send message</button>
-                <p className="sign-in-note">We only use these details to reply to you. <button type="button" className="link-button" onClick={() => go('privacy')}>Privacy</button></p>
+                <p className="sign-in-note">We use these details only to respond to your message. Read our <button type="button" className="link-button" onClick={() => go('privacy')}>Privacy Policy</button>.</p>
               </form>
             }
           />
