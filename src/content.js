@@ -150,7 +150,7 @@ export const INFO_PAGES = [
       { cards: [
         ['About A Job', `Open the job, tap Report, and choose a reason. Your report goes directly to the ${SITE_NAME} safety team.`, 'flag', ['Browse jobs', 'opportunities']],
         ['Anything Else', 'Message the safety team with details of what happened. Include relevant names or links if available.', 'mail', ['Message the safety team', 'contact:safety']],
-        ['What Happens Next', 'We review your report and follow up within 24 hours. We may remove the post or suspend the account.', 'clock']
+        ['What Happens Next', 'We review your report and follow up within 72 hours. We may remove the post or suspend the account.', 'clock']
       ] },
       { note: 'In immediate danger? Lost money? Report it to the police promptly. Call UAE Police on 999.', tone: 'strong' }
     ]
@@ -245,7 +245,7 @@ export const INFO_PAGES = [
         'When you contact us, we collect the name, email address and message you provide.'
       ] },
       { h: 'What we do not collect' },
-      { p: 'We do not ask you to state your religious beliefs or denomination. Your church affiliation or pastoral-care request may still reveal sensitive information.' },
+      { p: 'We never collect your CV or any payment details. We do not ask you to state your religious beliefs or denomination, although your church affiliation or a pastoral-care request may still reveal sensitive information.' },
       { h: 'How we use it' },
       { list: [
         'We use your information to run the job board, display jobs, verify posters and protect the community.',

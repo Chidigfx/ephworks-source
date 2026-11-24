@@ -740,7 +740,7 @@ export default function App() {
     if (supabase) {
       if (needsSignIn()) return
       return api.fileReport(selectedJob.id, reportReason)
-        .then(() => { setShowReport(false); notify(`Report sent to the ${SITE_NAME} Safety Team. We follow up on all flags within 24 hours.`) })
+        .then(() => { setShowReport(false); notify(`Report sent to the ${SITE_NAME} Safety Team. We follow up on all flags within 72 hours.`) })
         .catch(err => notify(/duplicate/.test(err.message) ? 'You have already reported this role. The Safety Team has it.' : err.message))
     }
     updateDemo({
@@ -756,7 +756,7 @@ export default function App() {
       ]
     })
     setShowReport(false)
-    notify(`Report sent to the ${SITE_NAME} Safety Team. We follow up on all flags within 24 hours.`)
+    notify(`Report sent to the ${SITE_NAME} Safety Team. We follow up on all flags within 72 hours.`)
   }
 
   const openSession = id => { setSelectedSupportService(id); setSupportForm(f => ({ ...f, name: f.name || (account.guest ? '' : account.name), consent: false })); setShowSupportModal(true) }
@@ -824,7 +824,7 @@ export default function App() {
     const { name, email, topic, message, website } = contactForm
     const done = () => {
       setContactForm(f => ({ ...f, message: '' }))
-      notify(topic === 'safety' ? 'Thanks. The safety team has your message and will reply by email within 24 hours.' : 'Thanks, your message is with the team. We will reply by email.')
+      notify(topic === 'safety' ? 'Thanks. The safety team has your message and will reply by email within 72 hours.' : 'Thanks, your message is with the team. We will reply by email.')
     }
     if (website) return done() // only bots fill in the hidden field; tell them it worked and keep nothing
     const row = { name: name.trim(), email: email.trim(), topic, message: message.trim() }
@@ -1745,7 +1745,7 @@ export default function App() {
               isAdmin && ['applications', BadgeCheck, 'Role applications', pendingApplications, 'Volunteers, church admins and carers'],
               isAdmin && ['churchRequests', HeartHandshake, 'Church requests', pendingChurchRequests, 'Churches members want added'],
               canModerate && ['inbox', Mail, 'New messages', openMessages, isAdmin ? 'From the contact form' : 'Safety concerns sent to the team'],
-              canModerate && ['reports', Flag, 'Open safety reports', reportRows.filter(r => !r.resolved).length, 'Follow up within 24 hours'],
+              canModerate && ['reports', Flag, 'Open safety reports', reportRows.filter(r => !r.resolved).length, 'Follow up within 72 hours'],
               isAdmin && ['people', UsersRound, 'Members', members.length, `${members.filter(m => m.suspended).length} suspended · ${members.filter(m => !['member', 'volunteer'].includes(m.role)).length} staff`],
               isChurchAdmin && ['vouch', UsersRound, 'Vouch and carer requests', pendingVouches, adminChurch || 'Your church'],
               isVolunteer && ['mentoring', HandHeart, 'Open session requests', openMentorRequests, 'Members waiting for a mentor'],
@@ -1986,7 +1986,7 @@ export default function App() {
           <PageHeading
             eyebrow="Moderation"
             title="Safety reports"
-            desc="Jobs members have reported. Follow up within 24 hours, then mark each one resolved."
+            desc="Jobs members have reported. Follow up within 72 hours, then mark each one resolved."
           />
           {reportRows.length ? (
             <div className="job-list">
@@ -2000,7 +2000,7 @@ export default function App() {
                     status={resolved ? 'Resolved' : 'Open'}
                     tone={resolved ? 'ok' : 'pending'}
                     sub={`Reason: ${r.reason}`}
-                    footNote={<><Clock3 size={15}/> Submitted {r.created || 'just now'} · follow-up within 24h</>}
+                    footNote={<><Clock3 size={15}/> Submitted {r.created || 'just now'} · follow-up within 72h</>}
                   >
                     <button className="approve-small" disabled={resolved} onClick={() => markReport(r.id)}>
                       <Check size={15}/> {resolved ? 'Resolved' : 'Mark resolved'}
@@ -2016,7 +2016,7 @@ export default function App() {
           <PageHeading
             eyebrow={workLabel}
             title="Inbox"
-            desc={isAdmin ? 'Messages from the contact form. Reply by email, then mark each one handled.' : 'Safety concerns sent through the contact form. Reply by email within 24 hours, then mark each one handled.'}
+            desc={isAdmin ? 'Messages from the contact form. Reply by email, then mark each one handled.' : 'Safety concerns sent through the contact form. Reply by email within 72 hours, then mark each one handled.'}
           />
           {contactMessages.length ? (
             <div className="review-list">
@@ -2691,7 +2691,7 @@ export default function App() {
     {/* Report to Safety Team Modal */}
     {showReport && (
       <Modal onClose={() => setShowReport(false)} title={`Report to ${SITE_NAME} Safety Team`}>
-        <p>Our safety team follows up on every flag directly with the reporter and employer within 24 hours.</p>
+        <p>Our safety team follows up on every flag directly with the reporter and employer within 72 hours.</p>
         <label className="form-label">
           Reason for report
           <select name="report-reason" value={reportReason} onChange={e => setReportReason(e.target.value)}>

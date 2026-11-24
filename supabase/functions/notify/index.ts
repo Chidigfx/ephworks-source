@@ -196,7 +196,7 @@ const handlers: Record<string, (type: string, rec: Row, old: Row | null) => Prom
     const job = await jobTitle(rec.job_id)
     return toAll(await staff(MODERATORS), s => mail(s, `A job was reported: ${job?.title || 'job'}`, [
       `<b>${esc(job?.title || 'A job')}</b>${job ? ` at ${esc(job.company)}` : ''} was reported for: ${esc(rec.reason)}.`,
-      'Please look at it within 24 hours.'], ['Open reports', '/work/reports']))
+      'Please look at it within 72 hours.'], ['Open reports', '/work/reports']))
   },
 
   async support_requests(type, rec, old) {
@@ -234,7 +234,7 @@ const handlers: Record<string, (type: string, rec: Row, old: Row | null) => Prom
     const team = rec.topic === 'safety' ? [...ADMINS, 'moderator'] : ADMINS
     return toAll(await staff(team), s => mail(s, `New ${rec.topic === 'safety' ? 'safety ' : ''}message from ${rec.name}`, [
       `<b>${esc(rec.name)}</b> sent a message (topic: ${esc(rec.topic)}).`,
-      rec.topic === 'safety' ? 'Safety messages get a reply within 24 hours.' : 'Please reply within a few working days.'], ['Open the inbox', '/work/inbox']))
+      rec.topic === 'safety' ? 'Safety messages get a reply within 72 hours.' : 'Please reply within a few working days.'], ['Open the inbox', '/work/inbox']))
   },
 
   async church_suggestions(type, rec) {
