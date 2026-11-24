@@ -102,127 +102,127 @@ export const INFO_PAGES = [
 
   // ---------- Safety & Trust ----------
   {
-    id: 'jobReview', path: '/safety/job-review', group: 'safety', tab: 'How we review jobs', hero: 'plain',
-    title: 'How we review jobs',
-    lede: 'Every job passes these checks before anyone sees it.',
+    id: 'jobReview', path: '/safety/job-review', group: 'safety', tab: `How ${SITE_NAME} Checks`, hero: 'plain',
+    title: `How ${SITE_NAME} checks and monitors job posts`,
+    lede: 'Every job is reviewed before it goes live.',
     blocks: [
       { cards: [
-        ['Fee wording is blocked', 'Posts that ask candidates for a fee, deposit, visa cost or transfer cannot be submitted.', 'ban'],
-        ['Warning signs are flagged', 'WhatsApp-only contact, guaranteed visas, no interview or passport requests are marked for the moderator.', 'alert'],
-        ['The poster is vouched for', 'Their church has confirmed they are known to the community.', 'users'],
-        ['Checked with the employer', 'A moderator confirms the role, pay and contact details with the company, and records how.', 'badge'],
-        ['Live for 30 days', 'Then it ends. Employers can post again if the role is still open.', 'clock'],
-        ['Reports are followed up', 'If someone reports a job, the safety team follows up within 24 hours.', 'flag']
+        ['Payment Requests Blocked', 'Posts requesting fees, deposits, or money transfers cannot be submitted.', 'ban'],
+        ['Warning Signs Reviewed', 'Moderators check flagged posts, including WhatsApp-only contact, passport requests, or pressure language.', 'alert'],
+        ['Poster Vouched For', 'Their church admin confirms they are known to the community.', 'users'],
+        ['Employer Details Confirmed', 'Moderators verify the role, pay, and contact details directly with the employer.', 'badge'],
+        ['Posts Expire After 30 Days', 'Employers can repost roles that remain open after expiry.', 'clock'],
+        ['Reports Followed Up', 'The safety team follows up on reported jobs within 72 hours.', 'flag']
       ] }
     ]
   },
   {
-    id: 'jobScams', path: '/safety/job-scams', group: 'safety', tab: 'Recognising job scams', hero: 'plain',
-    title: 'Recognising job scams',
-    lede: 'A real employer will never ask you for money.',
+    id: 'jobScams', path: '/safety/job-scams', group: 'safety', tab: 'Recognising Job Scams', hero: 'plain',
+    title: 'How to Recognise Job Scams',
+    lede: 'Real employers don’t charge job seekers.',
     blocks: [
-      { note: 'In the UAE it is illegal to charge a job seeker recruitment fees (Federal Decree-Law No. 33 of 2021). If anyone asks you to pay, stop.', tone: 'strong' },
+      { note: 'UAE private-sector employers cannot charge workers recruitment or employment costs. If asked to pay for a job, stop and verify. Federal Decree-Law No. 33 of 2021, Article 6(4).', tone: 'strong' },
       { columns: [
-        { title: 'Warning signs', icon: 'alert', tone: 'warn', list: [
-          'Asking for any fee, deposit, visa cost or "processing" payment',
-          'Only talking on WhatsApp, Telegram or Signal',
-          'Promising a guaranteed job or visa',
-          'Offering the job with no interview',
-          'Asking for your passport or ID before you have met',
-          'Pushing you to decide today',
-          'Using a personal email instead of a company one'
+        { title: 'Warning Signs', icon: 'alert', tone: 'warn', list: [
+          'Requests fees, deposits, visa charges or “processing” payments.',
+          'Insists on WhatsApp, Telegram or Signal as the only contact.',
+          'Guarantees a job or visa before a proper interview.',
+          'Offers employment without interviewing or checking your suitability.',
+          'Requests passport or ID copies before you verify the employer.',
+          'Pressures you to decide immediately or pay without time.',
+          'Uses a personal email instead of an official company address.'
         ] },
-        { title: 'What to do', icon: 'shield', list: [
-          'Never pay, and never send passport copies to someone you have not met',
-          'Check the company yourself: its website and its own phone number',
-          `Report the job on ${SITE_NAME}`,
-          'Contact the police if you have lost money'
+        { title: 'What To Do', icon: 'shield', list: [
+          'Never pay recruitment fees or send documents to unverified contacts.',
+          'Verify the company using its official website and listed number.',
+          `Report suspicious job posts or messages through ${SITE_NAME}.`,
+          'Contact local police if you have already lost money.'
         ] }
       ] },
-      { cta: [['Report a job or concern', 'report']] }
+      { cta: [['Report a Job or Concern', 'report']] }
     ]
   },
   {
-    id: 'report', path: '/safety/report', group: 'safety', tab: 'Report a concern', hero: 'plain',
-    title: 'Report a job or concern',
-    lede: 'Tell us and we will follow up within 24 hours.',
+    id: 'report', path: '/safety/report', group: 'safety', tab: 'Report A Concern', hero: 'plain',
+    title: 'Report a Job or Safety Concern',
+    lede: 'Our safety team will follow up within 72 hours.',
     blocks: [
       { cards: [
-        ['About a job', 'Open the job and tap Report. Choose what is wrong. It goes straight to the safety team.', 'flag', ['Browse jobs', 'opportunities']],
-        ['Anything else', 'Send the safety team a message. Tell us what happened, with any names or links.', 'mail', ['Message the safety team', 'contact:safety']],
-        ['What happens next', 'We follow up within 24 hours. We may remove the post or suspend the account.', 'clock']
+        ['About A Job', `Open the job, tap Report, and choose a reason. Your report goes directly to the ${SITE_NAME} safety team.`, 'flag', ['Browse jobs', 'opportunities']],
+        ['Anything Else', 'Message the safety team with details of what happened. Include relevant names or links if available.', 'mail', ['Message the safety team', 'contact:safety']],
+        ['What Happens Next', 'We review your report and follow up within 72 hours. We may remove the post or suspend the account.', 'clock']
       ] },
-      { note: 'If you are in danger or have lost money, contact the police first: call 999.', tone: 'strong' }
+      { note: 'In immediate danger? Lost money? Report it to the police promptly. Call UAE Police on 999.', tone: 'strong' }
     ]
   },
   {
-    id: 'privacySafety', path: '/safety/privacy', group: 'safety', tab: 'Privacy & data', hero: 'plain',
-    title: 'Privacy & data protection',
-    lede: 'We keep as little about you as we can.',
+    id: 'privacySafety', path: '/safety/privacy', group: 'safety', tab: 'Privacy & Data', hero: 'plain',
+    title: 'Privacy & Data Protection',
+    lede: `We collect only the information needed to provide ${SITE_NAME}.`,
     blocks: [
       { cards: [
-        ['What we keep', 'Your name, email and photo from sign-in, who invited you and who approved you, any phone number and job preferences you add, a yes or no church vouch with the contact details you give your church admin for it, your posts, saved interest, role applications and any pastoral-care request.', 'file'],
-        ['What we never keep', 'Your CV, your beliefs or denomination, or payment details.', 'ban'],
-        ['Who sees what', 'Employers see a count of interested people, never names. Church admins see requests sent to their church. Moderators see who invited a new member. Admins see names and emails to keep the community safe. Pastoral-care requests are seen only by a pastoral carer at your church.', 'eye']
+        ['What We Keep', 'We store account and vouch details, contact information you provide, job preferences, posts, role applications and pastoral-care requests. Saved jobs remain on your device.', 'file'],
+        ['What We Never Keep', `We never store CVs, religious beliefs or denomination, or payment details. CVs are shared directly with employers or mentors, outside the ${SITE_NAME} website.`, 'ban'],
+        ['Who Sees What', 'Employers see interest counts, never names. Church admins see their church’s vouch requests. Moderators and admins can access account details; pastoral carers see only requests shared with them.', 'eye']
       ] },
-      { note: 'We follow the UAE Personal Data Protection Law (Federal Decree-Law No. 45 of 2021).' },
+      { note: `${SITE_NAME} is committed to protecting your personal data in line with applicable UAE data protection requirements.` },
       { cta: [['Read the privacy policy', 'privacy']] }
     ]
   },
   {
-    id: 'standards', path: '/safety/standards', group: 'safety', tab: 'Community standards', hero: 'plain',
-    title: 'Community standards',
-    lede: `What everyone on ${SITE_NAME} agrees to.`,
+    id: 'standards', path: '/safety/standards', group: 'safety', tab: 'Community Standards', hero: 'plain',
+    title: 'Community Standards',
+    lede: `Standards for everyone using ${SITE_NAME}.`,
     blocks: [
       { columns: [
-        { title: 'If you post a job', icon: 'briefcase', list: [
-          'Never ask candidates for money: no fees, deposits or visa costs',
-          'Post real jobs at real companies, with honest pay',
-          'Let people apply to you directly',
-          'Do not require any religion, nationality, gender or age unless the law allows it',
-          'Keep posts up to date; they end after 30 days'
+        { title: 'If You Post A Job', icon: 'briefcase', list: [
+          'Never charge applicants recruitment fees or employment costs.',
+          'Post genuine vacancies with clear, accurate pay details.',
+          'Give applicants clear instructions for applying directly to you.',
+          'Use fair, job-related criteria when assessing every applicant. Never require a religion, nationality, gender or age unless the law allows it.',
+          'Keep job details current; listings expire after 30 days.'
         ] },
         { title: 'Everyone', icon: 'users', list: [
-          'Be respectful. No harassment or pressure.',
-          'Do not copy or collect other members\' details',
-          'Report anything that feels wrong'
+          'Treat others respectfully; harassment, discrimination and pressure are unacceptable.',
+          'Respect members’ privacy; never misuse their personal details.',
+          `Report suspicious jobs, messages or behaviour to ${SITE_NAME}.`
         ] }
       ] },
-      { note: 'Posts that break these standards are removed, and accounts can be suspended.', tone: 'strong' }
+      { note: 'Posts that break these standards may be removed, and accounts may be suspended.', tone: 'strong' }
     ]
   },
 
   // ---------- Help ----------
   {
     id: 'faq', path: '/faq', group: 'help', tab: 'FAQs',
-    title: 'Frequently asked questions',
+    title: 'Frequently Asked Questions',
     blocks: [
       { faq: [
-        [`Is ${SITE_NAME} free?`, 'Yes, for everyone, always. Job seekers never pay and employers never pay to post.'],
-        ['Do I need to belong to a church to find work?', 'Anyone can browse jobs. To apply, you need an approved account: ask a member who knows you for their referral code. People who post jobs are also vouched for by their church.'],
-        [`How do I join ${SITE_NAME}?`, 'Ask a member who knows you for their referral code, then create an account with your email or Google. A moderator checks with that member and approves you. Until then you can browse jobs, and once you’re approved you can apply. Don’t know a member? Use Contact us and choose “Help with my account”, and we’ll help you find one.'],
-        ['What is pastoral care?', 'You can ask a pastoral carer at your church for prayer or someone to talk to. Only that carer sees your request, it is never linked to jobs, and you can delete it at any time.'],
-        [`Does ${SITE_NAME} store my CV?`, 'No. You apply to the employer directly by their email or careers page.'],
-        ['How are jobs checked?', 'Fee wording is blocked, the poster is vouched for by their church, and a moderator confirms the job with the employer.'],
-        ['Someone asked me to pay for a job. What do I do?', 'Do not pay. It is illegal to charge job seekers. Report the job and tell us what happened.'],
-        ['How do I post a job?', 'Tap Post a job. Your church vouches for you, then a moderator checks the post with you before it goes live.'],
-        ["My church isn't listed. What now?", 'Type its name and choose Suggest this church. We check it and add it.'],
-        ['Where can I learn my rights at work in the UAE?', 'The Ministry of Human Resources and Emiratisation (MOHRE) explains UAE labour law, contracts and how to raise a complaint. Use the button below to open its official website.'],
-        ['How long do jobs stay up?', '30 days. Then they end, so the board stays fresh.'],
-        ['How do I delete my account?', 'Send us a message from the Contact us page, choosing "Help with my account", and we will delete it.']
+        [`Is ${SITE_NAME} free?`, 'Yes. Job seekers can browse, apply and get support for free. Employers post jobs without charge.'],
+        ['Do I need to belong to a church to find work?', 'Anyone can browse jobs. To apply, you need an approved account and a referral code from a member who knows you. Job posters must be vouched for by their church.'],
+        [`How do I join ${SITE_NAME}?`, 'Ask a member who knows you for a referral code. Create an account using your email and password, or Google, then confirm your email. A moderator or admin checks with the member before reviewing your account. You can browse while you wait; once approved, you can apply. If you need help, contact us and choose “Help with my account.”'],
+        ['What is pastoral care?', 'You can request prayer or someone to talk to. Choose your church’s care team or a carer from another church. Only the team or carer you choose can see your request. It is not linked to jobs, and you can delete it at any time.'],
+        [`Does ${SITE_NAME} store my CV?`, `No. ${SITE_NAME} never stores your CV. Apply directly using the employer’s email or careers page.`],
+        ['How are jobs checked?', 'Posts requesting fees, deposits or money transfers are blocked. A church admin vouches for the poster. A moderator verifies job details with the employer before publication.'],
+        ['Someone asked me to pay for a job. What should I do?', 'Do not pay recruitment fees. Employers are responsible for recruitment costs under UAE law. Report the job and tell us what happened.'],
+        ['How do I post a job?', 'As an approved member, select Post a job and submit the details. Your church admin vouches for you. A moderator checks the post before it goes live.'],
+        ['My church isn’t listed. What should I do?', 'Suggest the church by entering its name and emirate. An admin reviews the request before adding it.'],
+        ['Where can I learn about my rights at work in the UAE?', 'Visit MOHRE for guidance on labour law, contracts and complaints. Use the button below to open its official website.'],
+        ['How long do jobs stay live?', 'Job posts stay live for 30 days, then expire. Employers may repost roles that remain open.'],
+        ['How do I delete my account?', 'Contact us and select “Help with my account.” We’ll delete your account and confirm when it’s done.']
       ] },
-      { cta: [['Contact us', 'contact'], ['Your rights at work (MOHRE)', 'https://www.mohre.gov.ae']] }
+      { cta: [['Contact Us', 'contact'], ['UAE Labour Rights (MOHRE)', 'https://www.mohre.gov.ae']] }
     ]
   },
   {
-    id: 'contact', path: '/contact', group: 'help', tab: 'Contact us',
-    title: 'Contact us',
-    lede: 'Questions, partnerships or concerns. We read every message and reply by email.',
+    id: 'contact', path: '/contact', group: 'help', tab: 'Contact Us',
+    title: 'Contact Us',
+    lede: 'For questions, partnership ideas or concerns, send us a message. We’ll read your message and reply by email.',
     blocks: [
       { contactForm: true },
       { cards: [
-        ['Report a job', 'Open the job and tap Report. That reaches the safety team fastest.', 'flag', ['How reporting works', 'report']],
-        ['Partner with us', 'Churches, employers and organisations who want to help.', 'hand', ['Ways to partner', 'partner']]
+        ['Report A Job', 'Open a job and tap Report to send it directly to our safety team.', 'flag', ['How reporting works', 'report']],
+        ['Partner With Us', `Churches, employers and organisations can support ${SITE_NAME} through several practical partnership options.`, 'hand', ['Ways to partner', 'partner']]
       ] }
     ]
   },
@@ -236,26 +236,46 @@ export const INFO_PAGES = [
       { note: 'This is the pilot version of our privacy policy. It is being reviewed before public launch.', tone: 'strong' },
       { h: 'What we collect' },
       { list: [
-        'From sign-in: your name, email address and, if you use Google, your profile photo. If you use a password, it is stored only as a secure hash',
-        'Who invited you (their referral code) and which moderator or admin approved your account',
-        'Anything you add to your profile: the name you want shown, a phone number, and the emirates, kinds of work, keywords and minimum pay you are looking for',
-        'A yes or no church vouch, which partner church gave it, and the details you give that church’s admin with your request: your mobile number, your ministry and its leader, or someone in the church who knows you and their number. Only that church’s admin sees these details.',
-        'Jobs you post, jobs you mark as interested, reports you file and role applications you send',
-        'If you ask for pastoral care: the church you chose, the name you gave, what would help and any note you write',
-        'If you contact us: the name, email address and message you send'
+        'When you sign in, we collect your name and email, plus your Google profile photo if available. Passwords are stored as secure hashes, not plain text.',
+        'We record your referral code, who invited you, and which moderator or admin approved your account.',
+        'Profile details include your display name, phone number, preferred emirates, work types, keywords and minimum salary.',
+        'We record your vouch decision and partner church, plus the phone and ministry or church-reference details you provide. The relevant church admin can see these details.',
+        'We collect details of jobs you post, jobs you mark “I’m interested” in, reports you submit and role applications you make.',
+        'For pastoral-care requests, we collect your selected church or carer, your name, the support requested and any notes you provide.',
+        'When you contact us, we collect the name, email address and message you provide.'
       ] },
       { h: 'What we do not collect' },
-      { p: 'Your CV, your religious beliefs or denomination, or any payment details.' },
+      { p: 'We never collect your CV or any payment details. We do not ask you to state your religious beliefs or denomination, although your church affiliation or a pastoral-care request may still reveal sensitive information.' },
       { h: 'How we use it' },
-      { p: 'Only to run the noticeboard: to show jobs, check posters and jobs, keep the community safe and contact you about your account. A pastoral-care request is used only so a carer at your church can contact you. It is never used for anything to do with jobs, and asking for care never affects what jobs you see or how your posts are treated. Your job preferences are used only to show you matching jobs and, if you ask, to email you about them.' },
+      { list: [
+        'We use your information to run the job board, display jobs, verify posters and protect the community.',
+        `We use account details to contact you about your ${SITE_NAME} account.`,
+        'Pastoral-care details connect you with the care team or carer you choose.',
+        'Pastoral-care requests are not linked to jobs or used for job matching.',
+        'Job preferences help show suitable roles and send alerts if you opt in.'
+      ] },
       { h: 'Who can see it' },
-      { p: 'Employers see a count of interested people, never names. Church admins see vouch requests sent to their church. Moderators see posts waiting for checks, and who invited each new member and their phone number if they added one. Only you see your job preferences; employers never see who a job matched. Admins see members\' names and emails, and who invited and approved each member. A pastoral-care request is seen only by you and a pastoral carer at the church you chose; admins, moderators, church admins and employers cannot see it. Messages sent through the contact form are read by admins, and safety concerns also by moderators. We never sell or share your data with advertisers.' },
-      { h: 'Where it is kept' },
-      { p: 'Accounts and posts are stored with our database provider, Supabase. Saved and applied jobs stay on your own device. Fonts are loaded from Google Fonts, which receives your IP address. The “Sign in with Google” button is loaded from Google when you open sign-in, so Google sees that visit. We use no advertising or tracking cookies.' },
+      { list: [
+        'Employers see interest counts, never the names of interested members.',
+        'Church admins see vouch requests sent to their church.',
+        'Moderators see posts under review and the referral details you provide.',
+        'Moderators and admins can view phone numbers you provide.',
+        'Admins see members’ names, email addresses, inviters and approvers.',
+        'Your pastoral-care request is visible to the care team or carer you choose.',
+        'Admins, moderators, church admins and employers cannot view those requests.',
+        'Admins read contact-form messages; moderators can also read safety concerns.',
+        'We do not sell your data or share it with advertisers.'
+      ] },
+      { h: 'Where your data is stored' },
+      { p: 'Accounts and job posts are stored by Supabase, our database provider. Saved and applied jobs stay on your device. Google Fonts receives your IP address when fonts load. Google may receive technical information when its sign-in service loads. We do not use advertising or tracking cookies.' },
       { h: 'How long we keep it' },
-      { p: 'Jobs end after 30 days. You can delete a pastoral-care request yourself at any time, and it is erased. Your account is kept until you ask us to delete it.' },
+      { list: [
+        'Job listings expire after 30 days.',
+        'Pastoral-care requests can be deleted at any time.',
+        'You can request account deletion through Contact us.'
+      ] },
       { h: 'Your rights' },
-      { p: 'You can ask to see, correct or delete your data at any time by sending us a message from the Contact us page. We follow the UAE Personal Data Protection Law (Federal Decree-Law No. 45 of 2021).' }
+      { p: 'You can request access to or correction of your personal data through Contact Us. You can also request deletion, subject to applicable legal requirements.' }
     ]
   },
   {
@@ -265,23 +285,23 @@ export const INFO_PAGES = [
     blocks: [
       { note: 'These are the pilot terms. They are being reviewed before public launch.', tone: 'strong' },
       { h: `What ${SITE_NAME} is` },
-      { p: 'A free noticeboard. We check jobs before they go live, but we are not a recruitment agency: we do not collect CVs, shortlist candidates or place anyone in a job. You apply to employers directly.' },
+      { p: `${SITE_NAME} is a free job noticeboard. We review listings before publication, but we are not a recruitment agency. We do not collect CVs, shortlist candidates or place people in jobs. Applicants contact employers directly.` },
       { h: 'Using the service' },
       { list: [
-        `${SITE_NAME} is free for everyone`,
-        'Follow the community standards',
-        'Keep your sign-in to yourself and tell us if your account is misused'
+        `${SITE_NAME} is free to browse and post jobs.`,
+        'Follow the community standards while using the platform.',
+        'Keep your password private and report suspected account misuse.'
       ] },
       { h: 'Posting jobs' },
-      { p: 'You must be allowed to hire for the role, describe it honestly and never charge candidates. We can refuse or remove any post.' },
+      { p: `Post only vacancies you are authorised to advertise. Describe each role accurately and never charge applicants. ${SITE_NAME} may reject or remove posts that breach these terms.` },
       { h: 'No guarantees' },
-      { p: 'We check jobs carefully, but we cannot promise any job, interview or outcome. Always check an employer yourself before sharing personal documents.' },
+      { p: 'We review listings but cannot guarantee interviews, job offers or hiring outcomes. Verify employers before sharing sensitive documents.' },
       { h: 'Suspension' },
-      { p: 'We can suspend accounts that break these terms or put others at risk.' },
-      { h: 'Law' },
+      { p: 'We may suspend accounts that breach these terms or put others at risk.' },
+      { h: 'Governing law' },
       { p: 'These terms are governed by the laws of the United Arab Emirates.' },
       { h: 'Changes' },
-      { p: 'If we change these terms, we will update the date at the top.' }
+      { p: 'We may update these terms from time to time. We’ll publish each new version with its updated date. We’ll notify users about significant changes before they take effect.' }
     ]
   }
 ]
