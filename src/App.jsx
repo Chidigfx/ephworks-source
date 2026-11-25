@@ -640,6 +640,15 @@ export default function App() {
     done()
   }
 
+  // Continue on the church step must not drop what was typed (team, 24 Nov): a new church is suggested
+  // on the way, and a chosen church needs its vouch request sent first.
+  const continueFromChurch = () => {
+    const typed = vouchForm.church
+    if (myVouch?.status === 'vouched' || !typed.name.trim()) return goStep(1)
+    if (!typed.id) return suggestChurch(typed).then(added => { if (added) { setVouchForm(EMPTY_VOUCH); goStep(1) } })
+    notify(`Tap “Request church vouch” first so ${typed.name} gets your request, or tap Change to clear it.`)
+  }
+
   // A church that isn't a partner yet: admins check it and add it, then the member can ask it to vouch.
   // Resolves to the suggestion row, or null when nothing was sent.
   const suggestChurch = ({ name, emirate }, quiet = false) => {
@@ -1284,6 +1293,9 @@ export default function App() {
             <li className="stat"><b>Career support</b><span>Free CV, LinkedIn and mock interview help, plus pastoral care from volunteers.</span></li>
           </ul>
 
+          {/* Above the jobs so it stays in view however many jobs are listed (team, 24 Nov) */}
+          <VerseCard/>
+
           <section id="opp-list" className="opportunity-section">
             <SectionTitle title="Latest jobs" subtitle="Checked with every employer · apply to them directly"/>
             <div className="job-list">
@@ -1304,7 +1316,6 @@ export default function App() {
             </div>
             {board.length > 0 && <button type="button" className="secondary-button see-all" onClick={() => go('opportunities')}>{board.length > HOME_JOBS ? `See all ${board.length} jobs` : 'Search and filter jobs'} <ArrowRight size={16}/></button>}
           </section>
-          <VerseCard/>
 
           <section className="why-stage">
             <img className="stage-bg" src="/images/workday.webp" loading="lazy" decoding="async" alt="" width="896" height="1200"/>
@@ -1663,7 +1674,7 @@ export default function App() {
 
             {step.key === 'church' && (
               <div className="wizard-nav">
-                <button type="button" className="primary-button" onClick={() => goStep(1)}>Continue to the job <ArrowRight size={16}/></button>
+                <button type="button" className="primary-button" onClick={continueFromChurch}>Continue to the job <ArrowRight size={16}/></button>
               </div>
             )}
           </div>
@@ -2206,13 +2217,24 @@ export default function App() {
           <div className="spacer-24"/>
           <SectionTitle title="Requests from members" subtitle="Check each one is real, fix the spelling if needed, then add it."/>
           {supabase && !session ? <Empty icon={KeyRound} title="Sign in as an admin" description="Sign in with an admin account to review church requests."/>
-          : churchSuggestions.length ? (
+          : churchSuggestions.some(c => c.status === 'pending') ? (
             <div className="review-list">
-              {[...churchSuggestions].sort((a, b) => (b.status === 'pending') - (a.status === 'pending')).map(c => (
+              {churchSuggestions.filter(c => c.status === 'pending').map(c => (
                 <ChurchRequestCard key={c.id} suggestion={c} churches={churches} suggester={members.find(m => m.id === c.suggested_by)} onDecide={decideChurchSuggestion}/>
               ))}
             </div>
-          ) : <Empty icon={HeartHandshake} title="No church requests" description="When a member types a church that isn't listed, it appears here for you to check and add."/>}
+          ) : <Empty icon={HeartHandshake} title="No church requests waiting" description="When a member types a church that isn't listed, it appears here for you to check and add."/>}
+          {/* Added or declined requests leave the waiting list (team, 24 Nov); kept below for the record */}
+          {churchSuggestions.some(c => c.status !== 'pending') && (
+            <details className="decided-requests">
+              <summary>Decided requests ({churchSuggestions.filter(c => c.status !== 'pending').length})</summary>
+              <div className="review-list">
+                {churchSuggestions.filter(c => c.status !== 'pending').map(c => (
+                  <ChurchRequestCard key={c.id} suggestion={c} churches={churches} suggester={members.find(m => m.id === c.suggested_by)} onDecide={decideChurchSuggestion}/>
+                ))}
+              </div>
+            </details>
+          )}
         </>}
 
         {page === 'applications' && <>
@@ -3279,7 +3301,9 @@ function ChurchRequestCard({ suggestion, churches, suggester, onDecide }) {
   // distinctive words only: generic church words and place names would match half the list
   const common = ['church', 'fellowship', 'community', 'sample', ...EMIRATES.join(' ').toLowerCase().split(' ')]
   const words = suggestion.name.toLowerCase().split(/\W+/).filter(w => w.length > 3 && !common.includes(w))
-  const similar = churches.filter(c => words.some(w => c.name.toLowerCase().includes(w))).slice(0, 3)
+  // An exact name match counts even when every word is generic ("Fellowship Dubai")
+  const same = c => c.name.trim().toLowerCase() === suggestion.name.trim().toLowerCase()
+  const similar = churches.filter(c => same(c) || words.some(w => c.name.toLowerCase().includes(w))).sort((a, b) => same(b) - same(a)).slice(0, 3)
   const added = churches.find(c => c.id === suggestion.church_id)
   return (
     <QueueCard

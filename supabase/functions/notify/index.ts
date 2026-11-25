@@ -194,9 +194,15 @@ const handlers: Record<string, (type: string, rec: Row, old: Row | null) => Prom
   async reports(type, rec) {
     if (type !== 'INSERT') return []
     const job = await jobTitle(rec.job_id)
-    return toAll(await staff(MODERATORS), s => mail(s, `A job was reported: ${job?.title || 'job'}`, [
-      `<b>${esc(job?.title || 'A job')}</b>${job ? ` at ${esc(job.company)}` : ''} was reported for: ${esc(rec.reason)}.`,
-      'Please look at it within 72 hours.'], ['Open reports', '/work/reports']))
+    return [
+      // The person who reported hears it arrived (team, 24 Nov)
+      mail(await person(rec.reporter_id), `We’ve received your report`, [
+        `Thank you for reporting <b>${esc(job?.title || 'a job')}</b>${job ? ` at ${esc(job.company)}` : ''}. Our safety team will follow up within 72 hours.`,
+        'If you are in danger or have lost money, call the police on 999 first.']),
+      ...toAll(await staff(MODERATORS), s => mail(s, `A job was reported: ${job?.title || 'job'}`, [
+        `<b>${esc(job?.title || 'A job')}</b>${job ? ` at ${esc(job.company)}` : ''} was reported for: ${esc(rec.reason)}.`,
+        'Please look at it within 72 hours.'], ['Open reports', '/work/reports']))
+    ]
   },
 
   async support_requests(type, rec, old) {
@@ -232,9 +238,16 @@ const handlers: Record<string, (type: string, rec: Row, old: Row | null) => Prom
   async contact_messages(type, rec) {
     if (type !== 'INSERT') return []
     const team = rec.topic === 'safety' ? [...ADMINS, 'moderator'] : ADMINS
-    return toAll(await staff(team), s => mail(s, `New ${rec.topic === 'safety' ? 'safety ' : ''}message from ${rec.name}`, [
+    // The sender hears it arrived, at the address they typed (they may not be signed in)
+    const sender = { email: rec.email, name: rec.name }
+    const receipt = rec.topic === 'safety'
+      ? mail(sender, `We’ve received your safety message`, [
+          'Thank you for telling us. Our safety team will reply by email within 72 hours.',
+          'If you are in danger or have lost money, call the police on 999 first.'])
+      : mail(sender, `We’ve received your message`, ['Thank you for getting in touch. We’ll reply by email, usually within a few working days.'])
+    return [receipt, ...toAll(await staff(team), s => mail(s, `New ${rec.topic === 'safety' ? 'safety ' : ''}message from ${rec.name}`, [
       `<b>${esc(rec.name)}</b> sent a message (topic: ${esc(rec.topic)}).`,
-      rec.topic === 'safety' ? 'Safety messages get a reply within 72 hours.' : 'Please reply within a few working days.'], ['Open the inbox', '/work/inbox']))
+      rec.topic === 'safety' ? 'Safety messages get a reply within 72 hours.' : 'Please reply within a few working days.'], ['Open the inbox', '/work/inbox']))]
   },
 
   async church_suggestions(type, rec) {

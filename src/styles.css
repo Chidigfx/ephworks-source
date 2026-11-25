@@ -276,6 +276,9 @@ button:active:not(:disabled){transform:translateY(1px)}
 }
 
 .review-list{display:grid;gap:12px}
+.decided-requests{margin-top:16px}
+.decided-requests summary{cursor:pointer;min-height:44px;display:flex;align-items:center;font-weight:600;color:var(--primary)}
+.decided-requests .review-list{margin-top:8px}
 
 /* list cards: jobs and review queues */
 .job-main{min-width:0}
