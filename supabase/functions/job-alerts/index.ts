@@ -3,6 +3,21 @@
 // Stays switched off, and does nothing, until RESEND_API_KEY and EMAIL_FROM are set as function secrets.
 
 const env = (name: string) => Deno.env.get(name) ?? ''
+// Supabase now hands functions the new secret keys (SUPABASE_SECRET_KEYS, a JSON map); the legacy
+// SUPABASE_SERVICE_ROLE_KEY is deprecated and may be switched off. Prefer the new key, fall back to the old.
+const serviceKey = (): string => {
+  try {
+    const keys = JSON.parse(env('SUPABASE_SECRET_KEYS') || '{}')
+    const key = keys.default ?? Object.values(keys)[0]
+    if (typeof key === 'string' && key) return key
+  } catch { /* not set or not JSON: use the legacy key */ }
+  return env('SUPABASE_SERVICE_ROLE_KEY')
+}
+// A new sb_secret_ key goes in the apikey header only; a legacy JWT key also goes in Authorization
+const keyHeaders = (): Record<string, string> => {
+  const key = serviceKey()
+  return key.startsWith('sb_') ? { apikey: key } : { apikey: key, Authorization: `Bearer ${key}` }
+}
 
 // Same look as the sign-in emails in supabase/email-templates. Names and job details come from members, so they are escaped.
 const esc = (s: unknown) => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c] as string)
@@ -29,7 +44,7 @@ const jobRow = (j: { title: string, company: string, emirate: string, salary: st
   </td></tr><tr><td style="height:8px"></td></tr>`
 const rpc = (name: string, body: unknown) => fetch(`${env('SUPABASE_URL')}/rest/v1/rpc/${name}`, {
   method: 'POST',
-  headers: { apikey: env('SUPABASE_SERVICE_ROLE_KEY'), Authorization: `Bearer ${env('SUPABASE_SERVICE_ROLE_KEY')}`, 'Content-Type': 'application/json' },
+  headers: { ...keyHeaders(), 'Content-Type': 'application/json' },
   body: JSON.stringify(body)
 })
 
@@ -42,7 +57,8 @@ Deno.serve(async req => {
     return new Response(ok ? 'You are unsubscribed from EphWorks job alerts.' : 'This link did not work.', { status: ok ? 200 : 404 })
   }
 
-  if (!env('WEBHOOK_SECRET') || req.headers.get('x-webhook-secret') !== env('WEBHOOK_SECRET')) {
+  const secret = env('WEBHOOK_SECRET').trim() // trimmed: a pasted space must not lock alerts out
+  if (!secret || (req.headers.get('x-webhook-secret') ?? '').trim() !== secret) {
     return new Response('Forbidden', { status: 403 })
   }
   if (!env('RESEND_API_KEY') || !env('EMAIL_FROM')) {

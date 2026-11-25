@@ -773,6 +773,12 @@ check('members cannot probe which churches have admins', /permission denied/.tes
 r = await db.query(`select pg_get_constraintdef(oid) as def from pg_constraint where conname = 'jobs_description_check'`)
 check('job descriptions allow up to 4,000 characters', /4000/.test(r.rows[0]?.def || ''), r.rows)
 
+r = await db.query(`select bool_and(has_table_privilege('service_role', t, 'SELECT')) as ok from unnest(array['public.profiles', 'public.churches', 'public.jobs']) t`)
+check('the email function can read the people, churches and jobs it looks up', r.rows[0]?.ok === true, r.rows)
+r = await db.query(`select bool_and(has_function_privilege('service_role', f, 'EXECUTE')) as ok
+  from unnest(array['public.alert_digest()', 'public.alert_sent(uuid, timestamptz)', 'public.unsubscribe_alerts(uuid)']) f`)
+check('the job-alerts function can build digests and unsubscribe', r.rows[0]?.ok === true, r.rows)
+
 // Parked in supabase/later/ for now; these checks run once that migration is moved back into migrations/
 if (migration.includes('two_step_passed')) {
 const oneStep = (uid, sql, params) => as(uid, sql, params, 'aal1')

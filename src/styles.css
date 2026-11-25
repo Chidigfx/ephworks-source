@@ -434,6 +434,9 @@ button:active:not(:disabled){transform:translateY(1px)}
 .dialog-top{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--border)}
 .dialog-top h2{font-size:18px}
 .dialog-content{padding:20px}
+.sent-note{display:flex;flex-direction:column;align-items:center;gap:14px;text-align:center}
+.sent-note>svg{color:var(--success)}
+.sent-note p{font-size:16px;line-height:1.55;color:var(--fg-2)}
 .dialog-content p{font-size:14px;line-height:1.65}
 .dialog-content .primary-button.full{margin-top:16px}
 .modal-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:20px}
@@ -844,6 +847,19 @@ body{background:radial-gradient(60vw 50vw at 0% 0%,#bee1ef 0,transparent 60%),ra
 .profile-vouch strong{display:flex;align-items:center;gap:6px;margin-top:4px;font-size:15px;color:var(--fg)}
 .profile-vouch .good-text{color:var(--success)}
 .profile-vouch small{display:block;margin-top:4px;font-size:13px;color:var(--muted)}
+.profile-vouch:has(.invite-actions){flex-wrap:wrap}
+.invite-actions{display:flex;flex-wrap:wrap;gap:8px}
+.invite-actions .secondary-button{min-height:44px}
+.invite-actions .whatsapp{color:#128c4a;border-color:#bfe3cc}
+.invite-qr{display:flex;flex-direction:column;align-items:center;gap:14px;text-align:center}
+.invite-qr-card{width:100%;max-width:300px;display:flex;flex-direction:column;align-items:center;gap:12px;padding:20px 20px 18px;border-radius:20px;background:linear-gradient(160deg,#086d96,#063448);box-sizing:border-box;box-shadow:0 12px 30px rgba(6,52,72,.25)}
+.invite-qr-brand{display:flex;align-items:center;gap:8px;padding:4px 12px 4px 6px;border-radius:999px;background:#fff}
+.invite-qr-brand span{font:700 15px/1 var(--heading);color:#063448}
+.invite-qr-code{width:100%;aspect-ratio:1;border-radius:14px;background:#fff;display:grid;place-items:center;overflow:hidden;border:3px solid #c7a54c;box-sizing:border-box}
+.invite-qr-code svg{display:block;width:100%;height:100%}
+.invite-qr-label{font-size:13px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:#e2f2f8}
+.invite-qr-ref{font:700 20px/1 var(--heading);letter-spacing:.08em;color:#e3c77a}
+.invite-qr>p{font-size:14px;line-height:1.5;color:var(--fg-2)}
 .profile-activity{padding:20px 0 4px}
 .profile-activity small{margin-left:auto;font-size:13px;font-weight:500;color:var(--muted)}
 .profile-activity small+svg{margin-left:0!important}

@@ -31,7 +31,7 @@ begin
     execute format(
       'create trigger %I after %s on public.%I for each row execute function supabase_functions.http_request(%L, %L, %L, %L, %L)',
       'notify_' || h[1], h[2], h[1],
-      url, 'POST', json_build_object('Content-Type', 'application/json', 'x-webhook-secret', secret)::text, '{}', '5000'
+      url, 'POST', json_build_object('Content-Type', 'application/json', 'x-webhook-secret', secret)::text, '{}', '10000'
     );
   end loop;
 end $$;

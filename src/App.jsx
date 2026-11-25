@@ -6,7 +6,8 @@ import {
   LockKeyhole, MapPin, Menu, MoreHorizontal, Plus, Search, ShieldCheck,
   SlidersHorizontal, UsersRound, LayoutDashboard, LifeBuoy, KeyRound, X, RotateCcw, ExternalLink,
   Clock3, Mail, Building2, Eye, Send, Info, AlertTriangle, ShieldAlert,
-  Calendar, CheckCheck, Scale, Lock, UserRound, Heart, Ban, UserPlus, Copy, BookOpen, Sparkles, BellRing
+  Calendar, CheckCheck, Scale, Lock, UserRound, Heart, Ban, UserPlus, Copy, BookOpen, Sparkles, BellRing,
+  Link2, MessageCircle, QrCode
 } from 'lucide-react'
 import { NAV, SAMPLE_JOBS, SAMPLE_VOLUNTEER, CAREER_SUPPORT_MODULES, TRUST_PILLARS, SAMPLE_VOUCH_REQUESTS, SAMPLE_CHURCHES, SAMPLE_MEMBERS, SAMPLE_APPLICATIONS, SAMPLE_CHURCH_SUGGESTIONS, SAMPLE_SUPPORT_REQUESTS, SAMPLE_PASTORAL_REQUESTS, SAMPLE_CONTACT_MESSAGES, SITE_NAME } from './data'
 import { INFO_PAGES, INFO_GROUPS, FOOTER } from './content'
@@ -77,6 +78,18 @@ const APP_STATUS = { pending: 'Waiting for review', approved: 'Approved', declin
 const appStatus = a => a.role === 'pastoral_carer' && a.status === 'pending' ? (a.church_confirmed_at ? 'Church confirmed · waiting for an admin' : 'Waiting for the church admin') : APP_STATUS[a.status]
 const EMPTY_APPLY = { role: 'volunteer', church: NO_CHURCH, name: '', phone: '', organisation: '', qualification: '', pastor: '', note: '', agreed: false }
 const EMPTY_AUTH = { mode: 'signin', name: '', email: '', password: '', code: '' } // mode: signin | signup | reset
+// An invite link (www.ephworks.com/?join=EPH-XXXXXX) fills in the referral code; it is kept on this device
+// until used, so it survives a Google sign-in round trip
+const JOIN_KEY = 'ephworks-join-code'
+const readJoinCode = () => {
+  const fromLink = new URLSearchParams(window.location.search).get('join')?.trim().toUpperCase()
+  try {
+    if (fromLink && /^EPH-[A-Z0-9]{4,12}$/.test(fromLink)) { localStorage.setItem(JOIN_KEY, fromLink); return fromLink }
+    return localStorage.getItem(JOIN_KEY) || ''
+  } catch { return fromLink || '' }
+}
+const forgetJoinCode = () => { try { localStorage.removeItem(JOIN_KEY) } catch { /* private mode */ } }
+const inviteLink = code => `https://www.ephworks.com/?join=${encodeURIComponent(code)}`
 // Must match the pastoral_requests.kind check in the 20261102 migration
 const CARE_KINDS = { prayer: 'Prayer', talk: 'Someone to talk to', other: 'Something else' }
 const CARE_STATUS = { open: 'Waiting for a pastoral carer', taken: 'A pastoral carer will email you', closed: 'Closed' }
@@ -217,6 +230,7 @@ export default function App() {
   const [workType, setWorkType] = useState('Any work type')
   const [tab, setTab] = useState('all')
   const [banner, setBanner] = useState(null)
+  const [sentNote, setSentNote] = useState(null) // { title, message }: a pop-up after someone sends something
   const [showReset, setShowReset] = useState(false)
   const [footerOpen, setFooterOpen] = useState(null) // which footer column is expanded on phones
   const [removing, setRemoving] = useState(null) // post waiting for a remove confirmation
@@ -242,9 +256,11 @@ export default function App() {
   const [finishing, setFinishing] = useState(null) // mentor marking a request done: { request, comment }
   const [profile, setProfile] = useState({})
   const [providers, setProviders] = useState({ google: false, email: false }) // sign-in methods switched on in Supabase
-  const [authForm, setAuthForm] = useState(EMPTY_AUTH)
+  const [joinCode] = useState(readJoinCode)
+  const [authForm, setAuthForm] = useState(() => ({ ...EMPTY_AUTH, code: joinCode }))
   const [newPassword, setNewPassword] = useState(null) // set after following a password-reset link
-  const [codeInput, setCodeInput] = useState('')
+  const [codeInput, setCodeInput] = useState(joinCode)
+  const [showQr, setShowQr] = useState(false)
   const [captchaToken, setCaptchaToken] = useState('')
   const [captchaRound, setCaptchaRound] = useState(0) // a token works once, so each attempt gets a fresh CAPTCHA
   const [twoStep, setTwoStep] = useState({ level: null, factorId: null }) // this session's sign-in level and confirmed authenticator
@@ -380,6 +396,8 @@ export default function App() {
 
   const updateDemo = patch => setDemo(prev => ({ ...prev, ...patch }))
   const notify = message => setBanner(message)
+  // Sending something (a report, message, request) gets a clear pop-up rather than a corner notice (team, 25 Nov)
+  const confirmSent = (title, message) => { setBanner(null); setSentNote({ title, message }) }
   const fail = err => notify(err.message)
 
   useEffect(() => {
@@ -401,7 +419,14 @@ export default function App() {
         notify(emailLink.type === 'email_change' ? 'Your new email address is confirmed.' : `Email confirmed. Welcome to ${SITE_NAME}! A moderator approves new accounts next.`)
       })
     }
-    supabase.auth.getSession().then(({ data }) => { setSession(data.session); setAuthReady(true) })
+    supabase.auth.getSession().then(({ data }) => {
+      setSession(data.session); setAuthReady(true)
+      // Arrived by an invite link and not signed in: open sign-up with the code filled in
+      if (!data.session && new URLSearchParams(window.location.search).has('join') && joinCode) {
+        setAuthForm({ ...EMPTY_AUTH, mode: 'signup', code: joinCode }); setShowSignIn(true)
+      }
+      if (new URLSearchParams(window.location.search).has('join')) window.history.replaceState(null, '', window.location.pathname)
+    })
     const { data } = supabase.auth.onAuthStateChange((event, next) => {
       setSession(next)
       if (event === 'PASSWORD_RECOVERY') setNewPassword('')
@@ -567,7 +592,7 @@ export default function App() {
   const submitCode = e => {
     e.preventDefault()
     api.useReferralCode(codeInput.trim())
-      .then(() => { setCodeInput(''); api.profile(uid).then(setProfile); notify('Thanks. A moderator will check with the member who invited you, then approve your account.') })
+      .then(() => { setCodeInput(''); forgetJoinCode(); api.profile(uid).then(setProfile); confirmSent('Code received', 'Thanks. A moderator will check with the member who invited you, then approve your account.') })
       .catch(fail)
   }
 
@@ -628,7 +653,7 @@ export default function App() {
       return notify('Add your ministry and its leader, or someone in the church who knows you and their number, so your church admin can place you.')
     }
     const details = { display_name: f.name || account.name, phone: f.phone, ministry: f.ministry || null, ministry_leader: f.leader || null, reference_name: f.refName || null, reference_phone: f.refPhone || null }
-    const done = () => { setVouchForm(EMPTY_VOUCH); notify(`Request sent to ${church.name}. Their admin only confirms you are known to the community.`) }
+    const done = () => { setVouchForm(EMPTY_VOUCH); confirmSent('Vouch request sent', `Your request is with ${church.name}. Their admin only confirms you are known to the community.`) }
     if (supabase) {
       if (needsSignIn()) return
       return api.requestVouch(server.myVouch, { church_id: church.id, note: note || null, ...details })
@@ -659,7 +684,7 @@ export default function App() {
     }
     if (supabase && needsSignIn()) return Promise.resolve(null)
     const done = added => {
-      if (!quiet) notify(`Thanks. We'll check ${row.name} and add it, usually within a few days. Then you can ask them to vouch for you here.`)
+      if (!quiet) confirmSent('Church suggested', `Thanks. We'll check ${row.name} and add it, usually within a few days. Then you can ask them to vouch for you here.`)
       return added
     }
     if (supabase) return api.suggestChurch(row).then(added => { refresh(); return done(added) })
@@ -732,7 +757,7 @@ export default function App() {
       setPostStep(null)
       setStepTried(false)
       go('drafts')
-      notify(myVouch?.status === 'vouched'
+      confirmSent(myVouch?.status === 'vouched' ? 'Job submitted' : 'Job saved', myVouch?.status === 'vouched'
         ? 'Post submitted. A moderator will check it with the employer before it goes live.'
         : 'Post saved. It goes live once your church vouches for you and a moderator has checked it with the employer.')
     }
@@ -749,7 +774,7 @@ export default function App() {
     if (supabase) {
       if (needsSignIn()) return
       return api.fileReport(selectedJob.id, reportReason)
-        .then(() => { setShowReport(false); notify(`Report sent to the ${SITE_NAME} Safety Team. We follow up on all flags within 72 hours.`) })
+        .then(() => { setShowReport(false); confirmSent('Report sent', `Thank you. The ${SITE_NAME} safety team will follow up within 72 hours.`) })
         .catch(err => notify(/duplicate/.test(err.message) ? 'You have already reported this role. The Safety Team has it.' : err.message))
     }
     updateDemo({
@@ -765,7 +790,7 @@ export default function App() {
       ]
     })
     setShowReport(false)
-    notify(`Report sent to the ${SITE_NAME} Safety Team. We follow up on all flags within 72 hours.`)
+    confirmSent('Report sent', `Thank you. The ${SITE_NAME} safety team will follow up within 72 hours.`)
   }
 
   const openSession = id => { setSelectedSupportService(id); setSupportForm(f => ({ ...f, name: f.name || (account.guest ? '' : account.name), consent: false })); setShowSupportModal(true) }
@@ -776,7 +801,7 @@ export default function App() {
     if (supabase && needsSignIn()) return
     const module = CAREER_SUPPORT_MODULES.find(m => m.id === selectedSupportService)
     const row = { service: selectedSupportService, display_name: (supportForm.name || account.name).trim(), preferred_time: supportForm.preferredTime, note: supportForm.note.trim() || null, may_email: true }
-    const done = () => { setShowSupportModal(false); setSupportForm(f => ({ ...f, note: '', consent: false })); notify(`Request sent. A volunteer mentor will pick it up and email you about your ${module?.title}.`) }
+    const done = () => { setShowSupportModal(false); setSupportForm(f => ({ ...f, note: '', consent: false })); confirmSent('Request sent', `A volunteer mentor will pick it up and email you about your ${module?.title}.`) }
     const already = `You already have an open ${module?.title} request.`
     if (supabase) return api.requestSupport(row).then(() => { refresh(); done() }).catch(err => notify(/one_open_support_request/.test(err.message) ? already : err.message))
     if (mySupport.some(r => r.service === row.service && ['open', 'taken'].includes(r.status))) return notify(already)
@@ -833,7 +858,7 @@ export default function App() {
     const { name, email, topic, message, website } = contactForm
     const done = () => {
       setContactForm(f => ({ ...f, message: '' }))
-      notify(topic === 'safety' ? 'Thanks. The safety team has your message and will reply by email within 72 hours.' : 'Thanks, your message is with the team. We will reply by email.')
+      confirmSent('Message sent', topic === 'safety' ? 'Thank you. The safety team has your message and will reply by email within 72 hours.' : 'Thank you. Your message is with the team, and we’ll reply by email.')
     }
     if (website) return done() // only bots fill in the hidden field; tell them it worked and keep nothing
     const row = { name: name.trim(), email: email.trim(), topic, message: message.trim() }
@@ -861,6 +886,9 @@ export default function App() {
     done()
   }
   const copyCode = () => navigator.clipboard.writeText(myCode).then(() => notify('Referral code copied.')).catch(() => notify(`Your referral code is ${myCode}`))
+  const copyLink = () => navigator.clipboard.writeText(inviteLink(myCode)).then(() => notify('Invite link copied.')).catch(() => notify(`Your invite link is ${inviteLink(myCode)}`))
+  const inviteText = () => `Hi! I’d like to invite you to ${SITE_NAME}, a free job noticeboard for church communities in the UAE. Join with my invite link: ${inviteLink(myCode)} (my code is ${myCode}). A moderator will check with me before approving you.`
+  const shareWhatsApp = () => window.open(`https://wa.me/?text=${encodeURIComponent(inviteText())}`, '_blank', 'noopener,noreferrer')
 
   // Pastoral care: a member asks a carer at their church; it never touches jobs, vouches or interest
   const askForCare = e => {
@@ -868,7 +896,7 @@ export default function App() {
     if (supabase && needsSignIn()) return
     const { church, name, kind, note, shareWith } = careForm
     const row = { church_id: church, display_name: (name || account.name).trim(), kind, note: note.trim() || null, may_contact: true, share_with: shareWith }
-    const done = () => { setCareForm(EMPTY_CARE); notify(shareWith === 'other_church' ? 'Sent to pastoral carers at other partner churches. Your own church won’t be told.' : `Sent to a pastoral carer at ${churchName(church)}. Only they will see it.`) }
+    const done = () => { setCareForm(EMPTY_CARE); confirmSent('Request sent', shareWith === 'other_church' ? 'Sent to pastoral carers at other partner churches. Your own church won’t be told.' : `Sent to a pastoral carer at ${churchName(church)}. Only they will see it.`) }
     const already = 'You already have a request open. Delete it first if you want to send a new one.'
     if (supabase) return api.requestPastoral(row).then(() => { refresh(); done() }).catch(err => notify(/one_open_pastoral_request/.test(err.message) ? already : err.message))
     if (myCare.some(r => r.status !== 'closed')) return notify(already)
@@ -926,7 +954,7 @@ export default function App() {
       const row = { role: appRole, church_id: listed ? listed.id : null, church_suggestion_id: suggestion?.id || null, display_name: name.trim() || account.name, note: note.trim(), phone: phone.trim(),
         ...(appRole === 'volunteer' ? { organisation: organisation.trim(), qualification: qualification.trim() } : { pastor_name: pastor.trim() }) }
       const already = 'You already have an application for this role waiting for review.'
-      const done = () => { setApplyForm(EMPTY_APPLY); notify(appRole === 'pastoral_carer'
+      const done = () => { setApplyForm(EMPTY_APPLY); confirmSent('Application sent', appRole === 'pastoral_carer'
         ? `Application sent. ${listed.name}’s church admin will confirm you serve there, then an admin will contact you for a short check.`
         : `Application sent. An admin will contact you for a short check before approving you as ${ROLE_LABELS[appRole]}${suggestion ? `, and add ${suggestion.name} as a partner church` : ''}.`) }
       if (supabase) return api.apply(row).then(() => { refresh(); done() }).catch(err => notify(/one_open_application/.test(err.message) ? already : err.message))
@@ -1238,6 +1266,22 @@ export default function App() {
               </button>
             ))}
           </nav>
+        )}
+
+        {showQr && myCode && (
+          <Modal title="Your invite QR code" onClose={() => setShowQr(false)}>
+            <InviteQr link={inviteLink(myCode)} code={myCode}/>
+          </Modal>
+        )}
+
+        {sentNote && (
+          <Modal title={sentNote.title} onClose={() => setSentNote(null)}>
+            <div className="sent-note" role="status">
+              <CheckCircle2 size={40} aria-hidden="true"/>
+              <p>{sentNote.message}</p>
+              <button type="button" className="primary-button full" onClick={() => setSentNote(null)}>OK</button>
+            </div>
+          </Modal>
         )}
 
         {banner && (
@@ -2386,7 +2430,12 @@ export default function App() {
                     <strong className="referral-code">{myCode}</strong>
                     <small>Give it only to people you know. You’ll be shown as the person who invited them.</small>
                   </div>
-                  <button type="button" className="secondary-button" onClick={copyCode}><Copy size={15}/> Copy</button>
+                  <div className="invite-actions" aria-label="Share your invite">
+                    <button type="button" className="secondary-button" onClick={copyCode}><Copy size={15}/> Copy code</button>
+                    <button type="button" className="secondary-button" onClick={copyLink}><Link2 size={15}/> Copy link</button>
+                    <button type="button" className="secondary-button whatsapp" onClick={shareWhatsApp}><MessageCircle size={15}/> WhatsApp</button>
+                    <button type="button" className="secondary-button" onClick={() => setShowQr(true)}><QrCode size={15}/> QR code</button>
+                  </div>
                 </div>
               )}
 
@@ -2958,6 +3007,54 @@ function TwoStepDialog({ factorId, onDone, onClose, onError }) {
       </form>
       {!factorId && <p className="sign-in-note">Lost your phone later? Ask the {SITE_NAME} super admin to reset it, then set it up again.</p>}
     </Modal>
+  )
+}
+
+// QR for the invite link in EphWorks colours, drawn on this device from the library's grid (the library
+// loads only when opened; nothing goes to a QR service). Highest error correction, so the logo in the
+// middle doesn't stop it scanning. Gold stays off the scannable parts: it's too light for phone cameras.
+const QR_INK = '#063448', QR_EYE = '#086d96'
+const brandQrSvg = (qr, logo) => {
+  const n = qr.getModuleCount(), m = 3, size = n + m * 2
+  const eyes = [[0, 0], [0, n - 7], [n - 7, 0]]
+  const inEye = (r, c) => eyes.some(([er, ec]) => r >= er && r < er + 7 && c >= ec && c < ec + 7)
+  const hole = Math.ceil(n * 0.22) | 1, h0 = (n - hole) / 2 // square left clear for the logo
+  const inHole = (r, c) => r >= h0 - 0.5 && r < h0 + hole + 0.5 && c >= h0 - 0.5 && c < h0 + hole + 0.5
+  let dots = ''
+  for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) {
+    if (qr.isDark(r, c) && !inEye(r, c) && !inHole(r, c)) dots += `<rect x="${c + m}" y="${r + m}" width="1.02" height="1.02" rx="0.22"/>`
+  }
+  const eye = ([r, c]) => `<rect x="${c + m + 0.5}" y="${r + m + 0.5}" width="6" height="6" rx="1.6" fill="none" stroke="${QR_EYE}" stroke-width="1"/>`
+    + `<rect x="${c + m + 2}" y="${r + m + 2}" width="3" height="3" rx="0.8" fill="${QR_INK}"/>`
+  const lx = h0 + m, pad = 0.6
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${size} ${size}" shape-rendering="geometricPrecision">`
+    + `<rect width="${size}" height="${size}" rx="2" fill="#ffffff"/>`
+    + `<g fill="${QR_INK}">${dots}</g>${eyes.map(eye).join('')}`
+    + `<rect x="${lx - pad}" y="${lx - pad}" width="${hole + pad * 2}" height="${hole + pad * 2}" rx="1.4" fill="#ffffff" stroke="#c7a54c" stroke-width="0.25"/>`
+    + `<image href="${logo}" x="${lx + 0.3}" y="${lx + 0.3}" width="${hole - 0.6}" height="${hole - 0.6}"/>`
+    + `</svg>`
+}
+function InviteQr({ link, code }) {
+  const [svg, setSvg] = useState('')
+  useEffect(() => {
+    let live = true
+    import('qrcode-generator').then(mod => {
+      const qr = (mod.default || mod)(0, 'H')
+      qr.addData(link); qr.make()
+      if (live) setSvg(brandQrSvg(qr, '/logo.svg'))
+    })
+    return () => { live = false }
+  }, [link])
+  return (
+    <div className="invite-qr">
+      <div className="invite-qr-card">
+        <div className="invite-qr-brand"><img src="/logo.svg" alt="" width="28" height="28"/><span>{SITE_NAME}</span></div>
+        {svg ? <div className="invite-qr-code" role="img" aria-label={`QR code for the invite link with code ${code}`} dangerouslySetInnerHTML={{ __html: svg }}/> : <div className="invite-qr-code"><p>Drawing the code…</p></div>}
+        <p className="invite-qr-label">Scan to join</p>
+        <strong className="invite-qr-ref">{code}</strong>
+      </div>
+      <p>Let the person you’re inviting scan this with their phone camera. It opens {SITE_NAME} with your code filled in.</p>
+    </div>
   )
 }
 

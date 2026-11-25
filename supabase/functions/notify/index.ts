@@ -4,7 +4,8 @@
 //   reports (insert) · support_requests (insert, update) · pastoral_requests (insert, update)
 //   contact_messages (insert) · church_suggestions (insert)
 // Stays switched off, and does nothing, until RESEND_API_KEY and EMAIL_FROM are set as function secrets.
-// SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are provided by Supabase inside the function; they never reach the browser.
+// SUPABASE_URL and the service key (SUPABASE_SECRET_KEYS, or the legacy SUPABASE_SERVICE_ROLE_KEY) are provided by Supabase
+// inside the function; they never reach the browser.
 // Pastoral-care emails never include what the member wrote: only that a request is waiting or has been taken.
 
 const env = (name: string) => Deno.env.get(name) ?? ''
@@ -13,11 +14,31 @@ const NAME = 'EphWorks'
 type Row = Record<string, any>
 
 // ---------- Look-ups (service role, so row-level security does not apply) ----------
-const auth = () => ({ apikey: env('SUPABASE_SERVICE_ROLE_KEY'), Authorization: `Bearer ${env('SUPABASE_SERVICE_ROLE_KEY')}` })
-const rest = (path: string) => fetch(`${env('SUPABASE_URL')}/rest/v1/${path}`, { headers: auth() }).then(r => r.ok ? r.json() : [])
+// Supabase now hands functions the new secret keys (SUPABASE_SECRET_KEYS, a JSON map); the legacy
+// SUPABASE_SERVICE_ROLE_KEY is deprecated and may be switched off. Prefer the new key, fall back to the old.
+const serviceKey = (): string => {
+  try {
+    const keys = JSON.parse(env('SUPABASE_SECRET_KEYS') || '{}')
+    const key = keys.default ?? Object.values(keys)[0]
+    if (typeof key === 'string' && key) return key
+  } catch { /* not set or not JSON: use the legacy key */ }
+  return env('SUPABASE_SERVICE_ROLE_KEY')
+}
+// A new sb_secret_ key goes in the apikey header only; a legacy JWT key also goes in Authorization
+const keyHeaders = (): Record<string, string> => {
+  const key = serviceKey()
+  return key.startsWith('sb_') ? { apikey: key } : { apikey: key, Authorization: `Bearer ${key}` }
+}
+const auth = keyHeaders
+// Which key is in use, for the logs only: never the key itself
+const keyKind = () => { const k = serviceKey(); return !k ? 'no' : k.startsWith('sb_secret_') ? 'new secret' : k.startsWith('sb_') ? 'new non-secret' : 'legacy' }
+// A failed look-up shows in the function's Logs instead of silently emailing nobody
+const rest = (path: string) => fetch(`${env('SUPABASE_URL')}/rest/v1/${path}`, { headers: auth() })
+  .then(async r => r.ok ? r.json() : (console.error(`look-up failed: ${path.split('?')[0]} ${r.status} (${keyKind()} key): ${(await r.text()).slice(0, 200)}`), []))
 const person = async (id?: string | null): Promise<{ email: string, name: string } | null> => {
   if (!id) return null
-  const u = await fetch(`${env('SUPABASE_URL')}/auth/v1/admin/users/${id}`, { headers: auth() }).then(r => r.ok ? r.json() : null)
+  const u = await fetch(`${env('SUPABASE_URL')}/auth/v1/admin/users/${id}`, { headers: auth() })
+    .then(async r => r.ok ? r.json() : (console.error(`user look-up failed: ${r.status} (${keyKind()} key): ${(await r.text()).slice(0, 200)}`), null))
   return u?.email ? { email: u.email, name: u.user_metadata?.full_name || u.user_metadata?.name || 'there' } : null
 }
 // Approved, active staff in these roles; optionally only one church, or every church except one
@@ -66,7 +87,8 @@ const send = async (m: Mail) => {
     method: 'POST',
     headers: { Authorization: `Bearer ${env('RESEND_API_KEY')}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({ from: env('EMAIL_FROM'), to: m.to.email, subject: m.subject, text, html: html(m.title, paras, m.button, m.note) })
-  }).then(r => r.ok, () => false)
+  }).then(async r => r.ok || (console.error(`Resend refused (${r.status}): ${(await r.text()).slice(0, 200)}`), false),
+    e => (console.error(`Resend unreachable: ${e}`), false))
 }
 
 // ---------- What each change means, and who hears about it ----------
@@ -259,7 +281,9 @@ const handlers: Record<string, (type: string, rec: Row, old: Row | null) => Prom
 
 Deno.serve(async req => {
   // Only the database webhooks know this secret (set it as a custom header on each webhook)
-  if (!env('WEBHOOK_SECRET') || req.headers.get('x-webhook-secret') !== env('WEBHOOK_SECRET')) {
+  // Trimmed on both sides: a space or line break pasted with the secret must not lock every email out
+  const secret = env('WEBHOOK_SECRET').trim()
+  if (!secret || (req.headers.get('x-webhook-secret') ?? '').trim() !== secret) {
     return new Response('Forbidden', { status: 403 })
   }
   const { type, table, record, old_record } = await req.json()
@@ -268,5 +292,6 @@ Deno.serve(async req => {
   if (!env('RESEND_API_KEY') || !env('EMAIL_FROM')) return Response.json({ sent: 0, reason: 'email is not set up yet' })
   const mails = (await handle(type, record, old_record ?? null)).filter(m => m.to)
   const results = await Promise.all(mails.map(send))
-  return Response.json({ sent: results.filter(Boolean).length, failed: results.filter(r => !r).length })
+  // recipients: how many people this change should reach; 0 with sent 0 means nobody was found to email
+  return Response.json({ sent: results.filter(Boolean).length, failed: results.filter(r => !r).length, recipients: mails.length })
 })
