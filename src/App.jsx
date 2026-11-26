@@ -352,8 +352,11 @@ export default function App() {
 
   // Joining: who is waiting (moderators and admins), and everyone who joined with who invited and who decided (admins)
   const demoMember = id => demo.members.find(m => m.id === id)
-  const pendingMembers = supabase ? server.pendingMembers : demo.members.filter(m => m.status === 'pending')
-    .map(m => ({ id: m.id, name: m.name, email: m.email, invited_by: demoMember(m.referred_by)?.name, invited_by_email: demoMember(m.referred_by)?.email, joined: m.joined }))
+  // The live list also holds declined people (20261126 migration), so they can be looked at again
+  const memberRequests = supabase ? server.pendingMembers : demo.members.filter(m => m.status === 'pending' || (m.status === 'declined' && !m.suspended))
+    .map(m => ({ id: m.id, name: m.name, email: m.email, invited_by: demoMember(m.referred_by)?.name, invited_by_email: demoMember(m.referred_by)?.email, joined: m.joined, status: m.status, decided_by: demoMember(m.decided_by)?.name, decided_at: m.decided_at }))
+  const pendingMembers = memberRequests.filter(m => m.status !== 'declined')
+  const declinedMembers = memberRequests.filter(m => m.status === 'declined')
   const joinedMembers = supabase ? server.joinedMembers : demo.members.filter(m => m.role !== 'super_admin' || m.id === DEMO_ME)
     .map(m => ({ id: m.id, name: m.name, email: m.email, status: m.status, invited_by: demoMember(m.referred_by)?.name, decided_by: demoMember(m.decided_by)?.name, decided_by_role: demoMember(m.decided_by)?.role, joined: m.joined }))
   const myCode = supabase ? profile.referral_code : demoMember(DEMO_ME)?.referral_code
@@ -879,6 +882,13 @@ export default function App() {
   }
 
   // Joining: approving gives the newcomer their own referral code
+  const reopenMember = m => {
+    const done = () => notify(`${m.name}'s request is open again. Once they enter a member's referral code, approve them at the top of this page.`)
+    if (supabase) return api.reopenMember(m.id).then(() => { refresh(); done() }).catch(fail)
+    updateDemo({ members: demo.members.map(x => x.id === m.id ? { ...x, status: 'pending', decided_by: DEMO_ME, decided_at: new Date().toISOString() } : x) })
+    done()
+  }
+
   const decideMember = (m, approve) => {
     const done = () => notify(approve ? `${m.name} is approved and can now take part. They get their own referral code.` : `${m.name}'s request to join was declined.`)
     if (supabase) return api.decideMember(m.id, approve).then(() => { refresh(); done() }).catch(fail)
@@ -1866,6 +1876,29 @@ export default function App() {
               ))}
             </div>
           ) : <Empty icon={UserPlus} title="Nobody waiting" description="When someone signs up with a referral code, they appear here for you to approve."/>}
+          {declinedMembers.length > 0 && (
+            <details className="decided-requests">
+              <summary>Declined ({declinedMembers.length})</summary>
+              <div className="review-list">
+                {declinedMembers.map(m => (
+                  <QueueCard
+                    key={m.id}
+                    avatar={<div className="company-icon rose">{m.name.split(/\s+/).slice(0, 2).map(w => w[0]?.toUpperCase()).join('')}</div>}
+                    title={m.name}
+                    status="Declined"
+                    tone="bad"
+                    sub={[m.email, m.phone, m.decided_at && `Declined ${new Date(m.decided_at).toLocaleDateString()}${m.decided_by ? ` by ${m.decided_by}` : ''}`].filter(Boolean).join(' · ')}
+                    note={m.invited_by && `Invited by ${m.invited_by}${m.invited_by_email ? ` (${m.invited_by_email})` : ''}`}
+                    footNote={!m.invited_by && <><LockKeyhole size={15}/> No referral code yet. Reopen the request so they can enter one, then approve them.</>}
+                  >
+                    {m.invited_by
+                      ? <button type="button" className="approve-small" onClick={() => decideMember(m, true)}><Check size={15}/> Approve</button>
+                      : <button type="button" className="approve-small" onClick={() => reopenMember(m)}><RotateCcw size={15}/> Reopen request</button>}
+                  </QueueCard>
+                ))}
+              </div>
+            </details>
+          )}
           {isAdmin && <>
             <div className="spacer-24"/>
             <SectionTitle title="Everyone who joined" subtitle="Who invited each member, and which moderator or admin let them in"/>

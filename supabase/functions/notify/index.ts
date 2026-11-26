@@ -112,7 +112,7 @@ const handlers: Record<string, (type: string, rec: Row, old: Row | null) => Prom
         `<b>${name}</b> has joined with a referral code and is waiting for approval.`,
         'Please check with the member who invited them before approving.'], ['Review new members', '/work/joining'])))
     }
-    if (type === 'UPDATE' && old?.status === 'pending' && rec.status === 'approved') {
+    if (type === 'UPDATE' && old?.status !== 'approved' && rec.status === 'approved') {
       out.push(mail(await person(rec.id), `Your ${NAME} account is approved`, [
         `A moderator has approved your ${NAME} account. You can now save jobs, mark your interest, apply to employers, post jobs, and ask for career support or pastoral care.`,
         `Your own referral code is <b style="color:#111c2d">${esc(rec.referral_code)}</b>. Give it only to people you know: you will be shown as the person who invited them.`],

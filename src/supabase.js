@@ -120,6 +120,7 @@ export const api = {
   useReferralCode: code => run(supabase.rpc('use_referral_code', { code })),
   pendingMembers: () => run(supabase.rpc('pending_members')),
   decideMember: (target, approve) => run(supabase.rpc('decide_member', { target, approve })),
+  reopenMember: target => run(supabase.rpc('reopen_member', { target })),
   joinedMembers: () => run(supabase.rpc('joined_members')),
   // Members change only their own details and job preferences (see 20261103 migration)
   updateProfile: f => run(supabase.rpc('update_my_profile', { new_name: f.display_name, new_phone: f.phone, new_emirates: f.emirates, new_work_types: f.work_types,
