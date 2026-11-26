@@ -314,6 +314,10 @@ button:active:not(:disabled){transform:translateY(1px)}
 .status-chip.ok{background:var(--success-50);color:var(--success)}
 .status-chip.pending{background:var(--warn-50);color:var(--warn-text)}
 .status-chip.bad{background:var(--danger-50);color:var(--danger-text)}
+.chip-select{position:relative;cursor:pointer;padding-right:8px}
+.chip-select select{field-sizing:content;appearance:none;border:0;background:transparent;color:inherit;font:inherit;cursor:pointer;padding:4px 18px 4px 0;margin-right:-18px}
+.chip-select select:focus-visible{outline:2px solid currentColor;outline-offset:2px;border-radius:4px}
+.chip-select svg{pointer-events:none}
 @container main (max-width:640px){
   .job-card,.queue-card{grid-template-columns:40px minmax(0,1fr);padding:16px}
   .job-card .company-icon,.queue-card>.company-icon,.queue-card>.feature-icon{width:40px;height:40px;font-size:13px}

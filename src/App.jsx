@@ -1911,7 +1911,17 @@ export default function App() {
                       <td><strong>{m.name}</strong><small>{m.email}</small></td>
                       <td>{m.invited_by || <span className="muted">{m.status === 'approved' ? 'Before referral codes' : 'No code given'}</span>}</td>
                       <td>{m.decided_by ? <>{m.decided_by}<small>{ROLE_LABELS[m.decided_by_role]}</small></> : <span className="muted">—</span>}</td>
-                      <td><span className={`status-chip ${m.status === 'approved' ? 'ok' : m.status === 'declined' ? 'bad' : 'pending'}`}>{APP_STATUS[m.status]}</span></td>
+                      <td>{m.status === 'declined' && m.id !== myId ? (
+                        <label className="status-chip bad chip-select">
+                          <select name="reconsider" aria-label={`Reconsider ${m.name}`} value="declined"
+                            onChange={e => e.target.value === 'approve' ? decideMember(m, true) : reopenMember(m)}>
+                            <option value="declined">Declined</option>
+                            <option value="approve" disabled={!m.invited_by}>{m.invited_by ? 'Approve' : 'Approve (no invite code yet)'}</option>
+                            <option value="reopen">Reopen request</option>
+                          </select>
+                          <ChevronDown size={14} aria-hidden="true"/>
+                        </label>
+                      ) : <span className={`status-chip ${m.status === 'approved' ? 'ok' : m.status === 'declined' ? 'bad' : 'pending'}`}>{APP_STATUS[m.status]}</span>}</td>
                       <td>{new Date(m.joined).toLocaleDateString()}</td>
                     </tr>
                   ))}
